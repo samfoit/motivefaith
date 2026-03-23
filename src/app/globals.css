@@ -1,26 +1,252 @@
+@import "../styles/tokens.css";
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-bg-primary: var(--color-bg-primary);
+  --color-bg-secondary: var(--color-bg-secondary);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-brand: var(--color-brand);
+  --color-brand-light: var(--color-brand-light);
+  --color-brand-hover: var(--color-brand-hover);
+  --color-success: var(--color-success);
+  --color-streak: var(--color-streak);
+  --color-miss: var(--color-miss);
+  --color-encourage: var(--color-encourage);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
 }
+
+/* ── DayView CSS animations (replaces motion/react on critical path) ── */
+
+@keyframes dv-fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dv-progress-bar {
+  from { transform: scaleX(0); }
+}
+
+@keyframes dv-fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dv-stagger-container > * {
+  animation: dv-fade-in-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Stagger delay per child — CSS counter would be ideal but
+   nth-child is zero-overhead and covers realistic habit counts. */
+.dv-stagger-container > :nth-child(1) { animation-delay: 0ms; }
+.dv-stagger-container > :nth-child(2) { animation-delay: 50ms; }
+.dv-stagger-container > :nth-child(3) { animation-delay: 100ms; }
+.dv-stagger-container > :nth-child(4) { animation-delay: 150ms; }
+.dv-stagger-container > :nth-child(5) { animation-delay: 200ms; }
+.dv-stagger-container > :nth-child(6) { animation-delay: 250ms; }
+.dv-stagger-container > :nth-child(7) { animation-delay: 300ms; }
+.dv-stagger-container > :nth-child(8) { animation-delay: 350ms; }
+.dv-stagger-container > :nth-child(9) { animation-delay: 400ms; }
+.dv-stagger-container > :nth-child(10) { animation-delay: 450ms; }
+.dv-stagger-container > :nth-child(n+11) { animation-delay: 500ms; }
+
+.dv-progress-bar {
+  transform-origin: left;
+  animation: dv-progress-bar 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dv-all-done {
+  animation: dv-fade-in 0.3s ease 0.3s both;
+}
+
+.dv-streak-btn {
+  transition: transform 0.15s ease;
+}
+.dv-streak-btn:hover { transform: scale(1.03); }
+.dv-streak-btn:active { transform: scale(0.97); }
+
+/* ── MonthView CSS animation (replaces motion/react for day-switch) ── */
+
+@keyframes mv-day-switch {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.mv-day-list {
+  animation: mv-day-switch 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Auth card entrance animation (replaces motion/react on auth pages) ── */
+
+@keyframes auth-card-enter {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.auth-card-enter {
+  animation: auth-card-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Skeleton shimmer keyframes (SSR fallback; also injected at runtime by Skeleton component) */
+@keyframes motive-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Streak celebration particle keyframes (moved from inline <style> in StreakCelebration) */
+@keyframes streak-particle {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(var(--end-x), var(--end-y), 0) scale(0);
+    opacity: 0;
+  }
+}
+@keyframes streak-container-fade {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── Landing page CSS animations (replaces motion/react) ── */
+
+@keyframes landing-fade-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-fade-up-sm {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-slide-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes landing-scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes landing-pop {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
+
+@keyframes landing-dot-pop {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
+
+@keyframes landing-encourage-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-fact-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-fact-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-12px); }
+}
+
+.landing-hero-text {
+  animation: landing-fade-up 0.6s var(--ease-out) both;
+}
+
+.landing-hero-mockup {
+  animation: landing-scale-in 0.7s var(--ease-out) 0.2s both;
+}
+
+.landing-checkmark {
+  animation: landing-pop 0.5s var(--ease-bounce) 1s both;
+}
+
+.landing-dot {
+  animation: landing-dot-pop 0.4s var(--ease-bounce) both;
+}
+
+.landing-encourage {
+  animation: landing-encourage-in 0.5s var(--ease-out) 1.8s both;
+}
+
+.landing-section-header {
+  animation: landing-fade-up-sm 0.5s var(--ease-out) both;
+}
+
+.landing-feature-card {
+  animation: landing-fade-up-sm 0.5s var(--ease-out) both;
+}
+
+.landing-step {
+  animation: landing-slide-left 0.5s var(--ease-out) both;
+}
+
+.landing-cta {
+  animation: landing-fade-up-sm 0.5s var(--ease-out) both;
+}
+
+/* Intersection Observer trigger class — elements start hidden, animate when visible */
+.landing-animate-on-scroll {
+  opacity: 0;
+}
+.landing-animate-on-scroll.is-visible {
+  animation-play-state: running;
+}
+
+/* ── CompletionForm CSS animations (replaces motion/react) ── */
+
+@keyframes cf-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes cf-slide-in {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.cf-fade-in {
+  animation: cf-fade-in 0.15s ease both;
+}
+
+.cf-slide-in {
+  animation: cf-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Friends list CSS stagger animation (replaces motion/react) ── */
+
+@keyframes fr-fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fr-stagger-container > * {
+  animation: fr-fade-in-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.fr-stagger-container > :nth-child(1) { animation-delay: 0ms; }
+.fr-stagger-container > :nth-child(2) { animation-delay: 40ms; }
+.fr-stagger-container > :nth-child(3) { animation-delay: 80ms; }
+.fr-stagger-container > :nth-child(4) { animation-delay: 120ms; }
+.fr-stagger-container > :nth-child(5) { animation-delay: 160ms; }
+.fr-stagger-container > :nth-child(6) { animation-delay: 200ms; }
+.fr-stagger-container > :nth-child(7) { animation-delay: 240ms; }
+.fr-stagger-container > :nth-child(8) { animation-delay: 280ms; }
+.fr-stagger-container > :nth-child(9) { animation-delay: 320ms; }
+.fr-stagger-container > :nth-child(10) { animation-delay: 360ms; }
+.fr-stagger-container > :nth-child(n+11) { animation-delay: 400ms; }

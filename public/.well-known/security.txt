@@ -1,0 +1,7 @@
+# Security Policy for MotiveFaith
+# https://securitytxt.org/ — RFC 9116
+
+Contact: mailto:security@samfoit.com
+Preferred-Languages: en
+Canonical: https://getmotivefaith.app/.well-known/security.txt
+Expires: 2027-03-05T00:00:00.000Z
