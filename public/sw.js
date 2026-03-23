@@ -2,7 +2,7 @@
 
 // Auto-generated at build time — no manual bump needed.
 // 3b27SkVEhDO29tSKQZzwy is replaced by the build script; falls back to timestamp.
-var CACHE_VERSION = "__BUILD_ID__";
+var CACHE_VERSION = "U0tjyUVd2loiNjINbzybo";
 if (CACHE_VERSION === "__BUILD_" + "ID__") {
   // Fallback: not replaced by build script — use a timestamp so each
   // new SW file evaluation gets a unique cache name.

@@ -100,7 +100,7 @@ export default function CompleteProfilePage() {
       p_display_name: displayName,
       p_username: username.toLowerCase(),
       p_date_of_birth: dateOfBirth,
-      p_avatar_url: avatarUrl,
+      p_avatar_url: avatarUrl ?? undefined,
     });
 
     if (error) {

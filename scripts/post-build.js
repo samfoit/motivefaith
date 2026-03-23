@@ -7,7 +7,11 @@
  */
 
 import { readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const SW_PATH = join(__dirname, "..", "public", "sw.js");
 const BUILD_ID_PATH = join(__dirname, "..", ".next", "BUILD_ID");

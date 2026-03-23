@@ -739,6 +739,15 @@ export type Database = {
         Args: { c_id: string }
         Returns: boolean
       }
+      complete_oauth_profile: {
+        Args: {
+          p_display_name: string
+          p_username: string
+          p_date_of_birth: string
+          p_avatar_url?: string
+        }
+        Returns: undefined
+      }
       get_feed_friends: {
         Args: { p_user_id: string }
         Returns: {
