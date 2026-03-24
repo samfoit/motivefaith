@@ -159,7 +159,7 @@ export function WizardClient({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="min-h-screen">
       <div className="max-w-lg mx-auto px-4 pt-6">
         {/* Header */}
         <div className="flex items-center gap-3 mb-2">

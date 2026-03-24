@@ -32,6 +32,7 @@ export default function SignupPage() {
   const [tosAccepted, setTosAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [emailSent, setEmailSent] = useState(false);
   const { captchaToken, handleToken: handleCaptchaToken, handleExpire: handleCaptchaExpire } = useCaptcha();
 
   async function handleSignup(e: React.FormEvent) {
@@ -85,7 +86,7 @@ export default function SignupPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -104,6 +105,13 @@ export default function SignupPage() {
       return;
     }
 
+    // If email confirmation is required, session will be null
+    if (!data.session) {
+      setEmailSent(true);
+      setLoading(false);
+      return;
+    }
+
     router.push("/auth/onboarding");
     router.refresh();
   }
@@ -113,6 +121,29 @@ export default function SignupPage() {
       <MobileFactBanner />
 
       <div className="w-full max-w-sm shrink-0 auth-card-enter">
+        {emailSent ? (
+          <div className="bg-bg-elevated rounded-lg shadow-md p-8 text-center">
+            <div className="text-4xl mb-4">📬</div>
+            <h1 className="font-display text-2xl font-bold mb-2">
+              Check your email
+            </h1>
+            <p className="text-sm text-[var(--color-text-secondary)] mb-6">
+              We sent a confirmation link to{" "}
+              <span className="font-medium text-[var(--color-text-primary)]">{email}</span>.
+              Click the link to activate your account.
+            </p>
+            <p className="text-xs text-[var(--color-text-secondary)]">
+              Didn&apos;t get it? Check your spam folder or{" "}
+              <button
+                type="button"
+                onClick={() => setEmailSent(false)}
+                className="text-brand font-medium hover:text-brand-hover underline"
+              >
+                try again
+              </button>
+            </p>
+          </div>
+        ) : (
         <div className="bg-bg-elevated rounded-lg shadow-md p-8">
           <h1 className="font-display text-2xl font-bold text-center mb-2">
             Create Account
@@ -223,6 +254,7 @@ export default function SignupPage() {
             </Link>
           </p>
         </div>
+        )}
       </div>
 
       <DesktopFactsPanel />

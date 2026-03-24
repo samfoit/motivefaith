@@ -2,7 +2,8 @@
 -- 001_schema.sql — Extensions, enums, tables, indexes
 -- ============================================================
 
-CREATE EXTENSION IF NOT EXISTS pgaudit;
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgaudit SCHEMA extensions;
 
 -- ── Enums ──
 
@@ -22,6 +23,7 @@ CREATE TYPE report_status AS ENUM ('pending', 'reviewed', 'actioned', 'dismissed
 CREATE OR REPLACE FUNCTION public.is_valid_schedule(schedule jsonb)
 RETURNS boolean
 LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   elem text;
