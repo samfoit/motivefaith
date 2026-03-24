@@ -10,7 +10,7 @@ import withBundleAnalyzer from "@next/bundle-analyzer";
  * Then update both this constant and verify the CSP still blocks
  * any other inline scripts.
  */
-const THEME_SCRIPT_HASH = "sha256-eOtwW5Dks9JFUD1dNEziJeMrp2aX4mdllhPBdODtHFs=";
+const THEME_SCRIPT_HASH = "sha256-1UqXuCYkuQsrbl9xmaTZQlPIyOW9nIWl7pVXp4riiXU=";
 
 const supabaseHostname = (() => {
   try {
