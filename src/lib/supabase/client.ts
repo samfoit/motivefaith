@@ -1,16 +1,10 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "./types";
 
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing ${name} environment variable`);
-  }
-  return value;
-}
-
-const supabaseUrl = requiredEnv("NEXT_PUBLIC_SUPABASE_URL");
-const supabaseAnonKey = requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+// Access NEXT_PUBLIC_* vars with dot notation so Turbopack/webpack
+// can statically inline them into the client bundle.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 let cached: ReturnType<typeof createBrowserClient<Database>> | null = null;
 

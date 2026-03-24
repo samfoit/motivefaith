@@ -1,8 +1,56 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+function buildCsp(nonce: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL)
+    : null;
+  const supabaseHost = supabaseUrl?.host ?? "*.supabase.co";
+  const supabaseIsSecure = supabaseUrl
+    ? supabaseUrl.protocol === "https:"
+    : true;
+  const httpProto = supabaseIsSecure ? "https:" : "http:";
+  const wsProto = supabaseIsSecure ? "wss:" : "ws:";
+
+  const isDev =
+    process.env.NODE_ENV === "development" &&
+    process.env.VERCEL_ENV === undefined;
+
+  const cspReportUrl = process.env.CSP_REPORT_URL;
+
+  return [
+    "default-src 'self'",
+    isDev
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com"
+      : `script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com`,
+    // style-src 'unsafe-inline' is required by Radix UI primitives and
+    // motion (Framer Motion) which inject inline styles for positioning
+    // and animations. Revisit when Radix UI supports CSP nonces for styles.
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    `connect-src 'self' ${httpProto}//${supabaseHost} ${wsProto}//${supabaseHost}`,
+    "font-src 'self' https://fonts.gstatic.com",
+    `img-src 'self' data: blob: ${httpProto}//${supabaseHost}`,
+    `media-src 'self' blob: ${httpProto}//${supabaseHost}`,
+    "frame-src https://challenges.cloudflare.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    ...(isDev ? [] : ["upgrade-insecure-requests"]),
+    ...(cspReportUrl
+      ? [`report-uri ${cspReportUrl}`, `report-to csp-endpoint`]
+      : []),
+  ].join("; ");
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = buildCsp(nonce);
+
+  // Set nonce on request headers BEFORE any NextResponse.next() call
+  // so every response (including Supabase setAll recreations) includes it.
+  request.headers.set("x-nonce", nonce);
 
   // Fast-path: skip Supabase session refresh for public routes
   if (
@@ -10,7 +58,9 @@ export async function proxy(request: NextRequest) {
     pathname === "/manifest.webmanifest" ||
     pathname.startsWith("/legal/")
   ) {
-    return NextResponse.next({ request });
+    const response = NextResponse.next({ request });
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
   }
 
   let supabaseResponse = NextResponse.next({ request });
@@ -67,6 +117,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  supabaseResponse.headers.set("Content-Security-Policy", csp);
   return supabaseResponse;
 }
 
