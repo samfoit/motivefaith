@@ -93,7 +93,7 @@ async function FriendsData({ userId }: { userId: string }) {
 
 function FriendsSkeleton() {
   return (
-    <div className="min-h-screen pb-24">
+    <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         <Skeleton variant="text" width={120} height={32} />
         <Skeleton variant="rect" width="100%" height={44} className="rounded-lg" />

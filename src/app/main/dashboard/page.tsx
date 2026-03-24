@@ -117,7 +117,7 @@ export default async function DashboardPage() {
   }).format(new Date());
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         {/* Greeting streams immediately */}
         <div className="flex items-center justify-between">

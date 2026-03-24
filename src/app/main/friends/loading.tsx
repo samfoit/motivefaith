@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function FriendsLoading() {
   return (
-    <div className="min-h-screen pb-24">
+    <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
         <div className="flex items-center justify-between">
           <Skeleton variant="text" width="30%" height={32} />

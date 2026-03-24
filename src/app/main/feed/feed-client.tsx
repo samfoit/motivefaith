@@ -196,7 +196,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
         : groups.length;
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">

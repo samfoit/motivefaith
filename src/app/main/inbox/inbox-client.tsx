@@ -61,7 +61,7 @@ export function InboxClient({
   const visible = missedHabits.filter((n) => !dismissed.has(n.habitId));
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         {/* Header */}
         <h1

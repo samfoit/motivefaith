@@ -183,9 +183,10 @@ CREATE TRIGGER trg_group_message_rate_limit
 CREATE OR REPLACE FUNCTION clean_old_invite_attempts()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
-  DELETE FROM invite_code_attempts
+  DELETE FROM public.invite_code_attempts
   WHERE attempted_at < now() - interval '1 hour';
   RETURN NEW;
 END;
@@ -199,9 +200,10 @@ CREATE TRIGGER trg_clean_invite_attempts
 CREATE OR REPLACE FUNCTION clean_old_feed_access_log()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
-  DELETE FROM feed_access_log
+  DELETE FROM public.feed_access_log
   WHERE accessed_at < now() - interval '1 hour';
   RETURN NEW;
 END;
@@ -215,9 +217,10 @@ CREATE TRIGGER trg_clean_feed_access_log
 CREATE OR REPLACE FUNCTION clean_old_profile_search_log()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
-  DELETE FROM profile_search_log
+  DELETE FROM public.profile_search_log
   WHERE searched_at < now() - interval '1 hour';
   RETURN NEW;
 END;
