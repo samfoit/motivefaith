@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Inter, DM_Sans, JetBrains_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
@@ -41,11 +42,13 @@ export const metadata: Metadata = {
   description: "Faith-driven accountability habit tracker",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") ?? "";
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -63,10 +66,10 @@ export default function RootLayout({
         {/*
           Theme-init script: prevents flash-of-wrong-theme on page load.
           This is a hardcoded string literal — no user input is interpolated.
-          Protected by CSP script-src via THEME_SCRIPT_HASH in next.config.ts.
-          If you change this script content you MUST update the hash constant.
+          Protected by CSP script-src via nonce generated in proxy.ts.
         */}
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem("motive-theme");var d=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme:dark)").matches);if(d)document.documentElement.setAttribute("data-theme","dark")}catch(e){}})()`,
           }}
