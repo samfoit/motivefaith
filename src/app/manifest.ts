@@ -5,6 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "MotiveFaith",
     short_name: "MotiveFaith",
     description: "Faith-driven accountability habit tracker",
+    id: "/main/dashboard",
     start_url: "/main/dashboard",
     display: "standalone",
     background_color: "#FAFAF9",

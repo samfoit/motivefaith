@@ -11,6 +11,11 @@ export function useServiceWorker() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
+    // Don't register the SW in development — its cache-first strategy for
+    // static assets serves stale Turbopack bundles on dev server restart,
+    // causing env-var and source-map errors until a hard refresh.
+    if (process.env.NODE_ENV === "development") return;
+
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {

@@ -20,6 +20,11 @@ const STATE_CONFIG: Record<
     label: "Not Supported",
     description: "Push notifications are not available on this device.",
   },
+  "requires-install": {
+    label: "Install Required",
+    description:
+      "Add MotiveFaith to your home screen to enable notifications.",
+  },
   denied: {
     label: "Blocked",
     description:
