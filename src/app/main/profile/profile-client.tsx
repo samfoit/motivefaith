@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NotificationToggle } from "@/components/social/NotificationToggle";
+import { NotificationPreferences } from "@/components/social/NotificationPreferences";
+import { usePushSubscription } from "@/lib/hooks/usePushSubscription";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/types";
 import { ALLOWED_IMAGE_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
@@ -65,6 +67,9 @@ export function ProfileClient({
       }
     });
   }, []);
+
+  // Push subscription state (for showing preferences when subscribed)
+  const { state: pushState } = usePushSubscription(userId);
 
   // Avatar state
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? null);
@@ -286,7 +291,14 @@ export function ProfileClient({
                 Notifications
               </h2>
             </div>
-            <NotificationToggle userId={userId} />
+            <div className="space-y-3">
+              <NotificationToggle userId={userId} />
+              {pushState === "subscribed" && (
+                <NotificationPreferences
+                  notificationPrefs={profile?.notification_prefs ?? null}
+                />
+              )}
+            </div>
           </section>
 
           {/* Security — MFA */}

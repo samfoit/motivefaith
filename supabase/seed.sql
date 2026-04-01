@@ -166,6 +166,7 @@ INSERT INTO auth.identities (
 -- Alice: avatar, push subscription, custom quiet hours, EST timezone
 UPDATE profiles SET
   avatar_url = 'https://api.dicebear.com/7.x/avataaars/svg?seed=alice',
+  date_of_birth = '1995-06-15',
   push_subscription = '{"endpoint":"https://fcm.googleapis.com/fcm/send/alice-token","keys":{"p256dh":"BNcRdreALRFXTkOhi8…","auth":"tBHItJI5…"}}',
   notification_prefs = '{"quiet_start":"23:00","quiet_end":"06:00","completion_alerts":true,"miss_alerts":true}',
   timezone = 'America/New_York'
@@ -174,6 +175,7 @@ WHERE id = 'a1111111-1111-1111-1111-111111111111';
 -- Bob: avatar, PST timezone (no push subscription)
 UPDATE profiles SET
   avatar_url = 'https://api.dicebear.com/7.x/avataaars/svg?seed=bob',
+  date_of_birth = '1998-03-22',
   timezone = 'America/Los_Angeles'
 WHERE id = 'b2222222-2222-2222-2222-222222222222';
 
@@ -182,6 +184,7 @@ WHERE id = 'b2222222-2222-2222-2222-222222222222';
 -- Diana: avatar, custom notif prefs (miss alerts off), CET timezone
 UPDATE profiles SET
   avatar_url = 'https://api.dicebear.com/7.x/avataaars/svg?seed=diana',
+  date_of_birth = '1992-11-08',
   notification_prefs = '{"quiet_start":"21:00","quiet_end":"08:00","completion_alerts":true,"miss_alerts":false}',
   timezone = 'Europe/Berlin'
 WHERE id = 'd4444444-4444-4444-4444-444444444444';
@@ -189,6 +192,7 @@ WHERE id = 'd4444444-4444-4444-4444-444444444444';
 -- Eve: avatar, push subscription, late-night quiet hours, CST timezone
 UPDATE profiles SET
   avatar_url = 'https://api.dicebear.com/7.x/avataaars/svg?seed=eve',
+  date_of_birth = '2000-01-30',
   push_subscription = '{"endpoint":"https://fcm.googleapis.com/fcm/send/eve-token","keys":{"p256dh":"BPmR3drc…","auth":"xK2p…"}}',
   notification_prefs = '{"quiet_start":"00:00","quiet_end":"06:00","completion_alerts":true,"miss_alerts":true}',
   timezone = 'America/Chicago'

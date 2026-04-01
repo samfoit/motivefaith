@@ -215,7 +215,6 @@ self.addEventListener("push", function (event) {
     badge: data.badge || "/icon-192.png",
     tag: data.type || "default",
     data: { url: data.url || "/main/dashboard" },
-    actions: [{ action: "open", title: "Open" }],
   };
 
   event.waitUntil(

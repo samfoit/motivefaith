@@ -81,7 +81,7 @@ function isSundayEvening(timezone: string): boolean {
 async function sendPush(
   supabaseUrl: string,
   subscription: ProfileRow["push_subscription"],
-  payload: { title: string; body: string; url: string; type: string },
+  payload: { title: string; body: string; url: string; type: string; user_id: string },
 ): Promise<void> {
   if (!subscription) return;
 
@@ -98,6 +98,7 @@ async function sendPush(
         body: payload.body,
         url: payload.url,
         type: payload.type,
+        user_id: payload.user_id,
       }),
     });
   } catch (err) {
@@ -327,6 +328,7 @@ Deno.serve(async (req) => {
           body,
           url: "/main/dashboard/weekly",
           type: "weekly_summary",
+          user_id: profile.id,
         }),
       );
     }

@@ -10,10 +10,39 @@ import type { Json } from "@/lib/supabase/types";
 
 export type PushState =
   | "unsupported"
+  | "requires-install"
   | "denied"
   | "prompt"
   | "unsubscribed"
   | "subscribed";
+
+/**
+ * Detect if the current device is iOS (iPhone/iPad/iPod).
+ */
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  // Primary check: UA string covers iPhone/iPad (request desktop site off) / iPod
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return true;
+  // iPad with "Request Desktop Website" reports as Mac — detect via touch support.
+  // navigator.platform is deprecated but still widely populated; use userAgentData
+  // where available, falling back to platform for older browsers.
+  const platform =
+    (navigator as { userAgentData?: { platform?: string } }).userAgentData?.platform ??
+    navigator.platform ??
+    "";
+  return platform === "macOS" || platform === "MacIntel"
+    ? navigator.maxTouchPoints > 1
+    : false;
+}
+
+/**
+ * Detect if the app is running in standalone (installed PWA) mode.
+ */
+function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(display-mode: standalone)").matches ||
+    ("standalone" in navigator && (navigator as { standalone?: boolean }).standalone === true);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,6 +93,12 @@ export function usePushSubscription(userId: string) {
       return;
     }
 
+    // iOS requires the app to be installed as a PWA for push to work
+    if (isIOS() && !isStandalone()) {
+      setState("requires-install");
+      return;
+    }
+
     if (Notification.permission === "denied") {
       setState("denied");
       return;
@@ -89,6 +124,14 @@ export function usePushSubscription(userId: string) {
     try {
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!vapidKey) throw new Error("Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY");
+
+      // iOS requires an explicit permission request from a user gesture
+      // before pushManager.subscribe() will work
+      const permission = await Notification.requestPermission();
+      if (permission === "denied") {
+        setState("denied");
+        return;
+      }
 
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.subscribe({
