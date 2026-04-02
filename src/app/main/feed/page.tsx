@@ -40,6 +40,7 @@ interface FeedFriendRow {
 function buildFriendRows(
   rows: FeedFriendRow[],
   userId: string,
+  unreadFriendIds: Set<string>,
 ): FriendFeedRow[] {
   const friendRows: FriendFeedRow[] = [];
 
@@ -87,12 +88,14 @@ function buildFriendRows(
       latestActivity = enc.created_at;
     }
 
+    const hasNew = unreadFriendIds.has(row.friend_id);
+
     friendRows.push({
       friend: profile,
       sharedHabits: row.shared_habits ?? [],
       latestActivity,
       previewText,
-      hasNewActivity: false,
+      hasNewActivity: hasNew,
       friendshipSince: row.friendship_since ?? "",
     });
   }
@@ -124,17 +127,43 @@ export default async function FeedPage() {
   const supabase = await createServerSupabase();
 
   const rpcCall = supabase.rpc("get_feed_friends", { p_user_id: user.id });
-  const [{ data: rpcRows }, { data: myGroupMemberships }] = await Promise.all([
+  const [
+    { data: rpcRows },
+    { data: myGroupMemberships },
+    { data: cursors },
+    { data: unreadEnc },
+  ] = await Promise.all([
     rpcCall,
     supabase
       .from("group_members")
       .select("group_id, role")
       .eq("user_id", user.id),
+    supabase
+      .from("feed_read_cursors")
+      .select("feed_type, feed_id, last_read_at")
+      .eq("user_id", user.id),
+    supabase
+      .from("encouragements")
+      .select("user_id")
+      .eq("recipient_id", user.id)
+      .eq("is_read", false),
   ]);
+
+  const cursorMap = new Map<string, string>();
+  for (const c of cursors ?? []) {
+    cursorMap.set(`${c.feed_type}:${c.feed_id}`, c.last_read_at);
+  }
+
+  // Set of friend IDs that have unread encouragements
+  const unreadFriendIds = new Set<string>();
+  for (const e of unreadEnc ?? []) {
+    unreadFriendIds.add(e.user_id);
+  }
 
   const friendRows = buildFriendRows(
     (rpcRows ?? []) as unknown as FeedFriendRow[],
     user.id,
+    unreadFriendIds,
   );
 
   // Stream: render friends immediately, groups load in Suspense boundary
@@ -144,6 +173,7 @@ export default async function FeedPage() {
         userId={user.id}
         friendRows={friendRows}
         memberships={myGroupMemberships ?? []}
+        cursorMap={cursorMap}
       />
     </Suspense>
   );
@@ -154,10 +184,12 @@ async function FeedWithGroups({
   userId,
   friendRows,
   memberships,
+  cursorMap,
 }: {
   userId: string;
   friendRows: FriendFeedRow[];
   memberships: { group_id: string; role: string | null }[];
+  cursorMap: Map<string, string>;
 }) {
   if (memberships.length === 0) {
     return <FeedClient userId={userId} friends={friendRows} />;
@@ -195,6 +227,8 @@ async function FeedWithGroups({
     string,
     { content: string; user_id: string; created_at: string; author_name: string | null }
   >();
+  // Latest message from OTHER members (for unread detection)
+  const latestOtherMsgMap = new Map<string, string>();
   for (const msg of latestMessages ?? []) {
     if (!latestMsgMap.has(msg.group_id) && msg.created_at) {
       const profile = msg.profiles as unknown as { display_name: string } | null;
@@ -204,6 +238,9 @@ async function FeedWithGroups({
         created_at: msg.created_at,
         author_name: profile?.display_name ?? null,
       });
+    }
+    if (!latestOtherMsgMap.has(msg.group_id) && msg.created_at && msg.user_id !== userId) {
+      latestOtherMsgMap.set(msg.group_id, msg.created_at);
     }
   }
 
@@ -226,12 +263,19 @@ async function FeedWithGroups({
       latestActivity = latestMsg.created_at;
     }
 
+    // Only messages from other members trigger the unread badge
+    const latestOther = latestOtherMsgMap.get(g.id) ?? null;
+    const cursor = cursorMap.get(`group:${g.id}`);
+    const hasNew =
+      !!latestOther &&
+      (!cursor || new Date(latestOther).getTime() > new Date(cursor).getTime());
+
     groupRows.push({
       group: { id: g.id, name: g.name, avatar_url: g.avatar_url },
       memberCount: memberCountMap.get(g.id) ?? 0,
       previewText,
       latestActivity,
-      hasNewActivity: false,
+      hasNewActivity: hasNew,
       myRole: roleMap.get(g.id) ?? "member",
     });
   }

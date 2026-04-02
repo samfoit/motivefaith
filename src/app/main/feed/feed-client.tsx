@@ -4,9 +4,11 @@ import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { Users, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { FriendRow } from "@/components/social/FriendRow";
 import { GroupRow } from "@/components/social/GroupRow";
 import { createClient } from "@/lib/supabase/client";
+import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { cn } from "@/lib/utils/cn";
 import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
@@ -39,15 +41,46 @@ interface FeedClientProps {
 
 export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const readAt = useReadFeedsStore((s) => s.readAt);
   const lastRefresh = useRef(0);
   const [filter, setFilter] = useState<FilterTab>("all");
+
+  // Optimistically clear hasNewActivity for feeds the user has already visited
+  // this session. If latestActivity is after the read timestamp, it's genuinely new.
+  const effectiveFriends = useMemo(
+    () =>
+      friends.map((f) => {
+        if (!f.hasNewActivity) return f;
+        const ts = readAt.get(f.friend.id);
+        if (!ts) return f;
+        const latest = f.latestActivity ? new Date(f.latestActivity).getTime() : 0;
+        if (latest <= ts) return { ...f, hasNewActivity: false };
+        return f;
+      }),
+    [friends, readAt],
+  );
+
+  const effectiveGroups = useMemo(
+    () =>
+      groups.map((g) => {
+        if (!g.hasNewActivity) return g;
+        const ts = readAt.get(g.group.id);
+        if (!ts) return g;
+        const latest = g.latestActivity ? new Date(g.latestActivity).getTime() : 0;
+        if (latest <= ts) return { ...g, hasNewActivity: false };
+        return g;
+      }),
+    [groups, readAt],
+  );
 
   const refresh = useCallback(() => {
     // Debounce: skip if refreshed within the last 2s
     if (Date.now() - lastRefresh.current < 2000) return;
     lastRefresh.current = Date.now();
     router.refresh();
-  }, [router]);
+    queryClient.invalidateQueries({ queryKey: ["unread-feeds"] });
+  }, [router, queryClient]);
 
   // Derive stable ID lists for realtime filters
   const friendIds = useMemo(
@@ -139,8 +172,6 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
   }, [refresh, userId, friendIds, groupIds]);
 
   // Refresh on tab/window focus to catch changes while backgrounded.
-  // No immediate refresh on mount — the server-rendered data is fresh and
-  // realtime subscriptions handle subsequent updates.
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === "visible") refresh();
@@ -157,7 +188,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
   const allItems = useMemo(() => {
     const items: { type: "friend" | "group"; key: string; latestActivity: string | null; data: FriendFeedRow | GroupFeedRow }[] = [];
 
-    for (const f of friends) {
+    for (const f of effectiveFriends) {
       items.push({
         type: "friend",
         key: `f-${f.friend.id}`,
@@ -166,7 +197,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
       });
     }
 
-    for (const g of groups) {
+    for (const g of effectiveGroups) {
       items.push({
         type: "group",
         key: `g-${g.group.id}`,
@@ -183,20 +214,20 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
     });
 
     return items;
-  }, [friends, groups]);
+  }, [effectiveFriends, effectiveGroups]);
 
-  const hasGroups = groups.length > 0;
-  const isEmpty = friends.length === 0 && groups.length === 0;
+  const hasGroups = effectiveGroups.length > 0;
+  const isEmpty = effectiveFriends.length === 0 && effectiveGroups.length === 0;
 
   const visibleCount =
     filter === "all"
       ? allItems.length
       : filter === "friends"
-        ? friends.length
-        : groups.length;
+        ? effectiveFriends.length
+        : effectiveGroups.length;
 
   return (
-    <div className="min-h-screen">
+    <div>
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -216,7 +247,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
         </div>
 
         {/* Filter tabs (only show if user has both friends and groups) */}
-        {hasGroups && friends.length > 0 && (
+        {hasGroups && effectiveFriends.length > 0 && (
           <div className="flex gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)]">
             {(["all", "friends", "groups"] as const).map((tab) => (
               <button
@@ -255,7 +286,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
               ))}
 
             {filter === "friends" &&
-              friends.map((row, i) => (
+              effectiveFriends.map((row, i) => (
                 <div
                   key={row.friend.id}
                   className="animate-[landing-fade-up-sm_0.3s_var(--ease-out)_both]"
@@ -266,7 +297,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
               ))}
 
             {filter === "groups" &&
-              groups.map((row, i) => (
+              effectiveGroups.map((row, i) => (
                 <div
                   key={row.group.id}
                   className="animate-[landing-fade-up-sm_0.3s_var(--ease-out)_both]"

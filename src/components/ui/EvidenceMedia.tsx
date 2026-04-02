@@ -70,13 +70,23 @@ export function EvidenceMedia({
   if (type === "photo") {
     return (
       <div className={cn("relative aspect-[4/3] overflow-hidden", className)}>
-        <Image
-          src={url}
-          alt={alt}
-          fill
-          sizes="(max-width: 640px) 100vw, 640px"
-          className={cn("object-cover", imgClassName)}
-        />
+        {isLegacy ? (
+          // Legacy/external URLs use a plain img to avoid next/image hostname restrictions
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={url}
+            alt={alt}
+            className={cn("absolute inset-0 w-full h-full object-cover", imgClassName)}
+          />
+        ) : (
+          <Image
+            src={url}
+            alt={alt}
+            fill
+            sizes="(max-width: 640px) 100vw, 640px"
+            className={cn("object-cover", imgClassName)}
+          />
+        )}
       </div>
     );
   }

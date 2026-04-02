@@ -35,7 +35,7 @@ export default async function MainLayout({
     <div className="min-h-dvh bg-[var(--color-bg-primary)]">
       <TopBar userId={user.id} />
       <main className="pb-24">{children}</main>
-      <BottomNav />
+      <BottomNav userId={user.id} />
       <QuickCaptureFlow />
       <InstallPrompt />
     </div>

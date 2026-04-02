@@ -100,7 +100,12 @@ export default function SignupPage() {
     });
 
     if (error) {
-      show({ title: "Sign up failed", description: "Could not create account. Please try again.", variant: "error" });
+      console.error("Signup error:", error.message, error);
+      const description =
+        error.message === "User already registered"
+          ? "An account with this email already exists."
+          : error.message || "Could not create account. Please try again.";
+      show({ title: "Sign up failed", description, variant: "error" });
       setLoading(false);
       return;
     }
