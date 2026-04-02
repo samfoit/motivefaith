@@ -223,6 +223,7 @@ export function useAcceptFriendRequest() {
       // Row moves from pending → accepted: both queries stale
       queryClient.invalidateQueries({ queryKey: ["friends", "list"] });
       queryClient.invalidateQueries({ queryKey: ["friends", "requests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-requests"] });
     },
   });
 }
@@ -243,6 +244,7 @@ export function useDeclineFriendRequest() {
     onSettled: () => {
       // Only requests change — pending row deleted, list unaffected
       queryClient.invalidateQueries({ queryKey: ["friends", "requests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-requests"] });
     },
   });
 }

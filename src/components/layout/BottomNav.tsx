@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Home, Activity, Camera, Users, User } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
+import { useHasUnreadFeeds } from "@/lib/hooks/useHasUnreadFeeds";
+import { useHasPendingRequests } from "@/lib/hooks/useHasPendingRequests";
 
 const NAV_ITEMS = [
   { href: "/main/dashboard", label: "Home", icon: Home },
@@ -14,9 +18,29 @@ const NAV_ITEMS = [
   { href: "/main/profile", label: "Profile", icon: User },
 ] as const;
 
-export function BottomNav() {
+interface BottomNavProps {
+  userId?: string;
+}
+
+export function BottomNav({ userId }: BottomNavProps) {
   const pathname = usePathname();
   const openCapture = useQuickCaptureStore((s) => s.open);
+  const queryClient = useQueryClient();
+  const { data: hasUnread = false } = useHasUnreadFeeds(userId ?? null);
+  const { data: hasPendingRequests = false } = useHasPendingRequests(userId ?? null);
+
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["unread-feeds"] });
+    queryClient.invalidateQueries({ queryKey: ["pending-requests"] });
+  }, [queryClient]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") invalidate();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [invalidate]);
 
   return (
     <nav
@@ -42,6 +66,10 @@ export function BottomNav() {
             );
           }
 
+          const showBadge =
+            (label === "Feed" && hasUnread) ||
+            (label === "Friends" && hasPendingRequests);
+
           return (
             <Link
               key={href}
@@ -53,8 +81,17 @@ export function BottomNav() {
                   : "text-[var(--color-text-tertiary)]",
               )}
               aria-current={isActive ? "page" : undefined}
+              aria-label={showBadge ? `${label}, new activity` : label}
             >
-              <Icon className="w-5 h-5" />
+              <span className="relative">
+                <Icon className="w-5 h-5" />
+                {showBadge && (
+                  <span
+                    aria-hidden
+                    className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-brand"
+                  />
+                )}
+              </span>
               <span className="text-[10px] font-medium">{label}</span>
             </Link>
           );

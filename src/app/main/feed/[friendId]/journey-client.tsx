@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { ArrowLeft, ChevronDown, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
@@ -11,6 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 import { JourneyHabitCard } from "@/components/social/JourneyHabitCard";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { createClient } from "@/lib/supabase/client";
+import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
 
 // ---------------------------------------------------------------------------
@@ -24,6 +26,7 @@ interface JourneyClientProps {
 
 export function JourneyClient({ data, userId }: JourneyClientProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { show: showToast, ToastElements } = useToast();
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -145,6 +148,22 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       window.removeEventListener("focus", onFocus);
     };
   }, [debouncedRefresh]);
+
+  // Mark all messages from this friend as read
+  const markFeedRead = useReadFeedsStore((s) => s.markRead);
+  useEffect(() => {
+    markFeedRead(friend.id);
+    const supabase = createClient();
+    supabase
+      .from("encouragements")
+      .update({ is_read: true })
+      .eq("recipient_id", userId)
+      .eq("user_id", friend.id)
+      .eq("is_read", false)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["unread-feeds"] });
+      });
+  }, [friend.id, userId, queryClient, markFeedRead]);
 
   const sendMessage = useCallback(async () => {
     const text = message.trim();
@@ -268,8 +287,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   }, [userId, friend.id, friendFirstName, showToast, debouncedRefresh]);
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+    <div>
+      <div className="max-w-2xl mx-auto px-4 pt-6 pb-16 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button
@@ -366,7 +385,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       </div>
 
       {/* Bottom message input */}
-      <div className="fixed bottom-16 inset-x-0 z-30 bg-bg-primary border-t border-bg-secondary">
+      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] inset-x-0 z-30 bg-bg-primary border-t border-bg-secondary">
         <form
           onSubmit={(e) => {
             e.preventDefault();

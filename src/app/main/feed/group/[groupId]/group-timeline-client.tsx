@@ -19,6 +19,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
@@ -40,6 +41,7 @@ const CreateChallengeSheet = dynamic(
 import { motion } from "motion/react";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { createClient } from "@/lib/supabase/client";
+import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useRegenerateInviteCode, useRemoveGroupMember } from "@/lib/hooks/useGroups";
 import { useCreateChallenge, useJoinChallenge, useLeaveChallenge } from "@/lib/hooks/useGroupChallenges";
 import { ReportSheet } from "@/components/social/ReportSheet";
@@ -61,6 +63,7 @@ interface GroupTimelineClientProps {
 
 export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { show: showToast, ToastElements } = useToast();
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -293,6 +296,21 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       window.removeEventListener("focus", onFocus);
     };
   }, [debouncedRefresh]);
+
+  // Mark this group feed as read
+  const markFeedRead = useReadFeedsStore((s) => s.markRead);
+  useEffect(() => {
+    markFeedRead(group.id);
+    const supabase = createClient();
+    supabase
+      .rpc("upsert_feed_read_cursor", {
+        p_feed_type: "group",
+        p_feed_id: group.id,
+      })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["unread-feeds"] });
+      });
+  }, [group.id, queryClient, markFeedRead]);
 
   // Toggle heart reaction on a message
   const toggleReaction = useCallback(
@@ -575,8 +593,8 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
   }, [mergedCompletions, mergedMessages, cutoff]);
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+    <div>
+      <div className="max-w-2xl mx-auto px-4 pt-6 pb-16 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button
@@ -925,7 +943,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       </div>
 
       {/* Bottom message input */}
-      <div className="fixed bottom-16 inset-x-0 z-30 bg-[var(--color-bg-primary)] border-t border-[var(--color-bg-secondary)]">
+      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] inset-x-0 z-30 bg-[var(--color-bg-primary)] border-t border-[var(--color-bg-secondary)]">
         <form
           onSubmit={(e) => {
             e.preventDefault();

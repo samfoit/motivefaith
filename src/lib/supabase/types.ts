@@ -187,6 +187,35 @@ export type Database = {
           },
         ]
       }
+      feed_read_cursors: {
+        Row: {
+          feed_id: string
+          feed_type: string
+          last_read_at: string
+          user_id: string
+        }
+        Insert: {
+          feed_id: string
+          feed_type: string
+          last_read_at?: string
+          user_id: string
+        }
+        Update: {
+          feed_id?: string
+          feed_type?: string
+          last_read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_read_cursors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       friendships: {
         Row: {
           addressee_id: string
@@ -802,6 +831,10 @@ export type Database = {
           push_subscription: Json
         }[]
       }
+      has_unread_feeds: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       insert_completion: {
         Args: {
           p_completion_type: Database["public"]["Enums"]["completion_type"]
@@ -857,6 +890,10 @@ export type Database = {
       is_valid_schedule: { Args: { schedule: Json }; Returns: boolean }
       update_own_profile: {
         Args: { p_avatar_url?: string; p_display_name?: string }
+        Returns: undefined
+      }
+      upsert_feed_read_cursor: {
+        Args: { p_feed_type: string; p_feed_id: string }
         Returns: undefined
       }
     }
