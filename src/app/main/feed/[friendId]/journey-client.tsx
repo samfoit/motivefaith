@@ -13,6 +13,7 @@ import { JourneyHabitCard } from "@/components/social/JourneyHabitCard";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { createClient } from "@/lib/supabase/client";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
+import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const timelineEndRef = useRef<HTMLDivElement>(null);
+  const keyboardOffset = useKeyboardOffset();
 
   const { friend, friendshipSince, habits, completions } = data;
 
@@ -288,7 +290,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
 
   return (
     <div>
-      <div className="max-w-2xl mx-auto px-4 pt-6 pb-16 space-y-6">
+      <div className="max-w-2xl mx-auto px-4 pt-6 pb-32 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button
@@ -385,7 +387,14 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       </div>
 
       {/* Bottom message input */}
-      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] inset-x-0 z-30 bg-bg-primary border-t border-bg-secondary">
+      <div
+        className="fixed inset-x-0 z-30 bg-bg-primary border-t border-bg-secondary transition-[bottom] duration-100"
+        style={{
+          bottom: keyboardOffset > 0
+            ? `${keyboardOffset}px`
+            : "calc(4rem + env(safe-area-inset-bottom))",
+        }}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();

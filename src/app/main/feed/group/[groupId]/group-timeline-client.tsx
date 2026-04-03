@@ -42,6 +42,7 @@ import { motion } from "motion/react";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
+import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useRegenerateInviteCode, useRemoveGroupMember } from "@/lib/hooks/useGroups";
 import { useCreateChallenge, useJoinChallenge, useLeaveChallenge } from "@/lib/hooks/useGroupChallenges";
 import { ReportSheet } from "@/components/social/ReportSheet";
@@ -69,6 +70,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const timelineEndRef = useRef<HTMLDivElement>(null);
+  const keyboardOffset = useKeyboardOffset();
 
   const { group, members, habits, completions, challenges, myRole } = data;
 
@@ -594,7 +596,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
 
   return (
     <div>
-      <div className="max-w-2xl mx-auto px-4 pt-6 pb-16 space-y-6">
+      <div className="max-w-2xl mx-auto px-4 pt-6 pb-32 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button
@@ -943,7 +945,14 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       </div>
 
       {/* Bottom message input */}
-      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] inset-x-0 z-30 bg-[var(--color-bg-primary)] border-t border-[var(--color-bg-secondary)]">
+      <div
+        className="fixed inset-x-0 z-30 bg-[var(--color-bg-primary)] border-t border-[var(--color-bg-secondary)] transition-[bottom] duration-100"
+        style={{
+          bottom: keyboardOffset > 0
+            ? `${keyboardOffset}px`
+            : "calc(4rem + env(safe-area-inset-bottom))",
+        }}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
