@@ -305,8 +305,10 @@ async function createVapidJwt(
     data,
   );
 
-  // Convert DER signature to raw r||s format
-  const rawSig = derToRaw(new Uint8Array(signature));
+  // Web Crypto may return raw (64-byte r||s) or DER-encoded signatures.
+  // Detect format and convert to raw if needed.
+  const sigBytes = new Uint8Array(signature);
+  const rawSig = sigBytes.length === 64 ? sigBytes : derToRaw(sigBytes);
   const sig = uint8ArrayToBase64Url(rawSig);
 
   return `${header}.${payload}.${sig}`;
