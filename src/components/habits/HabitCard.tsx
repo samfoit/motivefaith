@@ -91,13 +91,14 @@ export const HabitCard = React.memo(function HabitCard({
     <div
       className={cn(
         "relative flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm",
-        "border-l-[3px] cursor-pointer select-none",
+        "border-l-[3px] cursor-pointer select-none touch-action-manipulation",
         "transition-all duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
         "hover:-translate-y-0.5 hover:scale-[1.01]",
         "active:scale-[0.97]",
         className,
       )}
-      style={{ borderLeftColor: habit.color ?? undefined }}
+      style={{ borderLeftColor: habit.color ?? undefined, WebkitTouchCallout: "none" }}
+      onContextMenu={(e) => e.preventDefault()}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
