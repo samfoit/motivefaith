@@ -3,10 +3,7 @@
 import { Bell, BellOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
-import {
-  usePushSubscription,
-  type PushState,
-} from "@/lib/hooks/usePushSubscription";
+import type { PushState } from "@/lib/hooks/usePushSubscription";
 
 // ---------------------------------------------------------------------------
 // State display config
@@ -52,12 +49,20 @@ const STATE_CONFIG: Record<
 // ---------------------------------------------------------------------------
 
 interface NotificationToggleProps {
-  userId: string;
+  state: PushState;
+  isLoading: boolean;
+  onSubscribe: () => void;
+  onUnsubscribe: () => void;
   className?: string;
 }
 
-export function NotificationToggle({ userId, className }: NotificationToggleProps) {
-  const { state, isLoading, subscribe, unsubscribe } = usePushSubscription(userId);
+export function NotificationToggle({
+  state,
+  isLoading,
+  onSubscribe,
+  onUnsubscribe,
+  className,
+}: NotificationToggleProps) {
   const config = STATE_CONFIG[state];
   const isActive = state === "subscribed";
   const canToggle = state === "prompt" || state === "unsubscribed" || state === "subscribed";
@@ -97,7 +102,7 @@ export function NotificationToggle({ userId, className }: NotificationToggleProp
         <Button
           variant={isActive ? "ghost" : "secondary"}
           size="sm"
-          onClick={isActive ? unsubscribe : subscribe}
+          onClick={isActive ? onUnsubscribe : onSubscribe}
           disabled={isLoading}
         >
           {isLoading ? (

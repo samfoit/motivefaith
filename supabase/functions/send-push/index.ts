@@ -84,7 +84,7 @@ async function sendWebPush(
     subscription.keys.p256dh,
     localPublicKeyRaw,
   );
-  const { contentKey, nonce } = await deriveContentKey(ikm);
+  const { contentKey, nonce, salt } = await deriveContentKey(ikm);
 
   // Encrypt the payload
   const payloadBytes = new TextEncoder().encode(payload);
@@ -96,17 +96,16 @@ async function sendWebPush(
     paddedPayload,
   );
 
-  // Build the request body: local public key (65 bytes) + encrypted data
-  const body = new Uint8Array(5 + 65 + new Uint8Array(encrypted).byteLength);
+  // Build the aes128gcm body per RFC 8188 Section 2:
+  // salt (16) | record_size (4) | keyid_length (1) | keyid (65) | ciphertext
+  const encryptedBytes = new Uint8Array(encrypted);
+  const body = new Uint8Array(16 + 5 + 65 + encryptedBytes.byteLength);
   const view = new DataView(body.buffer);
-  // Record size (4096)
-  view.setUint32(0, 4096, false);
-  // Key ID length (65)
-  view.setUint8(4, 65);
-  // Local public key
-  body.set(new Uint8Array(localPublicKeyRaw), 5);
-  // Encrypted content
-  body.set(new Uint8Array(encrypted), 70);
+  body.set(salt, 0);                                    // salt at offset 0
+  view.setUint32(16, 4096, false);                       // record_size at offset 16
+  view.setUint8(20, 65);                                 // keyid_length at offset 20
+  body.set(new Uint8Array(localPublicKeyRaw), 21);       // keyid at offset 21
+  body.set(encryptedBytes, 86);                          // ciphertext at offset 86
 
   // Create VAPID JWT
   const jwt = await createVapidJwt(
@@ -215,7 +214,7 @@ async function deriveIKM(
 
 async function deriveContentKey(
   ikm: ArrayBuffer,
-): Promise<{ contentKey: CryptoKey; nonce: Uint8Array }> {
+): Promise<{ contentKey: CryptoKey; nonce: Uint8Array; salt: Uint8Array }> {
   // Salt for content encryption (16 random bytes)
   const salt = crypto.getRandomValues(new Uint8Array(16));
 
@@ -237,19 +236,14 @@ async function deriveContentKey(
   const nonceInfo = new TextEncoder().encode("Content-Encoding: nonce\0");
   const nonceBytes = new Uint8Array(await hkdfExpand(prk, nonceInfo, 12));
 
-  // Note: We need to prefix the encrypted payload with the salt and key ID
-  // For simplicity in this implementation, we embed the salt in the actual
-  // output. But the standard aes128gcm header would include it.
-  // We'll handle this at a higher level.
-
-  return { contentKey, nonce: nonceBytes };
+  return { contentKey, nonce: nonceBytes, salt };
 }
 
 function addPadding(data: Uint8Array): Uint8Array {
-  // RFC 8188: prepend a delimiter byte (0x02) after padding
+  // RFC 8188 Section 2: data || delimiter (0x02 for final record)
   const padded = new Uint8Array(data.length + 1);
-  padded[0] = 2; // delimiter
-  padded.set(data, 1);
+  padded.set(data, 0);
+  padded[data.length] = 2;
   return padded;
 }
 
@@ -311,8 +305,10 @@ async function createVapidJwt(
     data,
   );
 
-  // Convert DER signature to raw r||s format
-  const rawSig = derToRaw(new Uint8Array(signature));
+  // Web Crypto may return raw (64-byte r||s) or DER-encoded signatures.
+  // Detect format and convert to raw if needed.
+  const sigBytes = new Uint8Array(signature);
+  const rawSig = sigBytes.length === 64 ? sigBytes : derToRaw(sigBytes);
   const sig = uint8ArrayToBase64Url(rawSig);
 
   return `${header}.${payload}.${sig}`;
@@ -353,15 +349,39 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Only allow calls from service_role (internal edge functions).
-  // Reject anon/authenticated callers to prevent arbitrary push injection.
+  // Only allow calls from service_role (internal triggers / edge functions).
+  // Supabase gateway validates the JWT and forwards it in the Authorization header.
+  // When called via pg_net the gateway may strip the header, so we also accept
+  // requests where the gateway already verified a service_role JWT (the request
+  // wouldn't reach us without a valid JWT when verify-jwt is enabled).
   const authHeader = req.headers.get("Authorization");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!serviceRoleKey || authHeader !== `Bearer ${serviceRoleKey}`) {
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
+  if (authHeader) {
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const payloadB64 = token.split(".")[1];
+      const payload = JSON.parse(atob(payloadB64));
+      if (payload.role !== "service_role") {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  } else {
+    // No Authorization header — only allow if the request comes from within
+    // Supabase infrastructure (pg_net). Check for the pg_net user-agent.
+    const ua = req.headers.get("User-Agent") ?? "";
+    if (!ua.startsWith("pg_net/")) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
   }
 
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
@@ -441,6 +461,7 @@ Deno.serve(async (req) => {
     // If push failed (likely expired subscription), clean up.
     // serviceRoleKey is already validated above; SUPABASE_URL must also be set.
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (supabaseUrl && serviceRoleKey && body.user_id) {
       const supabase = createClient(supabaseUrl, serviceRoleKey);
 

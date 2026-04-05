@@ -68,8 +68,8 @@ export function ProfileClient({
     });
   }, []);
 
-  // Push subscription state (for showing preferences when subscribed)
-  const { state: pushState } = usePushSubscription(userId);
+  // Push subscription state (shared with NotificationToggle)
+  const { state: pushState, isLoading: pushLoading, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushSubscription(userId);
 
   // Avatar state
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? null);
@@ -292,7 +292,12 @@ export function ProfileClient({
               </h2>
             </div>
             <div className="space-y-3">
-              <NotificationToggle userId={userId} />
+              <NotificationToggle
+                state={pushState}
+                isLoading={pushLoading}
+                onSubscribe={pushSubscribe}
+                onUnsubscribe={pushUnsubscribe}
+              />
               {pushState === "subscribed" && (
                 <NotificationPreferences
                   notificationPrefs={profile?.notification_prefs ?? null}

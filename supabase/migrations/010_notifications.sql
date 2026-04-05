@@ -87,8 +87,8 @@ DECLARE
   v_supabase_url TEXT;
   v_service_key TEXT;
 BEGIN
-  v_supabase_url := current_setting('app.settings.supabase_url', true);
-  v_service_key := current_setting('app.settings.service_role_key', true);
+  SELECT decrypted_secret INTO v_supabase_url FROM vault.decrypted_secrets WHERE name = 'supabase_url';
+  SELECT decrypted_secret INTO v_service_key FROM vault.decrypted_secrets WHERE name = 'service_role_key';
 
   IF v_supabase_url IS NULL OR v_service_key IS NULL THEN
     RETURN NEW;
@@ -159,8 +159,8 @@ DECLARE
   v_supabase_url TEXT;
   v_service_key TEXT;
 BEGIN
-  v_supabase_url := current_setting('app.settings.supabase_url', true);
-  v_service_key := current_setting('app.settings.service_role_key', true);
+  SELECT decrypted_secret INTO v_supabase_url FROM vault.decrypted_secrets WHERE name = 'supabase_url';
+  SELECT decrypted_secret INTO v_service_key FROM vault.decrypted_secrets WHERE name = 'service_role_key';
   IF v_supabase_url IS NULL OR v_service_key IS NULL THEN RETURN NEW; END IF;
 
   SELECT display_name INTO v_sender_name FROM profiles WHERE id = NEW.user_id;
@@ -222,8 +222,8 @@ DECLARE
   v_supabase_url TEXT;
   v_service_key TEXT;
 BEGIN
-  v_supabase_url := current_setting('app.settings.supabase_url', true);
-  v_service_key := current_setting('app.settings.service_role_key', true);
+  SELECT decrypted_secret INTO v_supabase_url FROM vault.decrypted_secrets WHERE name = 'supabase_url';
+  SELECT decrypted_secret INTO v_service_key FROM vault.decrypted_secrets WHERE name = 'service_role_key';
   IF v_supabase_url IS NULL OR v_service_key IS NULL THEN RETURN NEW; END IF;
 
   SELECT display_name INTO v_sender_name FROM profiles WHERE id = NEW.user_id;
@@ -340,16 +340,28 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ── Cron schedules ──
 
-DO $$ BEGIN
+DO $$
+DECLARE
+  v_supabase_url TEXT;
+  v_service_key TEXT;
+BEGIN
+  SELECT decrypted_secret INTO v_supabase_url FROM vault.decrypted_secrets WHERE name = 'supabase_url';
+  SELECT decrypted_secret INTO v_service_key FROM vault.decrypted_secrets WHERE name = 'service_role_key';
+
+  IF v_supabase_url IS NULL OR v_service_key IS NULL THEN
+    RAISE NOTICE 'Vault secrets not configured — skipping cron schedules';
+    RETURN;
+  END IF;
+
   -- Weekly summary — hourly; the function self-filters to Sunday 17:00-21:00
   PERFORM cron.schedule(
     'weekly-summary',
     '0 * * * *',
     format(
-      'SELECT net.http_post(url := %L || %L, headers := jsonb_build_object(%L, %L || current_setting(%L), %L, %L), body := %L::jsonb)',
-      current_setting('app.settings.supabase_url'),
+      'SELECT net.http_post(url := %L || %L, headers := jsonb_build_object(%L, %L, %L, %L), body := %L::jsonb)',
+      v_supabase_url,
       '/functions/v1/weekly-summary',
-      'Authorization', 'Bearer ', 'app.settings.service_role_key',
+      'Authorization', 'Bearer ' || v_service_key,
       'Content-Type', 'application/json',
       '{}'
     )
@@ -360,10 +372,10 @@ DO $$ BEGIN
     'habit-reminders',
     '*/15 * * * *',
     format(
-      'SELECT net.http_post(url := %L || %L, headers := jsonb_build_object(%L, %L || current_setting(%L), %L, %L), body := %L::jsonb)',
-      current_setting('app.settings.supabase_url'),
+      'SELECT net.http_post(url := %L || %L, headers := jsonb_build_object(%L, %L, %L, %L), body := %L::jsonb)',
+      v_supabase_url,
       '/functions/v1/habit-reminders',
-      'Authorization', 'Bearer ', 'app.settings.service_role_key',
+      'Authorization', 'Bearer ' || v_service_key,
       'Content-Type', 'application/json',
       '{}'
     )
