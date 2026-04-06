@@ -57,6 +57,8 @@ export type JourneyEncouragement = {
   /** Whether the current user sent it */
   isMe: boolean;
   sender_name: string;
+  /** Linked completion (for heart reactions) */
+  completion_id?: string | null;
 };
 
 /** A single row in the friend feed list (Level 1) */

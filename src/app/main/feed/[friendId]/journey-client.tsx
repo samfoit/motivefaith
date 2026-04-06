@@ -232,10 +232,44 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
     debouncedRefresh();
   }, [message, isSending, userId, friend.id, showToast, debouncedRefresh]);
 
-  const handleHeartCompletion = useCallback(async () => {
+  const handleHeartCompletion = useCallback(async (completionId: string, isHearted: boolean) => {
     const supabase = createClient();
 
-    // Optimistic: add heart to pending so CompletionBubble heart counts update
+    if (isHearted) {
+      // Remove heart — find the matching pending/server entry and delete it
+      const existing = mergedEncouragements.find(
+        (e) =>
+          e.completion_id === completionId &&
+          e.isMe &&
+          e.encouragement_type === "emoji" &&
+          e.content === "❤️",
+      );
+
+      if (existing) {
+        setPendingEntries((prev) => prev.filter((e) => e.id !== existing.id));
+      }
+
+      const { error } = await supabase
+        .from("encouragements")
+        .delete()
+        .eq("user_id", userId)
+        .eq("completion_id", completionId)
+        .eq("encouragement_type", "emoji")
+        .eq("content", "❤️");
+
+      if (error) {
+        // Restore on failure
+        if (existing) {
+          setPendingEntries((prev) => [...prev, existing]);
+        }
+        showToast({ variant: "error", title: "Failed to remove reaction" });
+      } else {
+        debouncedRefresh();
+      }
+      return;
+    }
+
+    // Add heart
     const optimisticId = `optimistic-heart-${Date.now()}`;
     setPendingEntries((prev) => [
       ...prev,
@@ -247,6 +281,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
         user_id: userId,
         isMe: true,
         sender_name: "You",
+        completion_id: completionId,
       },
     ]);
 
@@ -257,6 +292,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
         recipient_id: friend.id,
         encouragement_type: "emoji",
         content: "❤️",
+        completion_id: completionId,
       })
       .select("id")
       .single();
@@ -279,14 +315,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       );
     }
 
-    showToast({
-      variant: "encourage",
-      title: "Sent ❤️",
-      description: `to ${friendFirstName}`,
-    });
-
     debouncedRefresh();
-  }, [userId, friend.id, friendFirstName, showToast, debouncedRefresh]);
+  }, [userId, friend.id, mergedEncouragements, showToast, debouncedRefresh]);
 
   return (
     <div>

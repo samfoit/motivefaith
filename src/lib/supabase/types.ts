@@ -138,6 +138,7 @@ export type Database = {
       }
       encouragements: {
         Row: {
+          completion_id: string | null
           content: string | null
           created_at: string | null
           encouragement_type:
@@ -149,6 +150,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          completion_id?: string | null
           content?: string | null
           created_at?: string | null
           encouragement_type?:
@@ -160,6 +162,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          completion_id?: string | null
           content?: string | null
           created_at?: string | null
           encouragement_type?:
@@ -171,6 +174,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "encouragements_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: false
+            referencedRelation: "completions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "encouragements_recipient_id_fkey"
             columns: ["recipient_id"]

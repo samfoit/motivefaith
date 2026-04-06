@@ -149,4 +149,96 @@ describe("computeEffectiveStreak", () => {
     // Yesterday June 14 completed → streak valid
     expect(result).toBe(4);
   });
+
+  it("preserves streak across rest days (every day except Friday)", () => {
+    // Today is Sunday June 15. Habit is every day except Friday (days: 0,1,2,3,4,6).
+    // Last completion was Saturday June 14 — the most recent scheduled day.
+    const result = computeEffectiveStreak(
+      { streak_current: 12, schedule: { days: [0, 1, 2, 3, 4, 6] } },
+      [{ completed_at: "2025-06-14T10:00:00Z" }],
+      "UTC",
+    );
+    expect(result).toBe(12);
+  });
+
+  it("preserves streak when completing after a multi-day gap in schedule", () => {
+    // Today is Sunday June 15. Habit is Mon/Wed/Fri only (days: 1,3,5).
+    // Last completion was Friday June 13 — most recent scheduled day.
+    // Saturday (6) is not scheduled, so Friday is the expected prev day.
+    const result = computeEffectiveStreak(
+      { streak_current: 8, schedule: { days: [1, 3, 5] } },
+      [{ completed_at: "2025-06-13T10:00:00Z" }],
+      "UTC",
+    );
+    expect(result).toBe(8);
+  });
+
+  // ── Weekly frequency tests ──
+
+  it("weekly: streak valid when completed this week", () => {
+    // Today is Sunday June 15 (week start = June 15).
+    // Completed today → valid.
+    const result = computeEffectiveStreak(
+      { streak_current: 3, schedule: { days: [0, 1, 2, 3, 4, 5, 6] }, frequency: "weekly" },
+      [{ completed_at: "2025-06-15T08:00:00Z" }],
+      "UTC",
+    );
+    expect(result).toBe(3);
+  });
+
+  it("weekly: streak valid when completed earlier this week", () => {
+    // Today is Sunday June 15. Current week started June 15 (Sunday).
+    // Completed Wednesday June 11 — that's in the previous week (June 8–14).
+    // Previous week start = June 8. June 11 >= June 8 → valid.
+    const result = computeEffectiveStreak(
+      { streak_current: 5, schedule: { days: [0, 1, 2, 3, 4, 5, 6] }, frequency: "weekly" },
+      [{ completed_at: "2025-06-11T10:00:00Z" }],
+      "UTC",
+    );
+    expect(result).toBe(5);
+  });
+
+  it("weekly: streak valid when completed last week", () => {
+    // Today is Sunday June 15. Previous week = June 8–14.
+    // Completed Saturday June 14 (last day of previous week).
+    const result = computeEffectiveStreak(
+      { streak_current: 4, schedule: { days: [0, 1, 2, 3, 4, 5, 6] }, frequency: "weekly" },
+      [{ completed_at: "2025-06-14T10:00:00Z" }],
+      "UTC",
+    );
+    expect(result).toBe(4);
+  });
+
+  it("weekly: streak stale when no completion in current or previous week", () => {
+    // Today is Sunday June 15. Previous week start = June 8.
+    // Last completion was June 7 (Saturday) — before previous week.
+    const result = computeEffectiveStreak(
+      { streak_current: 6, schedule: { days: [0, 1, 2, 3, 4, 5, 6] }, frequency: "weekly" },
+      [{ completed_at: "2025-06-07T10:00:00Z" }],
+      "UTC",
+    );
+    expect(result).toBe(0);
+  });
+
+  it("weekly: streak survives 6-day gap between completions", () => {
+    // Today is Sunday June 15. Completed Monday June 9 (prev week).
+    // June 9 >= prev week start (June 8) → valid.
+    const result = computeEffectiveStreak(
+      { streak_current: 2, schedule: { days: [0, 1, 2, 3, 4, 5, 6] }, frequency: "weekly" },
+      [{ completed_at: "2025-06-09T10:00:00Z" }],
+      "UTC",
+    );
+    expect(result).toBe(2);
+  });
+
+  it("weekly: no frequency field falls through to daily logic", () => {
+    // Habit without frequency field uses daily schedule logic.
+    // Yesterday (June 14) was completed → valid.
+    const result = computeEffectiveStreak(
+      { streak_current: 3, schedule: null },
+      [{ completed_at: "2025-06-14T10:00:00Z" }],
+      "UTC",
+    );
+    expect(result).toBe(3);
+  });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useCallback } from "react";
-import { Check } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import type { Tables } from "@/lib/supabase/types";
@@ -38,14 +38,24 @@ export const HabitCard = React.memo(function HabitCard({
 }: HabitCardProps) {
   const latestCompletion = habit.completions.length
     ? habit.completions.reduce((latest, c) =>
-        new Date(c.completed_at) > new Date(latest.completed_at) ? c : latest,
-      )
+      new Date(c.completed_at) > new Date(latest.completed_at) ? c : latest,
+    )
     : null;
 
   const lastCompletionLabel = latestCompletion
     ? formatDistanceToNow(new Date(latestCompletion.completed_at), {
-        addSuffix: true,
-      })
+      addSuffix: true,
+    })
+    : null;
+
+  const timeWindow = habit.time_window as { start?: string; end?: string } | null;
+  const scheduledTime = timeWindow?.start
+    ? (() => {
+      const [h, m] = timeWindow.start!.split(":").map(Number);
+      const suffix = h >= 12 ? "PM" : "AM";
+      const h12 = h % 12 || 12;
+      return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+    })()
     : null;
 
   const handleCircleClick = (e: React.MouseEvent) => {
@@ -113,8 +123,8 @@ export const HabitCard = React.memo(function HabitCard({
             className={cn(
               "font-medium truncate",
               completedToday
-                ? "text-[var(--color-text-secondary)]"
-                : "text-[var(--color-text-primary)]",
+                ? "text-text-secondary"
+                : "text-text-primary",
             )}
             style={{ fontSize: "var(--text-lg)" }}
           >
@@ -123,24 +133,40 @@ export const HabitCard = React.memo(function HabitCard({
         </div>
 
         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-          {habit.challenge && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--color-brand-light)] text-[var(--color-brand)]">
-              {habit.challenge.emoji} {habit.challenge.title}
+          {scheduledTime && (
+            <span className="text-xs text-text-tertiary flex items-center gap-0.5">
+              <Clock className="w-3 h-3" />
+              {scheduledTime}
             </span>
           )}
+          {habit.challenge && (
+            <>
+              {scheduledTime && (
+                <span className="text-text-tertiary text-xs">·</span>
+              )}
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-light text-brand">
+                {habit.challenge.emoji} {habit.challenge.title}
+              </span>
+            </>
+          )}
           {(habit.streak_current ?? 0) > 0 && (
-            <span className="text-xs font-mono text-streak flex items-center gap-0.5">
-              {habit.streak_current}-day streak
-            </span>
+            <>
+              {(scheduledTime || habit.challenge) && (
+                <span className="text-text-tertiary text-xs">·</span>
+              )}
+              <span className="text-xs font-mono text-streak flex items-center gap-0.5">
+                {habit.streak_current}-{habit.frequency === "weekly" ? "week" : "day"} streak
+              </span>
+            </>
           )}
           {lastCompletionLabel && (
             <>
-              {(habit.streak_current ?? 0) > 0 && (
-                <span className="text-[var(--color-text-tertiary)] text-xs">
+              {((habit.streak_current ?? 0) > 0 || scheduledTime || habit.challenge) && (
+                <span className="text-text-tertiary text-xs">
                   ·
                 </span>
               )}
-              <span className="text-xs text-[var(--color-text-tertiary)]">
+              <span className="text-xs text-text-tertiary">
                 {lastCompletionLabel}
               </span>
             </>
@@ -154,7 +180,7 @@ export const HabitCard = React.memo(function HabitCard({
         onPointerDown={(e) => e.stopPropagation()}
         disabled={completedToday}
         className={cn(
-          "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center",
+          "shrink-0 w-10 h-10 rounded-full flex items-center justify-center",
           "transition-all duration-200 ease-bounce",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand",
           completedToday

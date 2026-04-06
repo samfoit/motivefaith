@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { HabitDetailClient } from "./habit-detail-client";
 import { DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
+import { computeEffectiveStreak } from "@/lib/utils/streak";
 
 export const revalidate = 60;
 
@@ -64,6 +65,12 @@ export default async function HabitDetailPage({ params }: Props) {
 
   if (!habit) notFound();
 
+  const validatedCompletions = (completions ?? []).filter(
+    (c): c is typeof c & { completed_at: string } => c.completed_at != null,
+  );
+
+  const effectiveStreak = computeEffectiveStreak(habit, validatedCompletions, timeZone);
+
   // Resolve dependent lookups in parallel
   const partnerIds = (shares ?? []).map((s) => s.shared_with).filter((sid): sid is string => sid != null);
   const groupIds = (groupShares ?? []).map((s) => s.group_id);
@@ -93,10 +100,8 @@ export default async function HabitDetailPage({ params }: Props) {
 
   return (
     <HabitDetailClient
-      habit={habit}
-      completions={(completions ?? []).filter(
-        (c): c is typeof c & { completed_at: string } => c.completed_at != null,
-      )}
+      habit={{ ...habit, streak_current: effectiveStreak }}
+      completions={validatedCompletions}
       shares={shares ?? []}
       partners={partners}
       availableFriends={availableFriends}

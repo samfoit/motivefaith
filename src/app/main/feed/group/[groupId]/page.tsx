@@ -111,22 +111,30 @@ export default async function GroupTimelinePage({ params }: Props) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+  // Get viewing user's timezone for accurate "completed today" check
+  const { data: myProfileTz } = await supabase
+    .from("profiles")
+    .select("timezone")
+    .eq("id", user.id)
+    .single();
+  const userTz = myProfileTz?.timezone ?? "UTC";
+  const todayLocal = new Date().toLocaleDateString("en-CA", { timeZone: userTz });
+
   const [habitDetailsResult, compRowsResult] = await Promise.all([
     allHabitIds.length > 0
       ? supabase.from("habits").select("id, title, emoji, color, category, streak_current, user_id").in("id", allHabitIds).then(({ data }) => data ?? [])
       : Promise.resolve([] as { id: string; title: string; emoji: string | null; color: string | null; category: string | null; streak_current: number | null; user_id: string }[]),
     allHabitIds.length > 0
-      ? supabase.from("completions").select("id, habit_id, user_id, completion_type, evidence_url, notes, completed_at").in("habit_id", allHabitIds).gte("completed_at", thirtyDaysAgo.toISOString()).order("completed_at", { ascending: false }).limit(100).then(({ data }) => data ?? [])
-      : Promise.resolve([] as { id: string; habit_id: string | null; user_id: string; completion_type: string | null; evidence_url: string | null; notes: string | null; completed_at: string | null }[]),
+      ? supabase.from("completions").select("id, habit_id, user_id, completion_type, evidence_url, notes, completed_at, completed_date").in("habit_id", allHabitIds).gte("completed_at", thirtyDaysAgo.toISOString()).order("completed_at", { ascending: false }).limit(100).then(({ data }) => data ?? [])
+      : Promise.resolve([] as { id: string; habit_id: string | null; user_id: string; completion_type: string | null; evidence_url: string | null; notes: string | null; completed_at: string | null; completed_date: string | null }[]),
   ]);
 
   const habitMap = new Map(habitDetailsResult.map((h) => [h.id, h]));
-  const todayStr = new Date().toISOString().split("T")[0];
   const completedTodaySet = new Set<string>();
 
   for (const c of compRowsResult) {
     if (!c.completed_at || !c.habit_id) continue;
-    if (c.completed_at.startsWith(todayStr)) {
+    if (c.completed_date === todayLocal) {
       completedTodaySet.add(`${c.habit_id}:${c.user_id}`);
     }
   }

@@ -227,7 +227,7 @@ export const MonthView = memo(function MonthView({
                     {(habit.streak_current ?? 0) > 0 && (
                       <span className="text-xs text-streak flex items-center gap-0.5 mt-0.5">
                         <Flame className="w-3 h-3" />
-                        {habit.streak_current} day streak
+                        {habit.streak_current} {habit.frequency === "weekly" ? "week" : "day"} streak
                       </span>
                     )}
                   </div>

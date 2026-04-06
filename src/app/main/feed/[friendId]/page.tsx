@@ -131,6 +131,15 @@ export default async function JourneyPage({ params }: Props) {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const habitIdArray = [...sharedHabitIds];
 
+  // Get viewing user's timezone for accurate "completed today" check
+  const { data: myProfileTz } = await supabase
+    .from("profiles")
+    .select("timezone")
+    .eq("id", user.id)
+    .single();
+  const userTz = myProfileTz?.timezone ?? "UTC";
+  const todayLocal = new Date().toLocaleDateString("en-CA", { timeZone: userTz });
+
   let completions: JourneyCompletion[] = [];
   const completedTodaySet = new Set<string>();
 
@@ -138,7 +147,7 @@ export default async function JourneyPage({ params }: Props) {
     const { data: compRows } = await supabase
       .from("completions")
       .select(
-        "id, habit_id, user_id, completion_type, evidence_url, notes, completed_at",
+        "id, habit_id, user_id, completion_type, evidence_url, notes, completed_at, completed_date",
       )
       .in("habit_id", habitIdArray)
       .in("user_id", [user.id, friendId])
@@ -147,13 +156,12 @@ export default async function JourneyPage({ params }: Props) {
       .limit(500);
 
     const habitMap = new Map(habits.map((h) => [h.id, h]));
-    const todayStr = new Date().toISOString().split("T")[0];
 
     for (const c of compRows ?? []) {
       if (!c.habit_id || !c.completed_at) continue;
       const habit = habitMap.get(c.habit_id);
       // Track which habits were completed today by their owner
-      if (habit && c.user_id === habit.owner_id && c.completed_at.startsWith(todayStr)) {
+      if (habit && c.user_id === habit.owner_id && c.completed_date === todayLocal) {
         completedTodaySet.add(c.habit_id);
       }
     }
@@ -187,7 +195,7 @@ export default async function JourneyPage({ params }: Props) {
   // 6. Fetch encouragements between the two users
   const { data: encRows } = await supabase
     .from("encouragements")
-    .select("id, user_id, recipient_id, encouragement_type, content, created_at")
+    .select("id, user_id, recipient_id, encouragement_type, content, created_at, completion_id")
     .or(
       `and(user_id.eq.${user.id},recipient_id.eq.${friendId}),and(user_id.eq.${friendId},recipient_id.eq.${user.id})`,
     )
@@ -207,6 +215,7 @@ export default async function JourneyPage({ params }: Props) {
         e.user_id === user.id
           ? myProfile?.display_name ?? "You"
           : friend.display_name,
+      completion_id: e.completion_id ?? null,
     }));
 
   const journeyData: JourneyData = {

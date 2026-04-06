@@ -226,6 +226,8 @@ export function HabitDetailClient({
 
   // --- Handlers ---
 
+  const streakUnit = habit.frequency === "weekly" ? "week" : "day";
+
   const checkMilestone = useCallback(
     (newStreak: number) => {
       if (!(STREAK_MILESTONES as readonly number[]).includes(newStreak)) return;
@@ -233,10 +235,10 @@ export function HabitDetailClient({
       showToast({
         variant: "success",
         title: `${MILESTONE_MESSAGES[newStreak]} 🔥`,
-        description: `${habit.title} — ${newStreak}-day streak`,
+        description: `${habit.title} — ${newStreak}-${streakUnit} streak`,
       });
     },
-    [showToast, habit.title],
+    [showToast, habit.title, streakUnit],
   );
 
   const handleCompletion = async ({

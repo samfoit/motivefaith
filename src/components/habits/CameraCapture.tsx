@@ -407,7 +407,7 @@ export function CameraCapture({
 
       {/* Notes input on review */}
       {stage === "review" && (
-        <div className="flex-shrink-0 px-4">
+        <div className="shrink-0 px-4">
           <input
             type="text"
             value={notes}
@@ -428,7 +428,7 @@ export function CameraCapture({
       />
 
       {/* Bottom controls */}
-      <div className="flex-shrink-0 pb-safe">
+      <div className="shrink-0 pb-safe">
         <div className="flex flex-col items-center justify-center p-6">
           {(stage === "viewfinder" || stage === "recording") && (
             <>
@@ -449,7 +449,7 @@ export function CameraCapture({
 
                 {/* Capture button */}
                 <div
-                  className="relative flex-shrink-0"
+                  className="relative shrink-0"
                   style={{ width: 80, height: 80, touchAction: "none" }}
                 >
                   {/* Progress ring for recording */}
