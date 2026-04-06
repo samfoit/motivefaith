@@ -117,7 +117,7 @@ function buildSummaryBody(stats: WeeklyStats): string {
   }
 
   if (stats.bestStreak > 0) {
-    parts.push(`${stats.bestStreak}-day best streak`);
+    parts.push(`${stats.bestStreak} best streak`);
   }
 
   const diff = stats.totalCompletions - stats.prevWeekCompletions;

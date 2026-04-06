@@ -74,6 +74,9 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
 
   const { group, members, habits, completions, challenges, myRole } = data;
 
+  // Stable member ID list for realtime filters
+  const memberIds = useMemo(() => members.map((m) => m.user_id), [members]);
+
   // Pending messages (optimistic sends)
   const [pendingMessages, setPendingMessages] = useState<GroupTimelineMessage[]>([]);
 
@@ -253,7 +256,12 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "completions" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "completions",
+          filter: memberIds.length > 0 ? `user_id=in.(${memberIds.join(",")})` : undefined,
+        },
         () => debouncedRefresh(),
       )
       .on(
@@ -281,7 +289,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [group.id, userId, members, debouncedRefresh]);
+  }, [group.id, userId, members, memberIds, debouncedRefresh]);
 
   // Focus/visibility refresh
   useEffect(() => {

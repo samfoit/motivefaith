@@ -26,7 +26,7 @@ interface JourneyTimelineProps {
   completions: JourneyCompletion[];
   encouragements: JourneyEncouragement[];
   friendName: string;
-  onHeartCompletion?: (completionId: string) => void;
+  onHeartCompletion?: (completionId: string, isHearted: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,8 +50,9 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
   // Only show the last 24 hours of activity
   const [cutoff] = useState(() => Date.now() - 24 * 60 * 60 * 1000);
 
-  // Optimistic heart tracking
+  // Optimistic heart tracking (additions and removals)
   const [optimisticHearts, setOptimisticHearts] = useState(new Set<string>());
+  const [optimisticUnhearts, setOptimisticUnhearts] = useState(new Set<string>());
 
   // Report state (shared across all bubbles)
   const [reportId, setReportId] = useState<string | null>(null);
@@ -77,29 +78,32 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
     ].sort((a, b) => a.sortDate - b.sortDate);
   }, [completions, inlineEncouragements, cutoff]);
 
-  // Pre-compute heart state for all completions in a single O(n+m) pass
-  // instead of O(n*m) per render where n=completions, m=encouragements
+  // Pre-compute heart state for all completions in O(n+m)
   const heartStates = useMemo(() => {
-    // Pre-parse heart encouragements once
-    const hearts = encouragements
-      .filter((e) => e.encouragement_type === "emoji" && e.content === "❤️")
-      .map((e) => ({
-        isMe: e.isMe,
-        ts: new Date(e.created_at).getTime(),
-      }));
+    const hearts = encouragements.filter(
+      (e) => e.encouragement_type === "emoji" && e.content === "❤️",
+    );
+
+    // Index hearts by completion_id for O(1) lookup
+    const heartsByCompletion = new Map<string, typeof hearts>();
+    for (const h of hearts) {
+      if (h.completion_id) {
+        const existing = heartsByCompletion.get(h.completion_id) ?? [];
+        existing.push(h);
+        heartsByCompletion.set(h.completion_id, existing);
+      }
+    }
 
     const map = new Map<string, HeartState>();
     for (const c of completions) {
       if (c.isMe) continue; // hearts are only relevant for friend completions
-      const cTs = new Date(c.completed_at).getTime();
 
+      const linked = heartsByCompletion.get(c.id) ?? [];
       let alreadyHearted = false;
       let heartCount = 0;
-      for (const h of hearts) {
-        if (h.ts >= cTs) {
-          if (h.isMe && !alreadyHearted) alreadyHearted = true;
-          if (h.isMe !== c.isMe) heartCount++;
-        }
+      for (const h of linked) {
+        if (h.isMe) alreadyHearted = true;
+        heartCount++;
       }
 
       map.set(c.id, { alreadyHearted, heartCount });
@@ -134,10 +138,14 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
           // Use pre-computed heart state (O(1) lookup instead of O(m) scan)
           const hs = heartStates.get(c.id);
           const alreadyHearted = hs?.alreadyHearted ?? false;
-          const isHearted = alreadyHearted || optimisticHearts.has(c.id);
+          const isHearted =
+            optimisticUnhearts.has(c.id)
+              ? false
+              : alreadyHearted || optimisticHearts.has(c.id);
           const heartCount =
             (hs?.heartCount ?? 0) +
-            (optimisticHearts.has(c.id) && !alreadyHearted ? 1 : 0);
+            (optimisticHearts.has(c.id) && !alreadyHearted ? 1 : 0) -
+            (optimisticUnhearts.has(c.id) && alreadyHearted ? 1 : 0);
 
           return (
             <CompletionBubble
@@ -155,11 +163,26 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
               onHeart={
                 !c.isMe && onHeartCompletion
                   ? () => {
-                      if (isHearted) return;
-                      setOptimisticHearts(
-                        (prev) => new Set(prev).add(c.id),
-                      );
-                      onHeartCompletion(c.id);
+                      if (isHearted) {
+                        setOptimisticHearts((prev) => {
+                          const next = new Set(prev);
+                          next.delete(c.id);
+                          return next;
+                        });
+                        setOptimisticUnhearts(
+                          (prev) => new Set(prev).add(c.id),
+                        );
+                      } else {
+                        setOptimisticUnhearts((prev) => {
+                          const next = new Set(prev);
+                          next.delete(c.id);
+                          return next;
+                        });
+                        setOptimisticHearts(
+                          (prev) => new Set(prev).add(c.id),
+                        );
+                      }
+                      onHeartCompletion(c.id, isHearted);
                     }
                   : undefined
               }

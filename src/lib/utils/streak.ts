@@ -10,22 +10,36 @@ import { parseSchedule } from "./schedule";
  * "yesterday" match what the user sees in the UI.
  */
 export function computeEffectiveStreak(
-  habit: { streak_current: number | null; schedule: unknown },
+  habit: { streak_current: number | null; schedule: unknown; frequency?: string | null },
   completions: { completed_at: string }[],
   timeZone: string,
 ): number {
   const dbStreak = habit.streak_current ?? 0;
   if (dbStreak === 0 || completions.length === 0) return 0;
 
-  const scheduledDays = parseSchedule(habit.schedule)?.days;
-
   const today = todayDateKey(timeZone);
   const completionDateKeys = new Set(
     completions.map((c) => toDateKey(c.completed_at, timeZone)),
   );
 
-  // If completed today, streak is definitely valid
+  // If completed today, streak is definitely valid for any frequency
   if (completionDateKeys.has(today)) return dbStreak;
+
+  // ── Weekly frequency: streak valid if completion in current or previous week ──
+  if (habit.frequency === "weekly") {
+    const todayDate = new Date(today + "T12:00:00Z");
+    const dow = todayDate.getUTCDay(); // 0=Sun
+    const weekStartKey = subtractDays(today, dow);
+    const prevWeekStartKey = subtractDays(weekStartKey, 7);
+
+    for (const dk of completionDateKeys) {
+      if (dk >= prevWeekStartKey) return dbStreak;
+    }
+    return 0;
+  }
+
+  // ── Daily-type frequencies: walk backward skipping non-scheduled days ──
+  const scheduledDays = parseSchedule(habit.schedule)?.days;
 
   // Walk backwards from yesterday to find the most recent scheduled day
   let checkKey = subtractDays(today, 1);

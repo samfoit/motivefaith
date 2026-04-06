@@ -123,20 +123,20 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1
-              className="font-display font-bold text-[var(--color-text-primary)]"
+              className="font-display font-bold text-text-primary"
               style={{ fontSize: "var(--text-2xl)" }}
             >
               {greeting}
               {firstName ? `, ${firstName}` : ""}
             </h1>
-            <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+            <p className="text-sm text-text-secondary mt-1">
               {today}
             </p>
           </div>
           <Link
             href="/main/habits/new"
             aria-label="Create new habit"
-            className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--color-brand)] text-[var(--color-text-primary)] hover:bg-[var(--color-brand-hover)] transition-colors"
+            className="flex items-center justify-center w-9 h-9 rounded-full bg-brand text-text-primary hover:bg-brand-hover transition-colors"
           >
             <Plus className="w-5 h-5" />
           </Link>
@@ -182,13 +182,13 @@ async function HabitsSection({
       fetchCompletions(supabase, habitIds, fetchStartKey),
       habitIds.length > 0
         ? supabase
-            .from("group_challenge_participants")
-            .select("habit_id, challenge_id")
-            .eq("user_id", userId)
-            .in("habit_id", habitIds)
+          .from("group_challenge_participants")
+          .select("habit_id, challenge_id")
+          .eq("user_id", userId)
+          .in("habit_id", habitIds)
         : Promise.resolve({
-            data: [] as { habit_id: string | null; challenge_id: string }[],
-          }),
+          data: [] as { habit_id: string | null; challenge_id: string }[],
+        }),
     ]);
 
   const challengeLookup = new Map(

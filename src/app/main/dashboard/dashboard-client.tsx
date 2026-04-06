@@ -121,13 +121,14 @@ export function DashboardClient({
   const dismissConfetti = useCallback(() => setShowConfetti(false), []);
 
   const checkMilestone = useCallback(
-    (habitTitle: string, newStreak: number) => {
+    (habitTitle: string, newStreak: number, frequency?: string | null) => {
       if (!(STREAK_MILESTONES as readonly number[]).includes(newStreak)) return;
+      const unit = frequency === "weekly" ? "week" : "day";
       setShowConfetti(true);
       showToast({
         variant: "success",
         title: `${MILESTONE_MESSAGES[newStreak]} 🔥`,
-        description: `${habitTitle} — ${newStreak}-day streak`,
+        description: `${habitTitle} — ${newStreak}-${unit} streak`,
       });
     },
     [showToast],
@@ -213,7 +214,7 @@ export function DashboardClient({
 
     try {
       await completeHabit.mutateAsync({ habitId, type, evidenceUrl, notes });
-      checkMilestone(habit?.title ?? "", prevStreak + 1);
+      checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
       router.refresh();
     } catch {
       setHabits(initialHabits);
@@ -248,7 +249,7 @@ export function DashboardClient({
 
       try {
         await completeHabit.mutateAsync({ habitId, type: "quick" });
-        checkMilestone(habit?.title ?? "", prevStreak + 1);
+        checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
         router.refresh();
       } catch {
         setHabits(initialHabits);

@@ -101,7 +101,7 @@ export function CalendarHeatmap({
           {DAY_LABELS.map((label, i) => (
             <div
               key={i}
-              className="h-[12px] w-6 text-[9px] leading-[12px] text-[var(--color-text-tertiary)] text-right"
+              className="h-3 w-6 text-[9px] leading-3 text-text-tertiary text-right"
             >
               {label}
             </div>
@@ -120,19 +120,19 @@ export function CalendarHeatmap({
                 <div
                   key={key}
                   className={cn(
-                    "h-[12px] w-[12px] rounded-[2px] transition-colors",
+                    "h-3 w-3 rounded-xs transition-colors",
                     isOutOfRange
                       ? "bg-transparent"
                       : count > 0
                         ? ""
-                        : "bg-[var(--color-bg-secondary)]",
+                        : "bg-bg-secondary",
                   )}
                   style={
                     !isOutOfRange && count > 0
                       ? {
-                          backgroundColor: color,
-                          opacity: getOpacity(count, maxCount),
-                        }
+                        backgroundColor: color,
+                        opacity: getOpacity(count, maxCount),
+                      }
                       : undefined
                   }
                   title={

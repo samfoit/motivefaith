@@ -308,10 +308,10 @@ export function CompletionForm({
                   />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <p className="text-sm font-medium text-text-primary">
                     Content
                   </p>
-                  <p className="text-xs text-[var(--color-text-tertiary)]">
+                  <p className="text-xs text-text-tertiary">
                     Photo or video
                   </p>
                 </div>
@@ -342,10 +342,10 @@ export function CompletionForm({
                   />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  <p className="text-sm font-medium text-text-primary">
                     Message
                   </p>
-                  <p className="text-xs text-[var(--color-text-tertiary)]">
+                  <p className="text-xs text-text-tertiary">
                     Write a note
                   </p>
                 </div>
@@ -367,7 +367,7 @@ export function CompletionForm({
                 }}
               />
               {preview && (
-                <div className="relative rounded-lg overflow-hidden bg-[var(--color-bg-secondary)]">
+                <div className="relative rounded-lg overflow-hidden bg-bg-secondary">
                   {isPhoto ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
@@ -434,7 +434,7 @@ export function CompletionForm({
                     "text-xs font-mono",
                     message.length >= MAX_MESSAGE_LENGTH
                       ? "text-miss"
-                      : "text-[var(--color-text-tertiary)]",
+                      : "text-text-tertiary",
                   )}
                 >
                   {message.length}/{MAX_MESSAGE_LENGTH}
@@ -456,7 +456,7 @@ export function CompletionForm({
           <div className="absolute inset-0 flex items-center justify-center bg-elevated/80 rounded-t-lg z-10">
             <div className="flex flex-col items-center gap-2">
               <Loader2 className="w-8 h-8 animate-spin text-brand" />
-              <p className="text-sm text-[var(--color-text-secondary)]">
+              <p className="text-sm text-text-secondary">
                 Uploading...
               </p>
             </div>
