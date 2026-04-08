@@ -16,10 +16,8 @@ export type JourneyHabit = {
   title: string;
   emoji: string;
   color: string;
-  category: string;
   streak_current: number;
   streak_best: number;
-  total_completions: number;
   /** The user who owns this habit */
   owner_id: string;
   /** Whether the current user owns this habit */

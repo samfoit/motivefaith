@@ -148,7 +148,7 @@ export type GroupTimelineMessage = {
 
 /** Full data for the group timeline page */
 export type GroupTimelineData = {
-  group: Group;
+  group: Pick<Group, "id" | "name" | "invite_code">;
   members: GroupMemberProfile[];
   habits: {
     id: string;
