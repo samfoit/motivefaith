@@ -116,8 +116,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30 * 1000,
-            gcTime: 5 * 60 * 1000, // 5 min — limit memory on long-lived PWA sessions
+            staleTime: 2 * 60 * 1000, // 2 min — matches most hook overrides
+            gcTime: 10 * 60 * 1000, // 10 min — keeps data for back-nav in PWA
+            refetchOnWindowFocus: "always", // refresh data when user returns to app
           },
         },
       }),

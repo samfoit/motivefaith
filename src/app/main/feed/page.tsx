@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { FeedClient } from "./feed-client";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
 
@@ -114,7 +115,32 @@ function buildFriendRows(
 }
 
 // --------------------------------------------------------------------------
-// Page
+// Skeletons
+// --------------------------------------------------------------------------
+
+function FeedSkeleton() {
+  return (
+    <div className="min-h-screen">
+      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
+        <Skeleton variant="text" width={80} height={32} />
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-3 rounded-lg bg-elevated px-4 py-3 shadow-sm">
+              <Skeleton variant="circle" width={48} height={48} />
+              <div className="flex-1 min-w-0 space-y-2">
+                <Skeleton variant="text" width="45%" height={16} />
+                <Skeleton variant="text" width="65%" height={12} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// Page — shell renders immediately, data streams via Suspense
 // --------------------------------------------------------------------------
 
 export default async function FeedPage() {
@@ -124,28 +150,36 @@ export default async function FeedPage() {
 
   if (!user) redirect("/auth/login");
 
+  return (
+    <Suspense fallback={<FeedSkeleton />}>
+      <FeedData userId={user.id} />
+    </Suspense>
+  );
+}
+
+/** Async component — fetches friends, then streams groups via nested Suspense. */
+async function FeedData({ userId }: { userId: string }) {
   const supabase = await createServerSupabase();
 
-  const rpcCall = supabase.rpc("get_feed_friends", { p_user_id: user.id });
   const [
     { data: rpcRows },
     { data: myGroupMemberships },
     { data: cursors },
     { data: unreadEnc },
   ] = await Promise.all([
-    rpcCall,
+    supabase.rpc("get_feed_friends", { p_user_id: userId }),
     supabase
       .from("group_members")
       .select("group_id, role")
-      .eq("user_id", user.id),
+      .eq("user_id", userId),
     supabase
       .from("feed_read_cursors")
       .select("feed_type, feed_id, last_read_at")
-      .eq("user_id", user.id),
+      .eq("user_id", userId),
     supabase
       .from("encouragements")
       .select("user_id")
-      .eq("recipient_id", user.id)
+      .eq("recipient_id", userId)
       .eq("is_read", false),
   ]);
 
@@ -154,7 +188,6 @@ export default async function FeedPage() {
     cursorMap.set(`${c.feed_type}:${c.feed_id}`, c.last_read_at);
   }
 
-  // Set of friend IDs that have unread encouragements
   const unreadFriendIds = new Set<string>();
   for (const e of unreadEnc ?? []) {
     unreadFriendIds.add(e.user_id);
@@ -162,15 +195,15 @@ export default async function FeedPage() {
 
   const friendRows = buildFriendRows(
     (rpcRows ?? []) as unknown as FeedFriendRow[],
-    user.id,
+    userId,
     unreadFriendIds,
   );
 
-  // Stream: render friends immediately, groups load in Suspense boundary
+  // Stream: render friends immediately, groups load in nested Suspense
   return (
-    <Suspense fallback={<FeedClient userId={user.id} friends={friendRows} />}>
+    <Suspense fallback={<FeedClient userId={userId} friends={friendRows} />}>
       <FeedWithGroups
-        userId={user.id}
+        userId={userId}
         friendRows={friendRows}
         memberships={myGroupMemberships ?? []}
         cursorMap={cursorMap}
@@ -179,7 +212,7 @@ export default async function FeedPage() {
   );
 }
 
-/** Async component that fetches group details — rendered inside Suspense. */
+/** Async component that fetches group details — rendered inside nested Suspense. */
 async function FeedWithGroups({
   userId,
   friendRows,
@@ -211,9 +244,6 @@ async function FeedWithGroups({
       .select("group_id, content, user_id, created_at, profiles!user_id(display_name)")
       .in("group_id", groupIds)
       .order("created_at", { ascending: false })
-      // We only use the latest message per group for the feed preview.
-      // Limit to 2× group count to account for groups where the latest
-      // row might get filtered by RLS, while avoiding unbounded fetches.
       .limit(Math.max(groupIds.length * 2, 10)),
   ]);
 
@@ -227,7 +257,6 @@ async function FeedWithGroups({
     string,
     { content: string; user_id: string; created_at: string; author_name: string | null }
   >();
-  // Latest message from OTHER members (for unread detection)
   const latestOtherMsgMap = new Map<string, string>();
   for (const msg of latestMessages ?? []) {
     if (!latestMsgMap.has(msg.group_id) && msg.created_at) {
@@ -263,7 +292,6 @@ async function FeedWithGroups({
       latestActivity = latestMsg.created_at;
     }
 
-    // Only messages from other members trigger the unread badge
     const latestOther = latestOtherMsgMap.get(g.id) ?? null;
     const cursor = cursorMap.get(`group:${g.id}`);
     const hasNew =

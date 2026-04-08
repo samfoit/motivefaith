@@ -5,12 +5,10 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { useMissedHabitCount } from "@/lib/hooks/useMissedHabits";
+import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 
-interface TopBarProps {
-  userId: string;
-}
-
-export function TopBar({ userId }: TopBarProps) {
+export function TopBar() {
+  const userId = useAuthUserId();
   const queryClient = useQueryClient();
   const { data: unreadCount = 0 } = useMissedHabitCount(userId);
 

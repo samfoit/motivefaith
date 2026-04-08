@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import { InboxClient, type MissedHabitNotification } from "./inbox-client";
+import InboxLoading from "./loading";
 import { todayDateKey, getDayOfWeek, dayBoundsUtc, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 
 export const revalidate = 120;
@@ -13,12 +15,20 @@ export default async function InboxPage() {
 
   if (!user) redirect("/auth/login");
 
+  return (
+    <Suspense fallback={<InboxLoading />}>
+      <InboxData userId={user.id} />
+    </Suspense>
+  );
+}
+
+async function InboxData({ userId }: { userId: string }) {
   const supabase = await createServerSupabase();
 
   const { data: profileData } = await supabase
     .from("profiles")
     .select("timezone")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   const timeZone = profileData?.timezone || DEFAULT_TIMEZONE;
@@ -41,7 +51,7 @@ export default async function InboxPage() {
     supabase,
     "get_inbox_missed_habits",
     {
-      p_user_id: user.id,
+      p_user_id: userId,
       p_today_date: todayStr,
       p_day_of_week: todayDow,
       p_day_start: dayStart,
