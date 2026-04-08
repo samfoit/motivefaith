@@ -99,6 +99,7 @@ export type Database = {
           reason: Database["public"]["Enums"]["report_reason"]
           reporter_id: string
           reviewed_at: string | null
+          reviewed_by: string | null
           reviewer_notes: string | null
           status: Database["public"]["Enums"]["report_status"] | null
         }
@@ -111,6 +112,7 @@ export type Database = {
           reason: Database["public"]["Enums"]["report_reason"]
           reporter_id: string
           reviewed_at?: string | null
+          reviewed_by?: string | null
           reviewer_notes?: string | null
           status?: Database["public"]["Enums"]["report_status"] | null
         }
@@ -123,6 +125,7 @@ export type Database = {
           reason?: Database["public"]["Enums"]["report_reason"]
           reporter_id?: string
           reviewed_at?: string | null
+          reviewed_by?: string | null
           reviewer_notes?: string | null
           status?: Database["public"]["Enums"]["report_status"] | null
         }
