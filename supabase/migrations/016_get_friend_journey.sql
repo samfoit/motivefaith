@@ -97,7 +97,7 @@ BEGIN
           SELECT 1 FROM completions_30d c2
           WHERE c2.habit_id = hd.id
             AND c2.user_id = hd.owner_id
-            AND c2.completed_date = (SELECT d FROM today_local)::text
+            AND c2.completed_date = (SELECT d FROM today_local)
         )
       ) ORDER BY hd.title) FROM habit_details hd),
       '[]'::jsonb
