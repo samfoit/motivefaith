@@ -123,7 +123,7 @@ export const Sheet: React.FC<SheetProps> = ({
           )}
           style={{ touchAction: "pan-y" }}
         >
-          <div className="mx-auto max-w-[48rem]">
+          <div className="mx-auto max-w-3xl">
             {showHandle && (
               <div className="flex justify-center mb-3 -mt-2">
                 <div

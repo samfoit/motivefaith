@@ -140,36 +140,19 @@ export const HabitCard = React.memo(function HabitCard({
             </span>
           )}
           {habit.challenge && (
-            <>
-              {scheduledTime && (
-                <span className="text-text-tertiary text-xs">·</span>
-              )}
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-light text-brand">
-                {habit.challenge.emoji} {habit.challenge.title}
-              </span>
-            </>
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-light text-brand">
+              {habit.challenge.emoji} {habit.challenge.title}
+            </span>
           )}
           {(habit.streak_current ?? 0) > 0 && (
-            <>
-              {(scheduledTime || habit.challenge) && (
-                <span className="text-text-tertiary text-xs">·</span>
-              )}
-              <span className="text-xs font-mono text-streak flex items-center gap-0.5">
-                {habit.streak_current}-{habit.frequency === "weekly" ? "week" : "day"} streak
-              </span>
-            </>
+            <span className="text-xs font-mono text-streak flex items-center gap-0.5">
+              {habit.streak_current}-{habit.frequency === "weekly" ? "week" : "day"} streak
+            </span>
           )}
           {lastCompletionLabel && (
-            <>
-              {((habit.streak_current ?? 0) > 0 || scheduledTime || habit.challenge) && (
-                <span className="text-text-tertiary text-xs">
-                  ·
-                </span>
-              )}
-              <span className="text-xs text-text-tertiary">
-                {lastCompletionLabel}
-              </span>
-            </>
+            <span className="text-xs text-text-tertiary">
+              {lastCompletionLabel}
+            </span>
           )}
         </div>
       </div>

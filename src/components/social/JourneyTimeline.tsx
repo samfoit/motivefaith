@@ -113,7 +113,7 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
 
   if (entries.length === 0) {
     return (
-      <p className="text-sm text-[var(--color-text-tertiary)] text-center py-8">
+      <p className="text-sm text-text-tertiary text-center py-8">
         No activity in the last 24 hours.
       </p>
     );
@@ -163,27 +163,27 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
               onHeart={
                 !c.isMe && onHeartCompletion
                   ? () => {
-                      if (isHearted) {
-                        setOptimisticHearts((prev) => {
-                          const next = new Set(prev);
-                          next.delete(c.id);
-                          return next;
-                        });
-                        setOptimisticUnhearts(
-                          (prev) => new Set(prev).add(c.id),
-                        );
-                      } else {
-                        setOptimisticUnhearts((prev) => {
-                          const next = new Set(prev);
-                          next.delete(c.id);
-                          return next;
-                        });
-                        setOptimisticHearts(
-                          (prev) => new Set(prev).add(c.id),
-                        );
-                      }
-                      onHeartCompletion(c.id, isHearted);
+                    if (isHearted) {
+                      setOptimisticHearts((prev) => {
+                        const next = new Set(prev);
+                        next.delete(c.id);
+                        return next;
+                      });
+                      setOptimisticUnhearts(
+                        (prev) => new Set(prev).add(c.id),
+                      );
+                    } else {
+                      setOptimisticUnhearts((prev) => {
+                        const next = new Set(prev);
+                        next.delete(c.id);
+                        return next;
+                      });
+                      setOptimisticHearts(
+                        (prev) => new Set(prev).add(c.id),
+                      );
                     }
+                    onHeartCompletion(c.id, isHearted);
+                  }
                   : undefined
               }
               onReport={
@@ -243,7 +243,7 @@ function EncouragementBubble({
         {data.content && (
           <p
             className={cn(
-              "text-[var(--color-text-primary)]",
+              "text-text-primary",
               data.encouragement_type === "emoji" ? "text-2xl" : "text-sm",
             )}
           >
@@ -252,7 +252,7 @@ function EncouragementBubble({
         )}
 
         {/* Time */}
-        <p className="text-[10px] text-[var(--color-text-tertiary)]">
+        <p className="text-[10px] text-text-tertiary">
           {format(new Date(data.created_at), "h:mm a")}
         </p>
       </div>

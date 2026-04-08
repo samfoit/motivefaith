@@ -16,6 +16,8 @@ export interface UseCameraOptions {
 export interface UseCameraReturn {
   state: CameraState;
   stream: MediaStream | null;
+  /** Current facing mode of the active camera. */
+  facingMode: "user" | "environment";
   /** Error message to display to the user (e.g. "No camera found"). */
   errorMessage: string | null;
   requestCamera: (facingMode?: "user" | "environment") => Promise<void>;
@@ -56,6 +58,7 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
   );
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
 
   // Ref always mirrors the latest stream so cleanup can access it
   // without depending on React state lifecycle.
@@ -80,6 +83,7 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
       }
 
       facingModeRef.current = facingMode;
+      setFacingMode(facingMode);
       setErrorMessage(null);
 
       try {
@@ -129,5 +133,5 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
     };
   }, []);
 
-  return { state, stream, errorMessage, requestCamera, switchCamera, stopCamera };
+  return { state, stream, facingMode, errorMessage, requestCamera, switchCamera, stopCamera };
 }

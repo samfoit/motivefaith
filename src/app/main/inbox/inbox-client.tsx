@@ -62,7 +62,7 @@ export function InboxClient({
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+      <div className="max-w-2xl mx-auto px-3 pt-4 space-y-4">
         {/* Header */}
         <h1
           className="font-display font-bold text-[var(--color-text-primary)]"
@@ -78,7 +78,7 @@ export function InboxClient({
               <div
                 key={item.habitId}
                 className={cn(
-                  "flex items-center gap-3 p-4 rounded-lg shadow-sm",
+                  "flex items-center gap-3 p-3 rounded-lg shadow-sm",
                   "bg-elevated border-l-[3px] border-l-miss",
                 )}
               >
@@ -127,7 +127,7 @@ export function InboxClient({
 
         {/* Empty state */}
         {visible.length === 0 && (
-          <div className="text-center py-16">
+          <div className="text-center py-12">
             <div className="w-14 h-14 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center mx-auto mb-4">
               <Bell className="w-6 h-6 text-[var(--color-text-tertiary)]" />
             </div>
