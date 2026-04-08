@@ -76,10 +76,10 @@ export default async function JourneyPage({ params }: Props) {
   const dirAResult =
     myHabitIds.length > 0
       ? await supabase
-          .from("habit_shares")
-          .select("habit_id")
-          .in("habit_id", myHabitIds)
-          .eq("shared_with", friendId)
+        .from("habit_shares")
+        .select("habit_id")
+        .in("habit_id", myHabitIds)
+        .eq("shared_with", friendId)
       : { data: [] as { habit_id: string }[] };
 
   const dirAHabitIds = new Set(

@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { usePathname } from "next/navigation";
 import { useServiceWorker } from "@/lib/hooks/useServiceWorker";
 import { initializeTheme } from "@/lib/stores/theme-store";
 import { getBrowserTimezone } from "@/lib/utils/timezone";
 import { createClient } from "@/lib/supabase/client";
+import { createIDBPersister } from "@/lib/query-persister";
 
 /**
  * Detect the browser's IANA timezone and sync it to the user's profile
@@ -117,17 +119,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 2 * 60 * 1000, // 2 min — matches most hook overrides
-            gcTime: 10 * 60 * 1000, // 10 min — keeps data for back-nav in PWA
+            gcTime: 24 * 60 * 60 * 1000, // 24h — persist-client needs gcTime >= maxAge
             refetchOnWindowFocus: "always", // refresh data when user returns to app
           },
         },
       }),
   );
 
+  const [persistOptions] = useState(() => ({
+    persister: createIDBPersister(),
+    maxAge: 24 * 60 * 60 * 1000, // 24h — offline data stays usable for a day
+    buster: "", // change to bust persisted cache on breaking schema changes
+  }));
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
       {isAuthRoute && <AuthHooks />}
       {children}
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }

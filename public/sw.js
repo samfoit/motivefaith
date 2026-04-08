@@ -14,7 +14,7 @@ var MAX_CACHE_ENTRIES = 100;
 // App shell files to precache on install.
 // __CRITICAL_ASSETS__ is replaced by the post-build script with hashed
 // static assets (CSS, main JS entry); falls back to the base set.
-var APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192.png"];
+var APP_SHELL = ["/", "/offline", "/manifest.webmanifest", "/icon-192.png"];
 var CRITICAL_ASSETS = "__CRITICAL_ASSETS__";
 if (CRITICAL_ASSETS !== "__CRITICAL_" + "ASSETS__") {
   try { APP_SHELL = APP_SHELL.concat(JSON.parse(CRITICAL_ASSETS)); } catch (e) { /* ignore */ }
@@ -24,13 +24,11 @@ if (CRITICAL_ASSETS !== "__CRITICAL_" + "ASSETS__") {
 function trimCache(cacheName, maxEntries) {
   caches.open(cacheName).then(function (cache) {
     cache.keys().then(function (keys) {
-      if (keys.length > maxEntries) {
-        cache.delete(keys[0]).then(function () {
-          if (keys.length - 1 > maxEntries) {
-            trimCache(cacheName, maxEntries);
-          }
-        });
-      }
+      if (keys.length <= maxEntries) return;
+      var toDelete = keys.slice(0, keys.length - maxEntries);
+      return Promise.all(
+        toDelete.map(function (key) { return cache.delete(key); }),
+      );
     });
   });
 }
@@ -45,7 +43,8 @@ self.addEventListener("install", function (event) {
       return cache.addAll(APP_SHELL);
     }),
   );
-  self.skipWaiting();
+  // Do NOT call self.skipWaiting() here — activation is deferred to the
+  // SKIP_WAITING message so the user controls when the new SW takes over.
 });
 
 // ---------------------------------------------------------------------------
@@ -133,10 +132,10 @@ self.addEventListener("fetch", function (event) {
         })
         .catch(function () {
           if (isAuthenticatedPage) {
-            // Don't serve cached authenticated content — fall through to
-            // the browser's default offline page or the app shell.
-            return caches.match("/").then(function (shell) {
-              return shell || new Response("Offline", { status: 503 });
+            // Serve a dedicated offline page instead of the public landing
+            // page, which would confuse authenticated users.
+            return caches.match("/offline").then(function (offlinePage) {
+              return offlinePage || new Response("Offline", { status: 503 });
             });
           }
           return caches.match(event.request).then(function (cached) {
@@ -147,11 +146,12 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
-  // Cache-first for static assets (JS, CSS, images, fonts)
+  // Cache-first for content-hashed and immutable static assets only.
+  // /_next/static/ paths contain content hashes so they are safe to
+  // cache permanently. /icon-* are versioned via the manifest.
   if (
     url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/icon-") ||
-    url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|woff2?)$/)
+    url.pathname.startsWith("/icon-")
   ) {
     event.respondWith(
       caches.match(event.request).then(function (cached) {
@@ -212,7 +212,7 @@ self.addEventListener("push", function (event) {
   var options = {
     body: truncateText(data.body, 200),
     icon: data.icon || "/icon-192.png",
-    badge: data.badge || "/icon-192.png",
+    badge: data.badge || "/badge-96.png",
     tag: data.type || "default",
     data: { url: data.url || "/main/dashboard" },
   };
@@ -346,8 +346,10 @@ function syncQueuedCompletions() {
               // Partial success — only remove the ones that went through
               successIds = result.body.succeeded;
             } else {
-              // Total failure — retry on next sync
-              resolve();
+              // Total failure (401 auth expired, 5xx, etc.) — reject so
+              // Background Sync retries on the next connectivity event
+              // instead of silently losing queued completions.
+              reject(new Error("Sync failed: " + (result.body && result.body.error || "unknown")));
               return;
             }
 
