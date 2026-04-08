@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils/cn";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { useHasUnreadFeeds } from "@/lib/hooks/useHasUnreadFeeds";
 import { useHasPendingRequests } from "@/lib/hooks/useHasPendingRequests";
+import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 
 const NAV_ITEMS = [
   { href: "/main/dashboard", label: "Home", icon: Home },
@@ -18,11 +19,8 @@ const NAV_ITEMS = [
   { href: "/main/profile", label: "Profile", icon: User },
 ] as const;
 
-interface BottomNavProps {
-  userId?: string;
-}
-
-export function BottomNav({ userId }: BottomNavProps) {
+export function BottomNav() {
+  const userId = useAuthUserId();
   const pathname = usePathname();
   const openCapture = useQuickCaptureStore((s) => s.open);
   const queryClient = useQueryClient();
@@ -74,6 +72,7 @@ export function BottomNav({ userId }: BottomNavProps) {
             <Link
               key={href}
               href={href}
+              prefetch={true}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 min-w-[64px] py-1 transition-colors",
                 isActive

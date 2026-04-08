@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
     }),
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns", "motion/react"],
+    staleTimes: {
+      dynamic: 30,
+      static: 300,
+    },
   },
   images: {
     remotePatterns: [
