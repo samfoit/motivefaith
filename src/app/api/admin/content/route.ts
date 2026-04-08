@@ -71,7 +71,7 @@ export async function DELETE(request: Request) {
     return jsonResponse({ error: "Failed to delete content" }, { status: 500 });
   }
 
-  // Mark report as actioned (reviewed_by added in migration 026, not yet in generated types)
+  // Mark report as actioned
   const { error: updateError } = await supabase
     .from("content_reports")
     .update({
