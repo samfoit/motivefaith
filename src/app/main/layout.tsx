@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureFlow } from "@/components/habits/QuickCaptureFlow";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /** Skeleton shown inside the content area while AuthGate resolves. */
@@ -79,6 +80,7 @@ export default function MainLayout({
 }) {
   return (
     <div className="min-h-dvh bg-[var(--color-bg-primary)]">
+      <OfflineIndicator />
       <TopBar />
       <main className="pb-24">
         <Suspense fallback={<MainContentSkeleton />}>

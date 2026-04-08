@@ -16,6 +16,12 @@ export function useServiceWorker() {
     // causing env-var and source-map errors until a hard refresh.
     if (process.env.NODE_ENV === "development") return;
 
+    // Request persistent storage so the browser won't evict Cache Storage
+    // or IndexedDB (queued offline completions) under storage pressure.
+    if (navigator.storage?.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {
@@ -31,7 +37,11 @@ export function useServiceWorker() {
             ) {
               // A new version is ready — prompt the user to reload
               if (window.confirm("A new version of MotiveFaith is available. Reload to update?")) {
-                window.location.reload();
+                // Tell the waiting SW to activate, then reload once it takes control.
+                newWorker.postMessage({ type: "SKIP_WAITING" });
+                navigator.serviceWorker.addEventListener("controllerchange", () => {
+                  window.location.reload();
+                });
               }
             }
           });

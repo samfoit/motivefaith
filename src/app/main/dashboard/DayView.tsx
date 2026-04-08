@@ -55,12 +55,12 @@ export const DayView = memo(function DayView({
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="text-5xl mb-4">🌱</div>
         <h2
-          className="font-display font-semibold text-[var(--color-text-primary)] mb-2"
+          className="font-display font-semibold text-text-primary mb-2"
           style={{ fontSize: "var(--text-xl)" }}
         >
           No habits yet
         </h2>
-        <p className="text-sm text-[var(--color-text-secondary)] mb-6 max-w-xs">
+        <p className="text-sm text-text-secondary mb-6 max-w-xs">
           Start building better habits today. Create your first habit and
           we&apos;ll help you stay on track.
         </p>
@@ -82,14 +82,14 @@ export const DayView = memo(function DayView({
       {todayHabits.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-[var(--color-text-secondary)]">
+            <span className="text-sm text-text-secondary">
               Today&apos;s progress
             </span>
-            <span className="text-sm font-mono font-medium text-[var(--color-text-primary)]">
+            <span className="text-sm font-mono font-medium text-text-primary">
               {completedCount}/{todayHabits.length}
             </span>
           </div>
-          <div className="h-2 rounded-full bg-[var(--color-bg-secondary)] overflow-hidden">
+          <div className="h-2 rounded-full bg-bg-secondary overflow-hidden">
             <div
               className="h-full rounded-full bg-success dv-progress-bar"
               style={{ transform: `scaleX(${progressRatio})` }}
@@ -107,7 +107,7 @@ export const DayView = memo(function DayView({
       {/* Streak Summary Row */}
       {topStreaks.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
+          <h2 className="text-sm font-medium text-text-secondary mb-3">
             Active Streaks
           </h2>
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
@@ -115,15 +115,15 @@ export const DayView = memo(function DayView({
               <button
                 key={habit.id}
                 className={cn(
-                  "flex-shrink-0 flex items-center gap-2 rounded-lg px-3 py-2",
-                  "bg-[var(--color-bg-secondary)]",
+                  "shrink-0 flex items-center gap-2 rounded-lg px-3 py-2",
+                  "bg-bg-secondary",
                   "text-left dv-streak-btn",
                 )}
                 onClick={() => onHabitPress(habit.id)}
               >
                 <span className="text-base">{habit.emoji}</span>
                 <div className="min-w-0">
-                  <p className="text-xs text-[var(--color-text-secondary)] truncate max-w-[100px]">
+                  <p className="text-xs text-text-secondary truncate max-w-25">
                     {habit.title}
                   </p>
                   <p className="text-sm font-mono font-semibold text-streak flex items-center gap-0.5">
@@ -146,7 +146,7 @@ export const DayView = memo(function DayView({
 
             return (
               <div key={group}>
-                <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
+                <h2 className="text-sm font-medium text-text-secondary mb-3">
                   {TIME_GROUP_LABELS[group]}
                 </h2>
                 <div className="space-y-3 dv-stagger-container">
@@ -171,7 +171,7 @@ export const DayView = memo(function DayView({
       {/* No habits scheduled today */}
       {todayHabits.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-sm text-[var(--color-text-secondary)]">
+          <p className="text-sm text-text-secondary">
             No habits scheduled for today
           </p>
         </div>
