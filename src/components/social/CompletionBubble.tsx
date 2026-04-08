@@ -150,7 +150,7 @@ export const CompletionBubble = React.memo(function CompletionBubble({
 
             {/* Video evidence */}
             {completionType === "video" && evidenceUrl && (
-              <div className="-mx-3.5 relative bg-[var(--color-bg-secondary)]">
+              <div className="-mx-3.5 relative bg-[var(--color-bg-secondary)] select-none" style={{ WebkitTouchCallout: "none" }}>
                 <EvidenceMedia
                   path={evidenceUrl}
                   type="video"
@@ -166,7 +166,7 @@ export const CompletionBubble = React.memo(function CompletionBubble({
 
             {/* Notes */}
             {notes && (
-              <p className="text-xs text-[var(--color-text-secondary)] line-clamp-3 italic">
+              <p className="text-xs text-[var(--color-text-secondary)] italic">
                 &ldquo;{notes}&rdquo;
               </p>
             )}

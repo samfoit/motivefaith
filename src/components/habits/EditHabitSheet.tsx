@@ -123,7 +123,7 @@ export function EditHabitSheet({
       form.timeWindowStart !== initial.timeWindowStart ||
       form.timeWindowEnd !== initial.timeWindowEnd ||
       JSON.stringify(form.scheduleDays.slice().sort()) !==
-        JSON.stringify(initial.scheduleDays.slice().sort())
+      JSON.stringify(initial.scheduleDays.slice().sort())
     );
   }, [form, initial]);
 
@@ -187,12 +187,12 @@ export function EditHabitSheet({
       onOpenChange={onOpenChange}
       title="Edit habit"
       size="lg"
-      className="bg-[var(--color-bg-elevated)]"
+      className="bg-bg-elevated"
     >
       <div className="space-y-8 pb-4">
         {/* ---- Name & Icon ---- */}
         <section className="space-y-4">
-          <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">
+          <h3 className="text-sm font-medium text-text-secondary">
             Name & Icon
           </h3>
 
@@ -204,7 +204,7 @@ export function EditHabitSheet({
           />
 
           <div>
-            <label className="text-sm font-medium text-[var(--color-text-secondary)] mb-2 block">
+            <label className="text-sm font-medium text-text-secondary mb-2 block">
               Icon
             </label>
             <div className="grid grid-cols-10 gap-1.5">
@@ -217,7 +217,7 @@ export function EditHabitSheet({
                     "w-9 h-9 flex items-center justify-center rounded-lg text-lg transition-all",
                     form.emoji === emoji
                       ? "bg-brand-light ring-2 ring-brand scale-110"
-                      : "hover:bg-[var(--color-surface-hover)]",
+                      : "hover:bg-surface-hover",
                   )}
                 >
                   {emoji}
@@ -237,7 +237,7 @@ export function EditHabitSheet({
 
         {/* ---- Schedule ---- */}
         <section className="space-y-4">
-          <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">
+          <h3 className="text-sm font-medium text-text-secondary">
             Schedule
           </h3>
 
@@ -251,7 +251,7 @@ export function EditHabitSheet({
                   "px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
                   form.frequency === freq.value
                     ? "bg-brand text-white shadow-sm"
-                    : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
+                    : "bg-bg-secondary text-text-primary hover:bg-surface-hover",
                 )}
               >
                 {freq.label}
@@ -261,7 +261,7 @@ export function EditHabitSheet({
 
           {form.frequency === "specific_days" && (
             <div>
-              <label className="text-sm font-medium text-[var(--color-text-secondary)] mb-2 block">
+              <label className="text-sm font-medium text-text-secondary mb-2 block">
                 Which days?
               </label>
               <div className="flex gap-2 justify-between">
@@ -275,7 +275,7 @@ export function EditHabitSheet({
                       "w-10 h-10 rounded-full text-sm font-medium transition-all flex items-center justify-center",
                       form.scheduleDays.includes(day.value)
                         ? "bg-brand text-white"
-                        : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
+                        : "bg-bg-secondary text-text-primary hover:bg-surface-hover",
                     )}
                   >
                     {day.label}
@@ -292,7 +292,7 @@ export function EditHabitSheet({
               onClick={() =>
                 update("timeWindowEnabled", !form.timeWindowEnabled)
               }
-              className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+              className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
             >
               <Clock className="w-4 h-4" />
               <span>
@@ -311,7 +311,7 @@ export function EditHabitSheet({
                   onChange={(e) => update("timeWindowStart", e.target.value)}
                   className="flex-1"
                 />
-                <span className="text-[var(--color-text-tertiary)] mt-5">
+                <span className="text-text-tertiary mt-5">
                   to
                 </span>
                 <Input
@@ -328,7 +328,7 @@ export function EditHabitSheet({
 
         {/* ---- Category & Color ---- */}
         <section className="space-y-4">
-          <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">
+          <h3 className="text-sm font-medium text-text-secondary">
             Category & Color
           </h3>
 
@@ -342,7 +342,7 @@ export function EditHabitSheet({
                   "flex items-center gap-3 p-4 rounded-lg transition-all text-left",
                   form.category === cat.id
                     ? "ring-2 bg-elevated shadow-sm"
-                    : "bg-[var(--color-bg-secondary)] hover:bg-[var(--color-surface-hover)]",
+                    : "bg-bg-secondary hover:bg-surface-hover",
                 )}
                 style={{
                   outline:
@@ -362,7 +362,7 @@ export function EditHabitSheet({
                     style={{ color: cat.color }}
                   />
                 </div>
-                <span className="text-sm font-medium text-[var(--color-text-primary)]">
+                <span className="text-sm font-medium text-text-primary">
                   {cat.label}
                 </span>
               </button>
@@ -372,7 +372,8 @@ export function EditHabitSheet({
           <div className="flex items-center gap-3">
             <label
               htmlFor="edit-color-picker"
-              className="text-sm text-[var(--color-text-secondary)]"
+              className="text-sm text-text-secondary"
+
             >
               Custom color
             </label>
@@ -385,7 +386,7 @@ export function EditHabitSheet({
                 className="w-8 h-8 rounded-lg border-none cursor-pointer appearance-none bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0"
               />
             </div>
-            <span className="text-xs font-mono text-[var(--color-text-tertiary)]">
+            <span className="text-xs font-mono text-text-tertiary">
               {form.color}
             </span>
           </div>

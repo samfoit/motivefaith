@@ -96,7 +96,8 @@ export function EvidenceMedia({
       src={url}
       controls
       playsInline
-      className={cn(className, videoClassName)}
+      className={cn("select-none", className, videoClassName)}
+      style={{ WebkitTouchCallout: "none" }}
     />
   );
 }

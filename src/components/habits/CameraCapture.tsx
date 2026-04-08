@@ -51,7 +51,7 @@ export function CameraCapture({
   onFallback,
   maxVideoDuration = 15,
 }: CameraCaptureProps) {
-  const { state, stream, errorMessage, requestCamera, switchCamera, stopCamera } =
+  const { state, stream, facingMode, errorMessage, requestCamera, switchCamera, stopCamera } =
     useCamera({ audio: true });
 
   const [stage, setStage] = useState<CaptureStage>("viewfinder");
@@ -60,7 +60,6 @@ export function CameraCapture({
   const [recordingTime, setRecordingTime] = useState(0);
   const [notes, setNotes] = useState("");
   const [isPressed, setIsPressed] = useState(false);
-
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,6 +68,7 @@ export function CameraCapture({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isHoldingRef = useRef(false);
+  const mirrorAnimRef = useRef<number | null>(null);
 
   // --- Request camera on mount ---
   useEffect(() => {
@@ -98,6 +98,7 @@ export function CameraCapture({
   useEffect(() => {
     return () => {
       stopCamera();
+      if (mirrorAnimRef.current != null) cancelAnimationFrame(mirrorAnimRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
       if (recorderRef.current && recorderRef.current.state === "recording") {
@@ -117,7 +118,13 @@ export function CameraCapture({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Mirror the captured photo when using front camera
+    if (facingMode === "user") {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.drawImage(video, 0, 0);
+
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
@@ -129,7 +136,15 @@ export function CameraCapture({
       "image/jpeg",
       0.92,
     );
-  }, [stopCamera]);
+  }, [stopCamera, facingMode]);
+
+  // --- Stop mirror canvas animation loop ---
+  const stopMirrorLoop = useCallback(() => {
+    if (mirrorAnimRef.current != null) {
+      cancelAnimationFrame(mirrorAnimRef.current);
+      mirrorAnimRef.current = null;
+    }
+  }, []);
 
   // --- Video recording ---
   const startRecording = useCallback(() => {
@@ -143,7 +158,41 @@ export function CameraCapture({
     }
 
     chunksRef.current = [];
-    const recorder = new MediaRecorder(stream, { mimeType: mimeInfo.mimeType });
+
+    // When using front camera, mirror the video stream via an offscreen canvas
+    // so the saved file matches what the user sees (Snapchat-style).
+    let recordStream = stream;
+    if (facingMode === "user") {
+      const video = videoRef.current;
+      if (video) {
+        const mc = document.createElement("canvas");
+        mc.width = video.videoWidth || 640;
+        mc.height = video.videoHeight || 480;
+        const ctx = mc.getContext("2d");
+        if (ctx) {
+          const drawFrame = () => {
+            if (mc.width !== video.videoWidth) mc.width = video.videoWidth;
+            if (mc.height !== video.videoHeight) mc.height = video.videoHeight;
+            ctx.save();
+            ctx.translate(mc.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0);
+            ctx.restore();
+            mirrorAnimRef.current = requestAnimationFrame(drawFrame);
+          };
+          mirrorAnimRef.current = requestAnimationFrame(drawFrame);
+
+          const mirroredStream = mc.captureStream(30);
+          // Combine mirrored video track with original audio tracks
+          const combined = new MediaStream();
+          mirroredStream.getVideoTracks().forEach((t) => combined.addTrack(t));
+          stream.getAudioTracks().forEach((t) => combined.addTrack(t));
+          recordStream = combined;
+        }
+      }
+    }
+
+    const recorder = new MediaRecorder(recordStream, { mimeType: mimeInfo.mimeType });
     recorderRef.current = recorder;
 
     recorder.ondataavailable = (e) => {
@@ -151,6 +200,7 @@ export function CameraCapture({
     };
 
     recorder.onstop = () => {
+      stopMirrorLoop();
       const blob = new Blob(chunksRef.current, { type: mimeInfo.mimeType });
       const url = URL.createObjectURL(blob);
       setCapturedBlob(blob);
@@ -161,6 +211,7 @@ export function CameraCapture({
     recorder.start();
     setStage("recording");
     setRecordingTime(0);
+
 
     let elapsed = 0;
     timerRef.current = setInterval(() => {
@@ -177,7 +228,7 @@ export function CameraCapture({
         stopCamera();
       }
     }, 1000);
-  }, [stream, maxVideoDuration, capturePhoto, stopCamera]);
+  }, [stream, maxVideoDuration, capturePhoto, stopCamera, facingMode, stopMirrorLoop]);
 
   const stopRecording = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state === "recording") {
@@ -187,8 +238,9 @@ export function CameraCapture({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    stopMirrorLoop();
     stopCamera();
-  }, [stopCamera]);
+  }, [stopCamera, stopMirrorLoop]);
 
   // --- Global pointer up listener during recording ---
   useEffect(() => {
@@ -400,6 +452,7 @@ export function CameraCapture({
             className={cn(
               "w-full h-full object-cover",
               !stream && "opacity-0",
+              facingMode === "user" && "-scale-x-100",
             )}
           />
         )}
