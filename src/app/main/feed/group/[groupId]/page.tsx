@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
+import { untypedRpc } from "@/lib/supabase/rpc";
 import { GroupTimelineClient } from "./group-timeline-client";
 
 export const revalidate = 30;
@@ -12,6 +13,43 @@ import type {
   GroupChallengeParticipant,
 } from "@/lib/types/groups";
 import type { FeedProfile } from "@/lib/types/feed";
+
+// -- RPC row shape (JSONB arrays from get_group_timeline_activity) -----------
+
+type RpcGroupHabit = {
+  id: string;
+  title: string;
+  emoji: string;
+  color: string;
+  category: string;
+  streak_current: number;
+  owner_id: string;
+  owner_name: string;
+  owner_avatar: string | null;
+  completed_today: boolean;
+};
+
+type RpcGroupCompletion = {
+  id: string;
+  habit_id: string;
+  user_id: string;
+  completion_type: string;
+  evidence_url: string | null;
+  notes: string | null;
+  completed_at: string;
+  user_name: string;
+  user_avatar: string | null;
+  habit_emoji: string;
+  habit_title: string;
+  habit_color: string;
+  reactions: { id: string; user_id: string; emoji: string }[];
+};
+
+type GroupActivityRpcRow = {
+  habits: RpcGroupHabit[];
+  completions: RpcGroupCompletion[];
+  user_timezone: string;
+};
 
 interface Props {
   params: Promise<{ groupId: string }>;
@@ -27,19 +65,17 @@ export default async function GroupTimelinePage({ params }: Props) {
 
   const supabase = await createServerSupabase();
 
-  // Parallelize: membership check, group details, members, habit shares, challenges, messages
+  // RT1: Base queries in parallel (membership, group, members, challenges, messages)
   const [
     { data: myMembership },
     { data: group },
     { data: members },
-    { data: habitShares },
     { data: challenges },
     { data: msgRows },
   ] = await Promise.all([
     supabase.from("group_members").select("role").eq("group_id", groupId).eq("user_id", user.id).single(),
-    supabase.from("groups").select("id, name, description, avatar_url, invite_code, settings, created_by, created_at, updated_at").eq("id", groupId).single(),
+    supabase.from("groups").select("id, name, invite_code").eq("id", groupId).single(),
     supabase.from("group_members").select("id, group_id, user_id, role, joined_at").eq("group_id", groupId),
-    supabase.from("group_habit_shares").select("habit_id, shared_by").eq("group_id", groupId),
     supabase.from("group_challenges").select("id, group_id, title, description, emoji, start_date, end_date, is_active, created_by, created_at").eq("group_id", groupId).eq("is_active", true).order("created_at", { ascending: false }),
     supabase.from("group_messages").select("id, user_id, content, created_at").eq("group_id", groupId).order("created_at", { ascending: false }).limit(50),
   ]);
@@ -47,9 +83,8 @@ export default async function GroupTimelinePage({ params }: Props) {
   if (!myMembership) notFound();
   if (!group) notFound();
 
-  // Second wave: fetch dependent data in parallel
+  // RT2: Dependent queries + RPC in parallel
   const memberUserIds = (members ?? []).map((m) => m.user_id);
-  const sharedHabitIds = (habitShares ?? []).map((s) => s.habit_id);
   const challengeIds = (challenges ?? []).map((c) => c.id);
   const messageIds = (msgRows ?? []).map((m) => m.id);
 
@@ -57,6 +92,7 @@ export default async function GroupTimelinePage({ params }: Props) {
     { data: memberProfileRows },
     challengeParticipantRows,
     { data: msgReactions },
+    { data: activityRows },
   ] = await Promise.all([
     memberUserIds.length > 0
       ? supabase.from("profiles").select("id, display_name, avatar_url, username").in("id", memberUserIds)
@@ -67,6 +103,10 @@ export default async function GroupTimelinePage({ params }: Props) {
     messageIds.length > 0
       ? supabase.from("group_message_reactions").select("id, message_id, user_id, emoji").in("message_id", messageIds)
       : Promise.resolve({ data: [] as { id: string; message_id: string; user_id: string; emoji: string }[] }),
+    untypedRpc<GroupActivityRpcRow[]>(supabase, "get_group_timeline_activity", {
+      p_group_id: groupId,
+      p_user_id: user.id,
+    }),
   ]);
 
   const memberProfiles = memberProfileRows ?? [];
@@ -80,7 +120,7 @@ export default async function GroupTimelinePage({ params }: Props) {
     })
     .filter(Boolean) as GroupMemberProfile[];
 
-  // Resolve challenge participant profiles (reuse profileMap from members where possible)
+  // RT3 (conditional): Resolve missing participant profiles
   const participantUserIds = [...new Set(challengeParticipantRows.map((p) => p.user_id))];
   const missingParticipantIds = participantUserIds.filter((id) => !profileMap.has(id));
 
@@ -102,85 +142,42 @@ export default async function GroupTimelinePage({ params }: Props) {
     })
     .filter(Boolean) as (GroupChallengeParticipant & { profile: FeedProfile })[];
 
-  // Collect all habit IDs and fetch habits + completions in parallel
-  const challengeHabitIds = challengeParticipants
-    .map((p) => p.habit_id)
-    .filter(Boolean) as string[];
+  // Map RPC results to existing types
+  const row = activityRows?.[0];
 
-  const allHabitIds = [...new Set([...sharedHabitIds, ...challengeHabitIds])];
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const habits: GroupTimelineData["habits"] = (
+    (row?.habits ?? []) as RpcGroupHabit[]
+  ).map((h) => ({
+    id: h.id,
+    title: h.title,
+    emoji: h.emoji,
+    color: h.color,
+    category: h.category,
+    streak_current: h.streak_current,
+    owner_id: h.owner_id,
+    owner_name: h.owner_name,
+    owner_avatar: h.owner_avatar,
+    completedToday: h.completed_today,
+  }));
 
-  // Get viewing user's timezone for accurate "completed today" check
-  const { data: myProfileTz } = await supabase
-    .from("profiles")
-    .select("timezone")
-    .eq("id", user.id)
-    .single();
-  const userTz = myProfileTz?.timezone ?? "UTC";
-  const todayLocal = new Date().toLocaleDateString("en-CA", { timeZone: userTz });
-
-  const [habitDetailsResult, compRowsResult] = await Promise.all([
-    allHabitIds.length > 0
-      ? supabase.from("habits").select("id, title, emoji, color, category, streak_current, user_id").in("id", allHabitIds).then(({ data }) => data ?? [])
-      : Promise.resolve([] as { id: string; title: string; emoji: string | null; color: string | null; category: string | null; streak_current: number | null; user_id: string }[]),
-    allHabitIds.length > 0
-      ? supabase.from("completions").select("id, habit_id, user_id, completion_type, evidence_url, notes, completed_at, completed_date").in("habit_id", allHabitIds).gte("completed_at", thirtyDaysAgo.toISOString()).order("completed_at", { ascending: false }).limit(100).then(({ data }) => data ?? [])
-      : Promise.resolve([] as { id: string; habit_id: string | null; user_id: string; completion_type: string | null; evidence_url: string | null; notes: string | null; completed_at: string | null; completed_date: string | null }[]),
-  ]);
-
-  const habitMap = new Map(habitDetailsResult.map((h) => [h.id, h]));
-  const completedTodaySet = new Set<string>();
-
-  for (const c of compRowsResult) {
-    if (!c.completed_at || !c.habit_id) continue;
-    if (c.completed_date === todayLocal) {
-      completedTodaySet.add(`${c.habit_id}:${c.user_id}`);
-    }
-  }
-
-  // Fetch completion reactions
-  const completionIds = compRowsResult.map((c) => c.id);
-  const completionReactionsByCompletion = new Map<
-    string,
-    { id: string; user_id: string; emoji: string }[]
-  >();
-
-  if (completionIds.length > 0) {
-    const { data: compReactions } = await supabase
-      .from("group_completion_reactions")
-      .select("id, completion_id, user_id, emoji")
-      .in("completion_id", completionIds);
-
-    for (const r of compReactions ?? []) {
-      const existing = completionReactionsByCompletion.get(r.completion_id) ?? [];
-      existing.push({ id: r.id, user_id: r.user_id, emoji: r.emoji });
-      completionReactionsByCompletion.set(r.completion_id, existing);
-    }
-  }
-
-  const completions: GroupTimelineCompletion[] = compRowsResult
-    .filter((c) => c.habit_id != null && c.completed_at != null)
-    .map((c) => {
-      const habit = habitMap.get(c.habit_id!);
-      const userProfile = profileMap.get(c.user_id);
-      return {
-        id: c.id,
-        habit_id: c.habit_id!,
-        completion_type: (c.completion_type ?? "quick") as GroupTimelineCompletion["completion_type"],
-        evidence_url: c.evidence_url,
-        notes: c.notes,
-        completed_at: c.completed_at!,
-        user_id: c.user_id,
-        isMe: c.user_id === user.id,
-        user_name: userProfile?.display_name ?? "Unknown",
-        user_avatar: userProfile?.avatar_url ?? null,
-        habit_emoji: habit?.emoji ?? "",
-        habit_title: habit?.title ?? "",
-        habit_color: habit?.color ?? "",
-        reactions: completionReactionsByCompletion.get(c.id),
-      };
-    });
+  const completions: GroupTimelineCompletion[] = (
+    (row?.completions ?? []) as RpcGroupCompletion[]
+  ).map((c) => ({
+    id: c.id,
+    habit_id: c.habit_id,
+    completion_type: (c.completion_type ?? "quick") as GroupTimelineCompletion["completion_type"],
+    evidence_url: c.evidence_url,
+    notes: c.notes,
+    completed_at: c.completed_at,
+    user_id: c.user_id,
+    isMe: c.user_id === user.id,
+    user_name: c.user_name,
+    user_avatar: c.user_avatar,
+    habit_emoji: c.habit_emoji,
+    habit_title: c.habit_title,
+    habit_color: c.habit_color,
+    reactions: c.reactions,
+  }));
 
   // Build message reactions map
   const reactionsByMessage = new Map<
@@ -209,28 +206,7 @@ export default async function GroupTimelinePage({ params }: Props) {
       };
     });
 
-  // 9. Build habits list for display
-  const habits = sharedHabitIds
-    .map((hid) => {
-      const h = habitMap.get(hid);
-      if (!h) return null;
-      const ownerProfile = profileMap.get(h.user_id);
-      return {
-        id: h.id,
-        title: h.title,
-        emoji: h.emoji ?? "✅",
-        color: h.color ?? "#6366F1",
-        category: h.category ?? "general",
-        streak_current: h.streak_current ?? 0,
-        owner_id: h.user_id,
-        owner_name: ownerProfile?.display_name ?? "Unknown",
-        owner_avatar: ownerProfile?.avatar_url ?? null,
-        completedToday: completedTodaySet.has(`${h.id}:${h.user_id}`),
-      };
-    })
-    .filter(Boolean) as GroupTimelineData["habits"];
-
-  // 10. Assemble challenge data with participants
+  // Assemble challenge data with participants
   const challengesWithParticipants = (challenges ?? []).map((c) => {
     const cParticipants = challengeParticipants.filter(
       (p) => p.challenge_id === c.id,
@@ -250,10 +226,7 @@ export default async function GroupTimelinePage({ params }: Props) {
   });
 
   const data: GroupTimelineData = {
-    group: {
-      ...group,
-      settings: group.settings as GroupTimelineData["group"]["settings"],
-    },
+    group,
     members: membersWithProfiles,
     habits,
     completions,
