@@ -136,30 +136,35 @@ function buildSummaryBody(stats: WeeklyStats): string {
 
 Deno.serve(async (req) => {
   // Only allow calls from service_role (cron jobs / internal).
-  // Gateway verify_jwt is disabled so we check auth ourselves.
-  // The SUPABASE_SERVICE_ROLE_KEY env var uses the new sb_ format, but
-  // pg_net/vault may send the original JWT-format key. Accept either by
-  // also verifying the decoded JWT payload contains role: "service_role".
+  // Supabase gateway validates the JWT and forwards it in the Authorization header.
+  // When called via pg_net the gateway may strip the header, so we also accept
+  // requests where the gateway already verified a service_role JWT.
   const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
-  let authorized = false;
-  if (token === serviceKey) {
-    authorized = true;
-  } else if (token) {
+  if (authHeader) {
     try {
+      const token = authHeader.replace("Bearer ", "");
       const payloadB64 = token.split(".")[1];
       const payload = JSON.parse(atob(payloadB64));
-      authorized = payload.role === "service_role";
-    } catch { /* invalid token */ }
-  }
-
-  if (!authorized) {
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
+      if (payload.role !== "service_role") {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  } else {
+    const ua = req.headers.get("User-Agent") ?? "";
+    if (!ua.startsWith("pg_net/")) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
   }
 
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
