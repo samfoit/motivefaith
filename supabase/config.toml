@@ -360,6 +360,18 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+[functions.send-push]
+verify_jwt = false
+
+[functions.habit-reminders]
+verify_jwt = false
+
+[functions.check-missed-habits]
+verify_jwt = false
+
+[functions.weekly-summary]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
