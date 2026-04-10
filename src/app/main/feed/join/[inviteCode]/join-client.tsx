@@ -42,6 +42,7 @@ export function JoinClient({ group, inviteCode }: JoinClientProps) {
 
     showToast({ variant: "success", title: `Joined ${group.name}!` });
     router.push(`/main/feed/group/${group.id}`);
+    router.refresh();
   }, [group, inviteCode, showToast, router]);
 
   return (
