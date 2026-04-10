@@ -50,6 +50,7 @@ export function NewGroupClient({ userId, friends }: NewGroupClientProps) {
 
       showToast({ variant: "success", title: "Group created!" });
       router.push(`/main/feed/group/${group.id}`);
+      router.refresh();
     } catch {
       showToast({ variant: "error", title: "Failed to create group" });
     }

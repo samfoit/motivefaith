@@ -143,6 +143,7 @@ export function WizardClient({ userId }: { userId: string }) {
         }
       }
 
+      router.refresh();
       setShowSuccess(true);
       setTimeout(() => router.push("/main/dashboard"), 1500);
     } catch (err) {

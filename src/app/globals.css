@@ -250,3 +250,15 @@ body {
 .fr-stagger-container > :nth-child(9) { animation-delay: 320ms; }
 .fr-stagger-container > :nth-child(10) { animation-delay: 360ms; }
 .fr-stagger-container > :nth-child(n+11) { animation-delay: 400ms; }
+
+/* ── Navigation progress bar (shown during stale-cache navigations) ── */
+
+@keyframes nav-progress {
+  0%   { width: 5%; }
+  50%  { width: 50%; }
+  100% { width: 90%; }
+}
+
+.nav-progress-bar {
+  animation: nav-progress 3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

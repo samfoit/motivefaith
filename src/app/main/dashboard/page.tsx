@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
+import { getAuthUser, getProfile, createServerSupabase } from "@/lib/supabase/server";
 import { DashboardClient } from "./dashboard-client";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
@@ -98,13 +98,8 @@ export default async function DashboardPage() {
     redirect("/auth/login");
   }
 
-  // Fetch profile immediately for greeting (fast single-row query)
-  const supabase = await createServerSupabase();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name, avatar_url, timezone")
-    .eq("id", user.id)
-    .single();
+  // Reuses the cached profile from AuthGate — no extra DB call
+  const profile = await getProfile(user.id);
 
   const timeZone = profile?.timezone || DEFAULT_TIMEZONE;
   const greeting = getGreeting(timeZone);

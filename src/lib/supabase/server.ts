@@ -44,3 +44,18 @@ export const getAuthUser = cache(async () => {
   const supabase = await createServerSupabase();
   return supabase.auth.getUser();
 });
+
+/**
+ * Request-scoped cached profile fetch. Deduplicates the profile query
+ * across AuthGate (layout) and page components so only one DB round-trip
+ * is made per render pass.
+ */
+export const getProfile = cache(async (userId: string) => {
+  const supabase = await createServerSupabase();
+  const { data } = await supabase
+    .from("profiles")
+    .select("display_name, avatar_url, timezone, date_of_birth")
+    .eq("id", userId)
+    .single();
+  return data;
+});

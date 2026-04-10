@@ -1,12 +1,12 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { getAuthUser } from "@/lib/supabase/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { getAuthUser, getProfile } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureFlow } from "@/components/habits/QuickCaptureFlow";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
+import { NavigationProgress } from "@/components/layout/NavigationProgress";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /** Skeleton shown inside the content area while AuthGate resolves. */
@@ -59,12 +59,7 @@ async function AuthGate({ children }: { children: React.ReactNode }) {
     redirect("/auth/login");
   }
 
-  const supabase = await createServerSupabase();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("date_of_birth")
-    .eq("id", user.id)
-    .single();
+  const profile = await getProfile(user.id);
 
   if (!profile?.date_of_birth) {
     redirect("/auth/complete-profile");
@@ -80,6 +75,7 @@ export default function MainLayout({
 }) {
   return (
     <div className="min-h-dvh bg-[var(--color-bg-primary)]">
+      <NavigationProgress />
       <OfflineIndicator />
       <TopBar />
       <main className="pb-24">
