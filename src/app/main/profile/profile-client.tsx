@@ -54,6 +54,8 @@ export function ProfileClient({
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [mfaVerifyCode, setMfaVerifyCode] = useState("");
   const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaDisabling, setMfaDisabling] = useState(false);
+  const [mfaDisableCode, setMfaDisableCode] = useState("");
 
   // Check current MFA status on mount
   useEffect(() => {
@@ -315,7 +317,7 @@ export function ProfileClient({
               </h2>
             </div>
             <div className="rounded-lg bg-elevated p-4 shadow-sm space-y-4">
-              {mfaEnabled ? (
+              {mfaEnabled && !mfaDisabling ? (
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-text-primary">
@@ -328,32 +330,106 @@ export function ProfileClient({
                   <Button
                     variant="ghost"
                     size="sm"
-                    loading={mfaLoading}
                     className="text-miss"
-                    onClick={async () => {
-                      if (!mfaFactorId) return;
-                      setMfaLoading(true);
-                      const supabase = createClient();
-                      const { error } = await supabase.auth.mfa.unenroll({
-                        factorId: mfaFactorId,
-                      });
-                      if (error) {
-                        showToast({
-                          variant: "error",
-                          title: "Failed to disable 2FA",
-                        });
-                      } else {
-                        setMfaEnabled(false);
-                        setMfaFactorId(null);
-                        showToast({
-                          variant: "success",
-                          title: "Two-factor authentication disabled",
-                        });
-                      }
-                      setMfaLoading(false);
+                    onClick={() => {
+                      setMfaDisabling(true);
+                      setMfaDisableCode("");
+                      setMfaError(null);
                     }}
                   >
                     Disable
+                  </Button>
+                </div>
+              ) : mfaEnabled && mfaDisabling ? (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-text-primary">
+                    Enter your authenticator code to disable 2FA
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      placeholder="Enter 6-digit code"
+                      value={mfaDisableCode}
+                      onChange={(e) => {
+                        setMfaDisableCode(
+                          e.target.value.replace(/\D/g, "").slice(0, 6),
+                        );
+                        setMfaError(null);
+                      }}
+                      className={cn(
+                        "flex-1 rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary text-center font-mono tracking-widest",
+                        "border-surface-hover focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                      )}
+                    />
+                    <Button
+                      size="md"
+                      loading={mfaLoading}
+                      disabled={mfaDisableCode.length !== 6}
+                      className="bg-miss hover:bg-miss/80 text-white"
+                      onClick={async () => {
+                        if (!mfaFactorId) return;
+                        setMfaLoading(true);
+                        setMfaError(null);
+                        const supabase = createClient();
+                        const challenge =
+                          await supabase.auth.mfa.challenge({
+                            factorId: mfaFactorId,
+                          });
+                        if (challenge.error) {
+                          setMfaError("Failed to create challenge");
+                          setMfaLoading(false);
+                          return;
+                        }
+                        const verify = await supabase.auth.mfa.verify({
+                          factorId: mfaFactorId,
+                          challengeId: challenge.data.id,
+                          code: mfaDisableCode,
+                        });
+                        if (verify.error) {
+                          setMfaError("Invalid code. Please try again.");
+                          setMfaLoading(false);
+                          return;
+                        }
+                        const { error } =
+                          await supabase.auth.mfa.unenroll({
+                            factorId: mfaFactorId,
+                          });
+                        if (error) {
+                          setMfaError("Failed to disable 2FA");
+                        } else {
+                          setMfaEnabled(false);
+                          setMfaFactorId(null);
+                          setMfaDisabling(false);
+                          setMfaDisableCode("");
+                          showToast({
+                            variant: "success",
+                            title:
+                              "Two-factor authentication disabled",
+                          });
+                        }
+                        setMfaLoading(false);
+                      }}
+                    >
+                      Confirm
+                    </Button>
+                  </div>
+                  {mfaError && (
+                    <p className="text-xs text-miss">{mfaError}</p>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      setMfaDisabling(false);
+                      setMfaDisableCode("");
+                      setMfaError(null);
+                    }}
+                  >
+                    Cancel
                   </Button>
                 </div>
               ) : mfaEnrolling ? (

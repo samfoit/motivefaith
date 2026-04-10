@@ -92,6 +92,19 @@ export function subtractDays(dateKey: string, days: number): string {
 }
 
 /**
+ * Return the current time as "HH:MM" (24-hour) in a specific timezone.
+ */
+export function currentTimeHHMM(timeZone: string): string {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone,
+  });
+  return fmt.format(new Date());
+}
+
+/**
  * Return [start, end) ISO-8601 timestamps with UTC offset for a full day in
  * the given IANA timezone. Use with Supabase `.gte()` / `.lt()` filters on
  * `timestamptz` columns so PostgreSQL compares in the correct timezone.
