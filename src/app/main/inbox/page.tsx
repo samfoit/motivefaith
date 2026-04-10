@@ -4,7 +4,7 @@ import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import { InboxClient, type MissedHabitNotification } from "./inbox-client";
 import InboxLoading from "./loading";
-import { todayDateKey, getDayOfWeek, dayBoundsUtc, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
+import { todayDateKey, getDayOfWeek, dayBoundsUtc, currentTimeHHMM, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 
 export const revalidate = 120;
 
@@ -56,6 +56,7 @@ async function InboxData({ userId }: { userId: string }) {
       p_day_of_week: todayDow,
       p_day_start: dayStart,
       p_day_end: dayEnd,
+      p_current_time: currentTimeHHMM(timeZone),
     },
   );
 
