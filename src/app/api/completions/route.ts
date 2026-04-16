@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     return jsonResponse(
       {
         error:
-          "habitId (string) and type (photo|video|message|quick) are required",
+          "habitId (string) and type (photo|video|message|quick|voice) are required",
       },
       { status: 400 },
     );

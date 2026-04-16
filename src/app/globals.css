@@ -118,6 +118,21 @@ body {
   100% { opacity: 0; }
 }
 
+/* Completion flyout — emoji arcs from center to Feed icon */
+@keyframes flyout-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--fly-dx)); }
+}
+@keyframes flyout-y {
+  0% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-60px) scale(0.9); }
+  100% { transform: translateY(var(--fly-dy)) scale(0.35); }
+}
+@keyframes flyout-fade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
 /* ── Landing page CSS animations (replaces motion/react) ── */
 
 @keyframes landing-fade-up {

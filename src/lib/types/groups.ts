@@ -118,7 +118,7 @@ export type GroupFeedRow = {
 export type GroupTimelineCompletion = {
   id: string;
   habit_id: string;
-  completion_type: "photo" | "video" | "message" | "quick";
+  completion_type: "photo" | "video" | "message" | "quick" | "voice";
   evidence_url: string | null;
   notes: string | null;
   completed_at: string;

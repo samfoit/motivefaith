@@ -82,7 +82,7 @@ export function BottomNav() {
               aria-current={isActive ? "page" : undefined}
               aria-label={showBadge ? `${label}, new activity` : label}
             >
-              <span className="relative">
+              <span className="relative" {...(label === "Feed" ? { "data-nav": "feed" } : {})}>
                 <Icon className="w-5 h-5" />
                 {showBadge && (
                   <span

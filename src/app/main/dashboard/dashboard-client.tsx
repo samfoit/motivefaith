@@ -36,6 +36,13 @@ const StreakCelebration = dynamic(
     ),
   { ssr: false, loading: () => null },
 );
+const CompletionFlyout = dynamic(
+  () =>
+    import("@/components/habits/CompletionFlyout").then(
+      (m) => m.CompletionFlyout,
+    ),
+  { ssr: false, loading: () => null },
+);
 
 // ---------------------------------------------------------------------------
 // Streak milestones
@@ -103,6 +110,7 @@ export function DashboardClient({
   const completeHabit = useCompleteHabit();
   const { show: showToast, ToastElements } = useToast();
   const [showConfetti, setShowConfetti] = useState(false);
+  const [flyout, setFlyout] = useState<{ emoji: string; from: { x: number; y: number } } | null>(null);
   const [completionHabitId, setCompletionHabitId] = useState<string | null>(
     null,
   );
@@ -119,6 +127,7 @@ export function DashboardClient({
     localStorage.setItem("motive:dashboard-view", mode);
   }, []);
   const dismissConfetti = useCallback(() => setShowConfetti(false), []);
+  const dismissFlyout = useCallback(() => setFlyout(null), []);
 
   const checkMilestone = useCallback(
     (habitTitle: string, newStreak: number, frequency?: string | null) => {
@@ -183,7 +192,7 @@ export function DashboardClient({
     evidenceUrl,
     notes,
   }: {
-    type: "photo" | "video" | "message" | "quick";
+    type: "photo" | "video" | "message" | "quick" | "voice";
     evidenceUrl?: string;
     notes?: string;
   }) => {
@@ -222,10 +231,15 @@ export function DashboardClient({
   };
 
   const handleQuickComplete = useCallback(
-    async (habitId: string) => {
+    async (habitId: string, origin?: { x: number; y: number }) => {
       if (completionMap.get(habitId)) return;
       const habit = habits.find((h) => h.id === habitId);
       const prevStreak = habit?.streak_current ?? 0;
+
+      // Fly the emoji to the feed icon to show it's being shared
+      if (origin) {
+        setFlyout({ emoji: habit?.emoji ?? "✓", from: origin });
+      }
 
       // Optimistic update
       setHabits((prev) =>
@@ -353,6 +367,7 @@ export function DashboardClient({
 
       {/* Streak milestone celebration */}
       <StreakCelebration active={showConfetti} onDone={dismissConfetti} />
+      <CompletionFlyout active={!!flyout} emoji={flyout?.emoji ?? ""} from={flyout?.from} onDone={dismissFlyout} />
       {ToastElements}
     </>
   );

@@ -5,6 +5,8 @@ import {
   Camera,
   MessageSquare,
   Loader2,
+  Mic,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Sheet } from "@/components/ui/Sheet";
@@ -22,11 +24,16 @@ const CameraCapture = dynamic(
   { ssr: false },
 );
 
+const VoiceRecorder = dynamic(
+  () => import("@/components/habits/VoiceRecorder").then((m) => m.VoiceRecorder),
+  { ssr: false },
+);
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type CompletionType = "photo" | "video" | "message" | "quick";
+type CompletionType = "photo" | "video" | "message" | "quick" | "voice";
 type Mode = "select" | "content" | "message";
 
 export interface CompletionFormProps {
@@ -80,8 +87,15 @@ export function CompletionForm({
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Proxy input: on iOS, the keyboard only opens when focus occurs
+  // synchronously inside a user-gesture handler. Since the TextArea doesn't
+  // exist yet when "Message" is tapped, we focus this invisible proxy first,
+  // then transfer focus once the TextArea mounts.
+  const proxyInputRef = useRef<HTMLInputElement>(null);
 
   // Derive media type from selected file
   const mediaType: "photo" | "video" | null = selectedFile
@@ -89,6 +103,13 @@ export function CompletionForm({
       ? "video"
       : "photo"
     : null;
+
+  // Transfer focus from proxy to real textarea once it mounts
+  useEffect(() => {
+    if (mode === "message" && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [mode]);
 
   // Cleanup preview URL on unmount or when changing
   useEffect(() => {
@@ -106,6 +127,7 @@ export function CompletionForm({
     setError(null);
     setIsSubmitting(false);
     setCameraOpen(false);
+    setVoiceOpen(false);
   };
 
   const handleClose = (nextOpen: boolean) => {
@@ -126,7 +148,20 @@ export function CompletionForm({
 
   const handleMessageSelect = () => {
     setError(null);
+    // Focus proxy immediately within the tap handler so iOS opens the keyboard
+    proxyInputRef.current?.focus();
     setMode("message");
+  };
+
+  const handleVoiceSelect = () => {
+    setError(null);
+    setVoiceOpen(true);
+  };
+
+  const handleQuickCheckin = () => {
+    setError(null);
+    onComplete({ type: "quick" });
+    handleClose(false);
   };
 
   // --- Camera capture handlers ---
@@ -147,6 +182,27 @@ export function CompletionForm({
 
   const handleCameraClose = () => {
     setCameraOpen(false);
+  };
+
+  // --- Voice capture handlers ---
+
+  const handleVoiceCapture = async (file: File) => {
+    setVoiceOpen(false);
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const url = await uploadFile(file, "voice");
+      onComplete({ type: "voice", evidenceUrl: url });
+      handleClose(false);
+    } catch (err) {
+      console.error("Voice upload failed:", err);
+      setError("Upload failed. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVoiceClose = () => {
+    setVoiceOpen(false);
   };
 
   // --- File handling ---
@@ -188,7 +244,7 @@ export function CompletionForm({
 
   const uploadFile = async (
     file: File,
-    type: "photo" | "video",
+    type: "photo" | "video" | "voice",
   ): Promise<string> => {
     const supabase = createClient();
     const {
@@ -268,8 +324,16 @@ export function CompletionForm({
         onChange={handleFileChange}
       />
 
+      {/* Proxy input — captures iOS keyboard within the user gesture */}
+      <input
+        ref={proxyInputRef}
+        aria-hidden
+        tabIndex={-1}
+        style={{ position: "fixed", opacity: 0, left: 0, top: 0, width: 1, height: 1, padding: 0, border: "none" }}
+      />
+
       <Sheet
-        open={open && !cameraOpen}
+        open={open && !cameraOpen && !voiceOpen}
         onOpenChange={handleClose}
         size="md"
         title={sheetTitle}
@@ -319,6 +383,40 @@ export function CompletionForm({
 
               <button
                 type="button"
+                onClick={handleVoiceSelect}
+                className={cn(
+                  "flex flex-col items-center gap-2 p-5 rounded-lg transition-all",
+                  "hover:scale-[1.02] active:scale-95",
+                )}
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--color-encourage) 15%, var(--color-bg-secondary))",
+                }}
+              >
+                <div
+                  className="w-11 h-11 rounded-full flex items-center justify-center"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--color-encourage) 15%, transparent)",
+                  }}
+                >
+                  <Mic
+                    className="w-5 h-5"
+                    style={{ color: "var(--color-encourage)" }}
+                  />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-text-primary">
+                    Voice
+                  </p>
+                  <p className="text-xs text-text-tertiary">
+                    Record a note
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleMessageSelect}
                 className={cn(
                   "flex flex-col items-center gap-2 p-5 rounded-lg transition-all",
@@ -347,6 +445,40 @@ export function CompletionForm({
                   </p>
                   <p className="text-xs text-text-tertiary">
                     Write a note
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickCheckin}
+                className={cn(
+                  "flex flex-col items-center gap-2 p-5 rounded-lg transition-all",
+                  "hover:scale-[1.02] active:scale-95",
+                )}
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--color-success) 15%, var(--color-bg-secondary))",
+                }}
+              >
+                <div
+                  className="w-11 h-11 rounded-full flex items-center justify-center"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--color-success) 15%, transparent)",
+                  }}
+                >
+                  <Zap
+                    className="w-5 h-5"
+                    style={{ color: "var(--color-success)" }}
+                  />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-text-primary">
+                    Check in
+                  </p>
+                  <p className="text-xs text-text-tertiary">
+                    Just log it
                   </p>
                 </div>
               </button>
@@ -418,6 +550,7 @@ export function CompletionForm({
 
               <ModeHeader label="Reflection" onBack={() => setMode("select")} />
               <TextArea
+                ref={textareaRef}
                 placeholder="How did it go? What did you learn?"
                 value={message}
                 onChange={(e) => {
@@ -426,7 +559,6 @@ export function CompletionForm({
                   }
                 }}
                 rows={4}
-                autoFocus
               />
               <div className="flex items-center justify-between">
                 <span
@@ -470,6 +602,14 @@ export function CompletionForm({
           onCapture={handleCameraCapture}
           onClose={handleCameraClose}
           onFallback={handleCameraFallback}
+        />
+      )}
+
+      {/* Voice recorder overlay — rendered outside Sheet so it's truly full-screen */}
+      {voiceOpen && (
+        <VoiceRecorder
+          onCapture={handleVoiceCapture}
+          onClose={handleVoiceClose}
         />
       )}
     </>

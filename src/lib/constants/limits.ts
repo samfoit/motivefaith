@@ -6,7 +6,11 @@
 // --- Upload limits ---
 export const MAX_IMAGE_SIZE_MB = 5;
 export const MAX_VIDEO_SIZE_MB = 10;
+export const MAX_AUDIO_SIZE_MB = 5;
 export const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+
+// --- Recording limits ---
+export const MAX_AUDIO_DURATION_S = 120;
 
 // --- Content limits ---
 export const MAX_MESSAGE_LENGTH = 500;

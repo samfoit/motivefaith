@@ -94,6 +94,33 @@ export const Sheet: React.FC<SheetProps> = ({
     }
   }, [open]);
 
+  // Push the sheet above the on-screen keyboard using the Visual Viewport API.
+  // On iOS Safari, `position: fixed; bottom: 0` doesn't account for the
+  // keyboard, so the sheet content gets hidden behind it.
+  React.useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const adjust = () => {
+      const el = contentRef.current;
+      if (!el) return;
+      const kbHeight = window.innerHeight - (vv.height + vv.offsetTop);
+      el.style.bottom = kbHeight > 0 ? `${kbHeight}px` : "0px";
+    };
+
+    vv.addEventListener("resize", adjust);
+    vv.addEventListener("scroll", adjust);
+    adjust();
+
+    return () => {
+      vv.removeEventListener("resize", adjust);
+      vv.removeEventListener("scroll", adjust);
+      const el = contentRef.current;
+      if (el) el.style.bottom = "";
+    };
+  }, [open]);
+
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
