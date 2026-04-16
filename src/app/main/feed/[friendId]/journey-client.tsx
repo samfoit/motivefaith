@@ -33,7 +33,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const timelineEndRef = useRef<HTMLDivElement>(null);
-  const keyboardOffset = useKeyboardOffset();
+  const inputBarRef = useRef<HTMLDivElement>(null);
+  useKeyboardOffset(inputBarRef, "calc(4rem + env(safe-area-inset-bottom))");
 
   const { friend, friendshipSince, habits, completions } = data;
 
@@ -418,12 +419,9 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
 
       {/* Bottom message input */}
       <div
-        className="fixed inset-x-0 z-30 bg-bg-primary border-t border-bg-secondary transition-[bottom] duration-100"
-        style={{
-          bottom: keyboardOffset > 0
-            ? `${keyboardOffset}px`
-            : "calc(4rem + env(safe-area-inset-bottom))",
-        }}
+        ref={inputBarRef}
+        className="fixed inset-x-0 z-30 bg-bg-primary border-t border-bg-secondary"
+        style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}
       >
         <form
           onSubmit={(e) => {

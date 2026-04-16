@@ -6,7 +6,7 @@ import { queueCompletion } from "@/lib/offline-queue";
 
 interface CompleteHabitParams {
   habitId: string;
-  type: "photo" | "video" | "message" | "quick";
+  type: "photo" | "video" | "message" | "quick" | "voice";
   evidenceUrl?: string;
   notes?: string;
 }

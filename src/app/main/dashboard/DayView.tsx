@@ -32,7 +32,7 @@ interface DayViewProps {
   completionMap: Map<string, boolean>;
   completedCount: number;
   hasHabits: boolean;
-  onQuickComplete: (habitId: string) => void;
+  onQuickComplete: (habitId: string, origin?: { x: number; y: number }) => void;
   onHabitPress: (habitId: string) => void;
   onLongPress: (habitId: string) => void;
   onCreateHabit: () => void;

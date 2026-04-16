@@ -911,7 +911,7 @@ export type Database = {
       }
     }
     Enums: {
-      completion_type: "photo" | "video" | "message" | "quick"
+      completion_type: "photo" | "video" | "message" | "quick" | "voice"
       encouragement_type: "nudge" | "message" | "emoji" | "voice"
       friendship_status: "pending" | "accepted" | "blocked"
       group_role: "admin" | "member"
@@ -1060,7 +1060,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      completion_type: ["photo", "video", "message", "quick"],
+      completion_type: ["photo", "video", "message", "quick", "voice"],
       encouragement_type: ["nudge", "message", "emoji", "voice"],
       friendship_status: ["pending", "accepted", "blocked"],
       group_role: ["admin", "member"],

@@ -2,10 +2,11 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Camera, Video, MessageSquare, Zap, Play, X, Heart, MoreHorizontal } from "lucide-react";
+import { Camera, Video, MessageSquare, Zap, Play, X, Heart, MoreHorizontal, Mic } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
+import { EvidenceAudio } from "@/components/ui/EvidenceAudio";
 import { Avatar } from "@/components/ui/Avatar";
 
 // ---------------------------------------------------------------------------
@@ -17,7 +18,7 @@ export interface CompletionBubbleProps {
   habitEmoji: string;
   habitTitle: string;
   habitColor: string;
-  completionType: "photo" | "video" | "message" | "quick";
+  completionType: "photo" | "video" | "message" | "quick" | "voice";
   evidenceUrl: string | null;
   notes: string | null;
   completedAt: string;
@@ -44,6 +45,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   photo: Camera,
   video: Video,
   message: MessageSquare,
+  voice: Mic,
 };
 
 export function slideVariant(isMe: boolean) {
@@ -161,6 +163,13 @@ export const CompletionBubble = React.memo(function CompletionBubble({
                     <Play className="w-4 h-4 text-white ml-0.5" fill="white" />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Voice evidence */}
+            {completionType === "voice" && evidenceUrl && (
+              <div className="-mx-3.5 px-3.5 py-1">
+                <EvidenceAudio path={evidenceUrl} />
               </div>
             )}
 

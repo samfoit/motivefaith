@@ -70,7 +70,8 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const timelineEndRef = useRef<HTMLDivElement>(null);
-  const keyboardOffset = useKeyboardOffset();
+  const inputBarRef = useRef<HTMLDivElement>(null);
+  useKeyboardOffset(inputBarRef, "calc(4rem + env(safe-area-inset-bottom))");
 
   const { group, members, habits, completions, challenges, myRole } = data;
 
@@ -954,12 +955,9 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
 
       {/* Bottom message input */}
       <div
-        className="fixed inset-x-0 z-30 bg-[var(--color-bg-primary)] border-t border-[var(--color-bg-secondary)] transition-[bottom] duration-100"
-        style={{
-          bottom: keyboardOffset > 0
-            ? `${keyboardOffset}px`
-            : "calc(4rem + env(safe-area-inset-bottom))",
-        }}
+        ref={inputBarRef}
+        className="fixed inset-x-0 z-30 bg-[var(--color-bg-primary)] border-t border-[var(--color-bg-secondary)]"
+        style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}
       >
         <form
           onSubmit={(e) => {

@@ -21,6 +21,7 @@ import {
   Users,
   X,
   Pencil,
+  Mic,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -29,6 +30,7 @@ import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
+import { EvidenceAudio } from "@/components/ui/EvidenceAudio";
 import { FriendPicker } from "@/components/social/FriendPicker";
 import { CalendarHeatmap } from "@/components/habits/CalendarHeatmap";
 import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
@@ -105,6 +107,7 @@ const COMPLETION_ICONS: Record<string, React.ElementType> = {
   photo: Camera,
   video: Video,
   message: MessageSquare,
+  voice: Mic,
 };
 
 const COMPLETION_LABELS: Record<string, string> = {
@@ -112,6 +115,7 @@ const COMPLETION_LABELS: Record<string, string> = {
   photo: "Photo proof",
   video: "Video proof",
   message: "Reflection",
+  voice: "Voice message",
 };
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -246,7 +250,7 @@ export function HabitDetailClient({
     evidenceUrl,
     notes,
   }: {
-    type: "photo" | "video" | "message" | "quick";
+    type: "photo" | "video" | "message" | "quick" | "voice";
     evidenceUrl?: string;
     notes?: string;
   }) => {
@@ -915,6 +919,11 @@ function CompletionRow({ completion }: { completion: Completion }) {
           <p className="mt-1 text-sm text-[var(--color-text-secondary)] line-clamp-3 italic">
             &ldquo;{completion.notes}&rdquo;
           </p>
+        )}
+        {completion.completion_type === "voice" && completion.evidence_url && (
+          <div className="mt-2">
+            <EvidenceAudio path={completion.evidence_url} />
+          </div>
         )}
       </div>
     </div>

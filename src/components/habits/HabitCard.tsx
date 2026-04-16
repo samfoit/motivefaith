@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, useEffect } from "react";
 import { Check, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils/cn";
@@ -22,7 +22,7 @@ export type HabitWithCompletions = Tables<"habits"> & {
 interface HabitCardProps {
   habit: HabitWithCompletions;
   completedToday: boolean;
-  onQuickComplete: (habitId: string) => void;
+  onQuickComplete: (habitId: string, origin?: { x: number; y: number }) => void;
   onPress?: (habitId: string) => void;
   onLongPress?: (habitId: string) => void;
   className?: string;
@@ -61,8 +61,22 @@ export const HabitCard = React.memo(function HabitCard({
   const handleCircleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (completedToday) return;
-    onQuickComplete(habit.id);
+    const rect = e.currentTarget.getBoundingClientRect();
+    onQuickComplete(habit.id, {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    });
   };
+
+  // Prevent text selection highlight on long press (iOS)
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const prevent = (e: Event) => e.preventDefault();
+    el.addEventListener("selectstart", prevent);
+    return () => el.removeEventListener("selectstart", prevent);
+  }, []);
 
   // --- Long-press detection ---
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,15 +113,16 @@ export const HabitCard = React.memo(function HabitCard({
 
   return (
     <div
+      ref={cardRef}
       className={cn(
         "relative flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm",
-        "border-l-[3px] cursor-pointer select-none touch-action-manipulation",
+        "border-l-[3px] cursor-pointer select-none touch-manipulation",
         "transition-all duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
         "hover:-translate-y-0.5 hover:scale-[1.01]",
         "active:scale-[0.97]",
         className,
       )}
-      style={{ borderLeftColor: habit.color ?? undefined, WebkitTouchCallout: "none" }}
+      style={{ borderLeftColor: habit.color ?? undefined, WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent" }}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}

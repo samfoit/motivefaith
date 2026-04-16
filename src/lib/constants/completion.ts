@@ -1,4 +1,4 @@
-export const COMPLETION_TYPES = ["photo", "video", "message", "quick"] as const;
+export const COMPLETION_TYPES = ["photo", "video", "message", "quick", "voice"] as const;
 
 export type CompletionType = (typeof COMPLETION_TYPES)[number];
 
