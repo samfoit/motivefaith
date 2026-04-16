@@ -669,7 +669,7 @@ const CONFETTI_PARTICLES = Array.from({ length: 24 }, (_, i) => ({
 
 export function SuccessScreen({ form }: { form: HabitForm }) {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="flex items-center justify-center px-4" style={{ minHeight: "calc(100dvh - 3.5rem - 6rem)" }}>
       <div className="text-center relative">
         {/* Confetti particles */}
         {CONFETTI_PARTICLES.map((p, i) => (

@@ -318,6 +318,7 @@ export function HabitDetailClient({
       setIsDeleting(false);
     } else {
       router.replace("/main/dashboard");
+      router.refresh();
     }
   };
 
