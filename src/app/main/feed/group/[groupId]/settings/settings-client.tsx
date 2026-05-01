@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState, useCallback, useRef } from "react";
-import { ArrowLeft, Shield, UserMinus, ChevronUp, ChevronDown, Camera } from "lucide-react";
+import {
+  ArrowLeft,
+  Shield,
+  UserMinus,
+  ChevronUp,
+  ChevronDown,
+  Camera,
+} from "lucide-react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
@@ -35,7 +42,11 @@ interface SettingsClientProps {
   userId: string;
 }
 
-export function SettingsClient({ group, members, userId }: SettingsClientProps) {
+export function SettingsClient({
+  group,
+  members,
+  userId,
+}: SettingsClientProps) {
   const router = useRouter();
   const { show: showToast, ToastElements } = useToast();
 
@@ -57,7 +68,9 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
   const [isDeleting, setIsDeleting] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
-  const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
+  const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(
+    null,
+  );
 
   const handleSaveDetails = useCallback(async () => {
     if (!name.trim()) return;
@@ -175,7 +188,8 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
         });
         showToast({
           variant: "success",
-          title: newRole === "admin" ? "Promoted to admin" : "Demoted to member",
+          title:
+            newRole === "admin" ? "Promoted to admin" : "Demoted to member",
         });
         router.refresh();
       } catch {
@@ -205,13 +219,13 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
+            className="p-2 -ml-2 rounded-lg hover:bg-surface-hover transition-colors"
             aria-label="Go back"
           >
-            <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
+            <ArrowLeft className="w-5 h-5 text-text-secondary" />
           </button>
           <h1
-            className="font-display font-bold text-[var(--color-text-primary)]"
+            className="font-display font-bold text-text-primary"
             style={{ fontSize: "var(--text-xl)" }}
           >
             Group Settings
@@ -220,7 +234,7 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
 
         <Tabs.Root defaultValue="details">
           <Tabs.List
-            className="flex gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)] mb-6"
+            className="flex gap-1 p-1 rounded-lg bg-bg-secondary mb-6"
             aria-label="Group settings sections"
           >
             <Tabs.Trigger value="details" className={TAB_TRIGGER_CLASS}>
@@ -262,7 +276,7 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
                   onChange={handleAvatarUpload}
                 />
               </div>
-              <p className="text-xs text-[var(--color-text-tertiary)]">
+              <p className="text-xs text-text-tertiary">
                 {isUploadingAvatar ? "Uploading…" : "Tap to change group photo"}
               </p>
             </div>
@@ -290,7 +304,7 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
             {/* Danger zone */}
             <div className="mt-8 rounded-lg bg-elevated p-4 shadow-sm border border-red-100">
               <p className="text-sm font-medium text-miss">Delete group</p>
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5 mb-3">
+              <p className="text-xs text-text-tertiary mt-0.5 mb-3">
                 This permanently deletes the group and all its data
               </p>
               {!deleteConfirm ? (
@@ -339,7 +353,7 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                      <p className="text-sm font-medium text-text-primary truncate">
                         {member.profile.display_name}
                         {isMe && " (you)"}
                       </p>
@@ -350,14 +364,14 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
                         </Pill>
                       )}
                     </div>
-                    <p className="text-xs text-[var(--color-text-tertiary)]">
+                    <p className="text-xs text-text-tertiary">
                       @{member.profile.username}
                     </p>
                   </div>
 
                   {/* Admin actions (don't show for self) */}
                   {!isMe && (
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={() =>
@@ -367,7 +381,7 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
                           )
                         }
                         disabled={updatingRoleUserId === member.user_id}
-                        className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors disabled:opacity-50"
+                        className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors disabled:opacity-50"
                         title={
                           member.role === "admin"
                             ? "Demote to member"
@@ -375,16 +389,16 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
                         }
                       >
                         {member.role === "admin" ? (
-                          <ChevronDown className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                          <ChevronDown className="w-4 h-4 text-text-tertiary" />
                         ) : (
-                          <ChevronUp className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                          <ChevronUp className="w-4 h-4 text-text-tertiary" />
                         )}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleRemoveMember(member.user_id)}
                         disabled={removingUserId === member.user_id}
-                        className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
+                        className="p-1.5 rounded-lg hover:bg-surface-hover text-text-tertiary hover:text-miss transition-colors disabled:opacity-50"
                         title="Remove member"
                       >
                         <UserMinus className="w-4 h-4" />
@@ -398,7 +412,7 @@ export function SettingsClient({ group, members, userId }: SettingsClientProps) 
 
           {/* Invites Tab */}
           <Tabs.Content value="invites" className="space-y-4">
-            <p className="text-sm text-[var(--color-text-secondary)]">
+            <p className="text-sm text-text-secondary">
               Share this invite link with friends to add them to the group.
             </p>
             <Button

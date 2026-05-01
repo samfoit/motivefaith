@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
 import { isHabitScheduledOn, parseTimeWindow } from "@/lib/utils/schedule";
@@ -114,13 +114,19 @@ export function DashboardClient({
   const [completionHabitId, setCompletionHabitId] = useState<string | null>(
     null,
   );
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window === "undefined") return "day";
+  const [viewMode, setViewMode] = useState<ViewMode>("day");
+
+  // Rehydrate viewMode from localStorage after mount. Reading during the
+  // useState initializer is unreliable here — SSR returns "day" and the
+  // client's hydration render must match the server HTML, so the stored
+  // value only takes effect after a re-render anyway. Doing it in an
+  // effect keeps hydration clean and guarantees the stored value is read.
+  useEffect(() => {
     const stored = localStorage.getItem("motive:dashboard-view");
-    if (stored === "day" || stored === "week" || stored === "month")
-      return stored;
-    return "day";
-  });
+    if (stored === "day" || stored === "week" || stored === "month") {
+      setViewMode(stored);
+    }
+  }, []);
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     setViewMode(mode);

@@ -17,6 +17,7 @@ interface ProfileRow {
     quiet_end?: string;
     enabled?: boolean;
   } | null;
+  last_weekly_summary_date: string | null;
 }
 
 interface WeeklyStats {
@@ -58,23 +59,34 @@ function getWeekBounds(now: Date): { thisStart: string; thisEnd: string; prevSta
   return { thisStart, thisEnd, prevStart, prevEnd };
 }
 
-function isSundayEvening(timezone: string): boolean {
+function getLocalSundayInfo(
+  timezone: string,
+): { isSundayEveningHour: boolean; localDate: string } | null {
   try {
     const now = new Date();
-    const formatter = new Intl.DateTimeFormat("en-US", {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
       weekday: "long",
       hour: "numeric",
       hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
       timeZone: timezone,
     });
     const parts = formatter.formatToParts(now);
     const weekday = parts.find((p) => p.type === "weekday")?.value;
     const hour = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+    if (!year || !month || !day) return null;
 
-    // Sunday between 17:00 and 21:00 in user's timezone
-    return weekday === "Sunday" && hour >= 17 && hour <= 21;
+    // Single-hour window — combined with the dedup column this guarantees
+    // exactly one send per user per Sunday.
+    const isSundayEveningHour = weekday === "Sunday" && hour === 18;
+    return { isSundayEveningHour, localDate: `${year}-${month}-${day}` };
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -177,7 +189,7 @@ Deno.serve(async (req) => {
   // Fetch all profiles with push subscriptions
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
-    .select("id, display_name, timezone, push_subscription, notification_prefs")
+    .select("id, display_name, timezone, push_subscription, notification_prefs, last_weekly_summary_date")
     .not("push_subscription", "is", null);
 
   if (profilesError) {
@@ -185,13 +197,18 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: profilesError.message }), { status: 500 });
   }
 
-  // Filter to eligible profiles (Sunday evening + notifications enabled)
-  const eligibleProfiles = ((profiles ?? []) as ProfileRow[]).filter(
-    (p) =>
-      p.push_subscription &&
-      p.notification_prefs?.enabled !== false &&
-      isSundayEvening(p.timezone),
-  );
+  // Filter to eligible profiles: notifications enabled, currently in the
+  // single-hour Sunday window, and not already sent today.
+  const eligible: Array<{ profile: ProfileRow; localDate: string }> = [];
+  for (const profile of (profiles ?? []) as ProfileRow[]) {
+    if (!profile.push_subscription) continue;
+    if (profile.notification_prefs?.enabled === false) continue;
+    const info = getLocalSundayInfo(profile.timezone);
+    if (!info || !info.isSundayEveningHour) continue;
+    if (profile.last_weekly_summary_date === info.localDate) continue;
+    eligible.push({ profile, localDate: info.localDate });
+  }
+  const eligibleProfiles = eligible.map((e) => e.profile);
 
   if (eligibleProfiles.length === 0) {
     return new Response(
@@ -199,6 +216,12 @@ Deno.serve(async (req) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }
+
+  // Per-profile local Sunday date — used to stamp last_weekly_summary_date
+  // after a successful send.
+  const localDateByUser = new Map<string, string>(
+    eligible.map((e) => [e.profile.id, e.localDate]),
+  );
 
   const now = new Date();
   const { thisStart, thisEnd, prevStart, prevEnd } = getWeekBounds(now);
@@ -286,7 +309,7 @@ Deno.serve(async (req) => {
     }
 
     // Compute stats and collect push tasks for this chunk
-    const pushTasks: Array<() => Promise<void>> = [];
+    const pushTasks: Array<{ userId: string; run: () => Promise<void> }> = [];
 
     for (const profile of chunk) {
       const thisWeekCompletions = thisWeekByUser.get(profile.id) ?? [];
@@ -345,22 +368,46 @@ Deno.serve(async (req) => {
 
       const body = buildSummaryBody(stats);
 
-      pushTasks.push(() =>
-        sendPush(supabaseUrl, profile.push_subscription, {
-          title: "📊 Your Weekly Summary",
-          body,
-          url: "/main/dashboard/weekly",
-          type: "weekly_summary",
-          user_id: profile.id,
-        }),
-      );
+      pushTasks.push({
+        userId: profile.id,
+        run: () =>
+          sendPush(supabaseUrl, profile.push_subscription, {
+            title: "📊 Your Weekly Summary",
+            body,
+            url: "/main/dashboard/weekly",
+            type: "weekly_summary",
+            user_id: profile.id,
+          }),
+      });
     }
 
-    // Send push notifications in batches of 50
+    // Send push notifications in batches of 50, then stamp
+    // last_weekly_summary_date for each profile whose push succeeded so we
+    // don't re-send on a subsequent cron tick.
+    const sentUserIdsByDate = new Map<string, string[]>();
     for (let i = 0; i < pushTasks.length; i += PUSH_BATCH_SIZE) {
       const batch = pushTasks.slice(i, i + PUSH_BATCH_SIZE);
-      const results = await Promise.allSettled(batch.map((fn) => fn()));
-      sent += results.filter((r) => r.status === "fulfilled").length;
+      const results = await Promise.allSettled(batch.map((t) => t.run()));
+      for (let j = 0; j < results.length; j++) {
+        if (results[j].status !== "fulfilled") continue;
+        sent += 1;
+        const userId = batch[j].userId;
+        const localDate = localDateByUser.get(userId);
+        if (!localDate) continue;
+        const list = sentUserIdsByDate.get(localDate) ?? [];
+        list.push(userId);
+        sentUserIdsByDate.set(localDate, list);
+      }
+    }
+
+    for (const [localDate, userIds] of sentUserIdsByDate) {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ last_weekly_summary_date: localDate })
+        .in("id", userIds);
+      if (error) {
+        console.error("Failed to stamp last_weekly_summary_date:", error);
+      }
     }
   }
 
