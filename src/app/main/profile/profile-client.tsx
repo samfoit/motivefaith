@@ -12,6 +12,7 @@ import {
   X,
   Heart,
   Shield,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
@@ -24,6 +25,7 @@ import { usePushSubscription } from "@/lib/hooks/usePushSubscription";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/types";
 import { ALLOWED_IMAGE_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
+import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
 
 interface ProfileClientProps {
   userId: string;
@@ -57,6 +59,8 @@ export function ProfileClient({
   const [mfaDisabling, setMfaDisabling] = useState(false);
   const [mfaDisableCode, setMfaDisableCode] = useState("");
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
   // Check current MFA status on mount
   useEffect(() => {
     const supabase = createClient();
@@ -71,7 +75,12 @@ export function ProfileClient({
   }, []);
 
   // Push subscription state (shared with NotificationToggle)
-  const { state: pushState, isLoading: pushLoading, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushSubscription(userId);
+  const {
+    state: pushState,
+    isLoading: pushLoading,
+    subscribe: pushSubscribe,
+    unsubscribe: pushUnsubscribe,
+  } = usePushSubscription(userId);
 
   // Avatar state
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? null);
@@ -374,10 +383,9 @@ export function ProfileClient({
                         setMfaLoading(true);
                         setMfaError(null);
                         const supabase = createClient();
-                        const challenge =
-                          await supabase.auth.mfa.challenge({
-                            factorId: mfaFactorId,
-                          });
+                        const challenge = await supabase.auth.mfa.challenge({
+                          factorId: mfaFactorId,
+                        });
                         if (challenge.error) {
                           setMfaError("Failed to create challenge");
                           setMfaLoading(false);
@@ -393,10 +401,9 @@ export function ProfileClient({
                           setMfaLoading(false);
                           return;
                         }
-                        const { error } =
-                          await supabase.auth.mfa.unenroll({
-                            factorId: mfaFactorId,
-                          });
+                        const { error } = await supabase.auth.mfa.unenroll({
+                          factorId: mfaFactorId,
+                        });
                         if (error) {
                           setMfaError("Failed to disable 2FA");
                         } else {
@@ -406,8 +413,7 @@ export function ProfileClient({
                           setMfaDisableCode("");
                           showToast({
                             variant: "success",
-                            title:
-                              "Two-factor authentication disabled",
+                            title: "Two-factor authentication disabled",
                           });
                         }
                         setMfaLoading(false);
@@ -416,9 +422,7 @@ export function ProfileClient({
                       Confirm
                     </Button>
                   </div>
-                  {mfaError && (
-                    <p className="text-xs text-miss">{mfaError}</p>
-                  )}
+                  {mfaError && <p className="text-xs text-miss">{mfaError}</p>}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -531,7 +535,10 @@ export function ProfileClient({
                           factorId: mfaFactorId,
                         });
                         if (error) {
-                          console.error("Failed to unenroll MFA factor:", error.message);
+                          console.error(
+                            "Failed to unenroll MFA factor:",
+                            error.message,
+                          );
                         }
                         setMfaFactorId(null);
                       }
@@ -642,8 +649,28 @@ export function ProfileClient({
               <span>Sign Out</span>
             </Button>
           </section>
+
+          {/* Danger Zone */}
+          <section className="pt-4 border-t border-surface-hover">
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => setDeleteOpen(true)}
+              className="w-full justify-start text-miss"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Account</span>
+            </Button>
+          </section>
         </div>
       </div>
+
+      <DeleteAccountSheet
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        hasMfa={mfaEnabled}
+      />
+
       {ToastElements}
     </div>
   );

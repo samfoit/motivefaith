@@ -1,6 +1,10 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { getAuthUser, getProfile } from "@/lib/supabase/server";
+import {
+  createServerSupabase,
+  getAuthUser,
+  getProfile,
+} from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureFlow } from "@/components/habits/QuickCaptureFlow";
@@ -61,7 +65,18 @@ async function AuthGate({ children }: { children: React.ReactNode }) {
 
   const profile = await getProfile(user.id);
 
-  if (!profile?.date_of_birth) {
+  // Orphaned auth user (profile row missing entirely) — usually the
+  // tail of a failed account deletion where auth.admin.deleteUser() did
+  // not run to completion. Sign the session out so they're not stuck in
+  // a complete-profile redirect loop (that page UPDATEs profiles and
+  // would no-op against a missing row).
+  if (!profile) {
+    const supabase = await createServerSupabase();
+    await supabase.auth.signOut();
+    redirect("/auth/login?stale=1");
+  }
+
+  if (!profile.date_of_birth) {
     redirect("/auth/complete-profile");
   }
 

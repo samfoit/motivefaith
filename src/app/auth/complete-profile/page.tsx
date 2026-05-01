@@ -41,6 +41,21 @@ export default function CompleteProfilePage() {
         return;
       }
 
+      // Orphaned auth user guard: complete_oauth_profile does an UPDATE,
+      // so without a profile row the form would silently no-op and loop
+      // back here forever. Sign out and bounce to login.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!profile) {
+        await supabase.auth.signOut();
+        router.replace("/auth/login?stale=1");
+        return;
+      }
+
       // Pre-fill from Google/OAuth metadata
       const meta = user.user_metadata;
       setDisplayName(

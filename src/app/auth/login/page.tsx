@@ -26,6 +26,19 @@ export default function LoginPage() {
     handleExpire: handleCaptchaExpire,
   } = useCaptcha();
 
+  // Read the `?deleted=1` flag once during lazy init. SSR returns false;
+  // the flag matters only after a client-side redirect from account delete.
+  const [deletedBanner] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("deleted") === "1";
+  });
+  // `?stale=1` — AuthGate bounced an orphan auth session (profile row
+  // was missing, usually the tail of a failed deletion).
+  const [staleBanner] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("stale") === "1";
+  });
+
   // MFA challenge state
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [mfaChallengeId, setMfaChallengeId] = useState<string | null>(null);
@@ -141,6 +154,19 @@ export default function LoginPage() {
           <h1 className="font-display text-2xl font-bold text-center mb-2">
             MotiveFaith
           </h1>
+
+          {deletedBanner && (
+            <div className="mb-4 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-300 text-center">
+              Your account has been deleted.
+            </div>
+          )}
+
+          {staleBanner && !deletedBanner && (
+            <div className="mb-4 rounded-md border border-miss/30 bg-miss/10 px-3 py-2 text-sm text-miss text-center">
+              Your account data is no longer available. Please contact
+              support if you believe this is a mistake.
+            </div>
+          )}
 
           {mfaChallengeId ? (
             <>
