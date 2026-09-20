@@ -1,6 +1,6 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 
 function FriendRowSkeleton() {
   return (
@@ -23,14 +23,14 @@ function FriendRowSkeleton() {
 export default function FeedLoading() {
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
+      <SkeletonScreen label="Loading your feed" className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
         <Skeleton variant="text" width={80} height={32} />
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
             <FriendRowSkeleton key={i} />
           ))}
         </div>
-      </div>
+      </SkeletonScreen>
     </div>
   );
 }

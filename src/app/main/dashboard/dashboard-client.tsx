@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
 import { isHabitScheduledOn, parseTimeWindow } from "@/lib/utils/schedule";
@@ -9,20 +9,72 @@ import { cn } from "@/lib/utils/cn";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
+import {
+  persistDashboardView,
+  type DashboardView,
+} from "@/lib/constants/dashboard-view";
 
-const DayView = dynamic(
-  () => import("./DayView").then((m) => m.DayView),
-  { loading: () => <Skeleton variant="rect" className="w-full h-64" /> },
-);
-const WeekView = dynamic(
-  () => import("./WeekView").then((m) => m.WeekView),
-  { loading: () => <Skeleton variant="rect" className="w-full h-64" /> },
-);
-const MonthView = dynamic(
-  () => import("./MonthView").then((m) => m.MonthView),
-  { loading: () => <Skeleton variant="rect" className="w-full h-64" /> },
-);
+/**
+ * Last-resort fallback for the lazily-imported views.
+ *
+ * It should almost never be seen:
+ *   - the view the user arrives on is server-rendered (see the view cookie),
+ *     so this is not part of a normal page load;
+ *   - a user-initiated switch runs inside a transition, so React keeps the
+ *     current view on screen while the new chunk loads rather than falling
+ *     back at all.
+ *
+ * That leaves one window: hydration, if the active view's chunk has not
+ * arrived by the time React hydrates. Measured at ~257ms on Slow 4G + 4x CPU,
+ * which is why this screen uses a 500ms reveal delay rather than the default
+ * 200ms — below that it would appear for a few dozen milliseconds and read as
+ * a glitch. It replaces a bare `w-full h-64` grey rectangle that shared no
+ * visual language with any other skeleton in the app.
+ */
+function ViewSwitchSkeleton() {
+  return (
+    <SkeletonScreen
+      label="Loading view"
+      className="space-y-6 [--skeleton-delay:500ms]"
+    >
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <Skeleton variant="text" width={120} height={16} />
+          <Skeleton variant="text" width={32} height={16} />
+        </div>
+        <Skeleton variant="rect" width="100%" height={8} className="rounded-full" />
+      </div>
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm border-l-[3px] border-gray-200"
+          >
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton variant="circle" width={28} height={28} />
+                <Skeleton variant="text" width="60%" height={20} />
+              </div>
+              <Skeleton variant="text" width="40%" height={14} />
+            </div>
+            <Skeleton variant="circle" width={40} height={40} />
+          </div>
+        ))}
+      </div>
+    </SkeletonScreen>
+  );
+}
+
+const DayView = dynamic(() => import("./DayView").then((m) => m.DayView), {
+  loading: ViewSwitchSkeleton,
+});
+const WeekView = dynamic(() => import("./WeekView").then((m) => m.WeekView), {
+  loading: ViewSwitchSkeleton,
+});
+const MonthView = dynamic(() => import("./MonthView").then((m) => m.MonthView), {
+  loading: ViewSwitchSkeleton,
+});
 
 const CompletionForm = dynamic(
   () =>
@@ -62,11 +114,11 @@ const MILESTONE_MESSAGES: Record<number, string> = {
 interface DashboardClientProps {
   habits: HabitWithCompletions[];
   timezone: string;
+  /** Resolved on the server from the view-preference cookie. */
+  initialView: DashboardView;
 }
 
 type TimeGroup = "morning" | "afternoon" | "evening" | "anytime";
-
-type ViewMode = "day" | "week" | "month";
 
 function getTimeGroup(
   timeWindow: { start?: string; end?: string } | null,
@@ -91,6 +143,7 @@ function isCompletedToday(
 export function DashboardClient({
   habits: initialHabits,
   timezone,
+  initialView,
 }: DashboardClientProps) {
   const router = useRouter();
   const [habits, setHabits] = useState(initialHabits);
@@ -114,24 +167,24 @@ export function DashboardClient({
   const [completionHabitId, setCompletionHabitId] = useState<string | null>(
     null,
   );
-  const [viewMode, setViewMode] = useState<ViewMode>("day");
+  // Seeded from the server, which read the preference cookie — so the view
+  // the user actually wants is the one that gets server-rendered, and there is
+  // no post-hydration swap into a not-yet-downloaded chunk.
+  const [viewMode, setViewMode] = useState<DashboardView>(initialView);
 
-  // Rehydrate viewMode from localStorage after mount. Reading during the
-  // useState initializer is unreliable here — SSR returns "day" and the
-  // client's hydration render must match the server HTML, so the stored
-  // value only takes effect after a re-render anyway. Doing it in an
-  // effect keeps hydration clean and guarantees the stored value is read.
-  useEffect(() => {
-    const stored = localStorage.getItem("motive:dashboard-view");
-    if (stored === "day" || stored === "week" || stored === "month") {
-      setViewMode(stored);
-    }
-  }, []);
+  // Switching views loads a different chunk. Inside a transition React keeps
+  // the view that is currently on screen until the new one is ready, instead
+  // of tearing it down and showing a placeholder — so a switch never flashes
+  // a loading state, however slow the chunk is.
+  const [, startViewTransition] = useTransition();
 
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem("motive:dashboard-view", mode);
-  }, []);
+  const handleViewModeChange = useCallback(
+    (mode: DashboardView) => {
+      persistDashboardView(mode);
+      startViewTransition(() => setViewMode(mode));
+    },
+    [],
+  );
   const dismissConfetti = useCallback(() => setShowConfetti(false), []);
   const dismissFlyout = useCallback(() => setFlyout(null), []);
 

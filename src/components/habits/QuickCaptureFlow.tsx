@@ -5,7 +5,7 @@ import { Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { Button } from "@/components/ui/Button";
-import { CameraCapture } from "@/components/habits/CameraCapture";
+import dynamic from "next/dynamic";
 import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +19,20 @@ import {
   MIME_TO_EXT,
 } from "@/lib/utils/media-types";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+
+/**
+ * Interaction-only: the camera UI is reachable only after the user taps the
+ * capture button, but this component is mounted by the authenticated layout on
+ * every screen. Importing it statically put its dependencies — motion/react
+ * among them, ~113KB — on the critical path of every page for a surface most
+ * page views never open. There is no `loading` fallback because the camera
+ * already opens into a full-screen surface of its own.
+ */
+const CameraCapture = dynamic(
+  () =>
+    import("@/components/habits/CameraCapture").then((m) => m.CameraCapture),
+  { loading: () => null },
+);
 
 // ---------------------------------------------------------------------------
 // Constants

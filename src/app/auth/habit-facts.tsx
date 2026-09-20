@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 const HABIT_FACTS = [
@@ -57,12 +57,29 @@ const HABIT_FACTS = [
 ];
 
 function useCyclingFact(intervalMs: number) {
-  const [index, setIndex] = useState(() =>
-    Math.floor(Math.random() * HABIT_FACTS.length),
-  );
+  // The first fact is deterministic so the server and the client agree on it.
+  //
+  // This used to randomise in the useState initialiser, which ran during SSR
+  // too, so the two picked different facts. React never warned — `FactCard` is
+  // keyed by the fact text, so it silently remounted instead of reporting a
+  // text mismatch — but the user saw it: measured on 5/5 loads, the server's
+  // fact was on screen from ~600ms and swapped for a different one at ~2310ms,
+  // roughly 1.7s after first paint.
+  //
+  // Variety is preserved by offsetting the rotation on its first tick instead,
+  // which happens a full interval after paint and is indistinguishable from
+  // the normal cycling.
+  const [index, setIndex] = useState(0);
+  const offsetApplied = useRef(false);
 
   const advance = useCallback(() => {
-    setIndex((prev) => (prev + 1) % HABIT_FACTS.length);
+    setIndex((prev) => {
+      if (!offsetApplied.current) {
+        offsetApplied.current = true;
+        return Math.floor(Math.random() * HABIT_FACTS.length);
+      }
+      return (prev + 1) % HABIT_FACTS.length;
+    });
   }, []);
 
   useEffect(() => {

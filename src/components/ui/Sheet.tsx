@@ -113,10 +113,14 @@ export const Sheet: React.FC<SheetProps> = ({
     vv.addEventListener("scroll", adjust);
     adjust();
 
+    // Capture the node this effect ran against: by cleanup time the ref may
+    // already point at a different element (or null), and we must reset the
+    // inline offset on the one we actually set it on.
+    const el = contentRef.current;
+
     return () => {
       vv.removeEventListener("resize", adjust);
       vv.removeEventListener("scroll", adjust);
-      const el = contentRef.current;
       if (el) el.style.bottom = "";
     };
   }, [open]);

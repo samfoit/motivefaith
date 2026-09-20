@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import { FeedClient } from "./feed-client";
-import { Skeleton } from "@/components/ui/Skeleton";
 import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
 
@@ -116,32 +115,16 @@ function buildFriendRows(
 }
 
 // --------------------------------------------------------------------------
-// Skeletons
 // --------------------------------------------------------------------------
-
-function FeedSkeleton() {
-  return (
-    <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
-        <Skeleton variant="text" width={80} height={32} />
-        <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="flex items-center gap-3 rounded-lg bg-elevated px-4 py-3 shadow-sm">
-              <Skeleton variant="circle" width={48} height={48} />
-              <div className="flex-1 min-w-0 space-y-2">
-                <Skeleton variant="text" width="45%" height={16} />
-                <Skeleton variant="text" width="65%" height={12} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --------------------------------------------------------------------------
-// Page — shell renders immediately, data streams via Suspense
+// Page
+//
+// There is deliberately no Suspense boundary around FeedData: `loading.tsx`
+// for this segment is already exactly that boundary, with the same geometry.
+// Having both meant two skeletons for one screen (see DIAGNOSIS.md R3).
+//
+// The nested boundary below is kept, because its fallback is *real content*
+// (the friends list) rather than a second skeleton, and the group query is
+// genuinely independent and slower.
 // --------------------------------------------------------------------------
 
 export default async function FeedPage() {
@@ -151,11 +134,7 @@ export default async function FeedPage() {
 
   if (!user) redirect("/auth/login");
 
-  return (
-    <Suspense fallback={<FeedSkeleton />}>
-      <FeedData userId={user.id} />
-    </Suspense>
-  );
+  return <FeedData userId={user.id} />;
 }
 
 /** Async component — fetches friends, then streams groups via nested Suspense. */

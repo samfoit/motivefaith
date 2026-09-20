@@ -1,11 +1,11 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 
 export default function FriendsLoading() {
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
+      <SkeletonScreen label="Loading friends" className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
         <div className="flex items-center justify-between">
           <Skeleton variant="text" width="30%" height={32} />
           <Skeleton variant="rect" width={100} height={36} className="rounded-lg" />
@@ -23,7 +23,7 @@ export default function FriendsLoading() {
             </div>
           ))}
         </div>
-      </div>
+      </SkeletonScreen>
     </div>
   );
 }

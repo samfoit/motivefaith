@@ -1,9 +1,9 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 
 /** Generic content skeleton shown during client-side page transitions. */
 export default function MainLoading() {
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+    <SkeletonScreen label="Loading" className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
       <div className="space-y-2">
         <Skeleton variant="text" width="55%" height={32} />
         <Skeleton variant="text" width="35%" height={16} />
@@ -29,6 +29,6 @@ export default function MainLoading() {
           </div>
         ))}
       </div>
-    </div>
+    </SkeletonScreen>
   );
 }

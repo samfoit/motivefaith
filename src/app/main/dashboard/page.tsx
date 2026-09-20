@@ -1,10 +1,9 @@
-import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getAuthUser, getProfile, createServerSupabase } from "@/lib/supabase/server";
 import { DashboardClient } from "./dashboard-client";
-import { Skeleton } from "@/components/ui/Skeleton";
 import {
   todayDateKey,
   subtractDays,
@@ -12,8 +11,15 @@ import {
 } from "@/lib/utils/timezone";
 import { computeEffectiveStreak } from "@/lib/utils/streak";
 import { MAX_COMPLETIONS_FETCH } from "@/lib/constants/limits";
+import {
+  DASHBOARD_VIEW_COOKIE,
+  parseDashboardView,
+  type DashboardView,
+} from "@/lib/constants/dashboard-view";
 
-async function fetchHabits(supabase: Awaited<ReturnType<typeof createServerSupabase>>, userId: string) {
+type SupabaseServerClient = Awaited<ReturnType<typeof createServerSupabase>>;
+
+async function fetchHabits(supabase: SupabaseServerClient, userId: string) {
   const { data } = await supabase
     .from("habits")
     .select("id, user_id, title, description, emoji, category, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, is_shared, created_at")
@@ -23,8 +29,22 @@ async function fetchHabits(supabase: Awaited<ReturnType<typeof createServerSupab
   return data ?? [];
 }
 
+/**
+ * Habits and active challenges. Neither depends on the user's profile, so this
+ * is started before the profile await and resolved afterwards.
+ */
+function fetchBaseData(supabase: SupabaseServerClient, userId: string) {
+  return Promise.all([
+    fetchHabits(supabase, userId),
+    supabase
+      .from("group_challenges")
+      .select("id, title, emoji")
+      .eq("is_active", true),
+  ]);
+}
+
 async function fetchCompletions(
-  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  supabase: SupabaseServerClient,
   habitIds: string[],
   fetchStartKey: string,
 ) {
@@ -38,39 +58,6 @@ async function fetchCompletions(
     .order("completed_at", { ascending: false })
     .limit(limit);
   return data ?? [];
-}
-
-/** Skeleton for the habit list area while data streams in. */
-function HabitsSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* View toggle skeleton */}
-      <Skeleton variant="rect" width="100%" height={40} className="rounded-lg" />
-      {/* Progress bar */}
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <Skeleton variant="text" width={120} height={16} />
-          <Skeleton variant="text" width={32} height={16} />
-        </div>
-        <Skeleton variant="rect" width="100%" height={8} className="rounded-full" />
-      </div>
-      {/* Habit cards */}
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm border-l-[3px] border-gray-200">
-            <div className="flex-1 min-w-0 space-y-2">
-              <div className="flex items-center gap-2">
-                <Skeleton variant="circle" width={28} height={28} />
-                <Skeleton variant="text" width="60%" height={20} />
-              </div>
-              <Skeleton variant="text" width="40%" height={14} />
-            </div>
-            <Skeleton variant="circle" width={40} height={40} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function getGreeting(tz: string): string {
@@ -98,6 +85,26 @@ export default async function DashboardPage() {
     redirect("/auth/login");
   }
 
+  // The habits and challenges queries only need the user id, so start them
+  // now rather than after the profile resolves — those are independent round
+  // trips and awaiting the profile first serialised them for no reason.
+  const supabase = await createServerSupabase();
+  const baseData = fetchBaseData(supabase, user.id);
+  // Nothing awaits `baseData` until <HabitsSection> renders, with `await
+  // cookies()` and `await getProfile()` in between. A transport-level failure
+  // in that window (DNS/TLS/socket — Postgrest query errors come back as
+  // `{ error }` and don't reject) would reject with no handler attached and
+  // take the process down via `unhandledRejection`. Marking it handled here
+  // swallows nothing: `baseData` itself still rejects for the awaiting
+  // consumer, which is where the failure should surface.
+  baseData.catch(() => {});
+
+  // Render the user's actual view server-side so there is no post-hydration
+  // view swap (and therefore no lazily-loaded chunk placeholder).
+  const initialView = parseDashboardView(
+    (await cookies()).get(DASHBOARD_VIEW_COOKIE)?.value,
+  );
+
   // Reuses the cached profile from AuthGate — no extra DB call
   const profile = await getProfile(user.id);
 
@@ -114,7 +121,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
-        {/* Greeting streams immediately */}
+        {/* Greeting */}
         <div className="flex items-center justify-between">
           <div>
             <h1
@@ -137,33 +144,39 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        {/* Habits stream in via Suspense */}
-        <Suspense fallback={<HabitsSkeleton />}>
-          <HabitsSection userId={user.id} timezone={timeZone} />
-        </Suspense>
+        {/* Resolved as part of the page. There is deliberately no nested
+            Suspense here: the habits land ~190ms after the greeting, which is
+            close enough that a second loading state reads as a flicker rather
+            than as progress. One boundary (dashboard/loading.tsx) covers the
+            whole screen, so the user perceives a single transition. */}
+        <HabitsSection
+          userId={user.id}
+          timezone={timeZone}
+          supabase={supabase}
+          baseData={baseData}
+          initialView={initialView}
+        />
       </div>
     </div>
   );
 }
 
-/** Async Server Component — fetches inside Suspense boundary. */
+/** Async Server Component — awaited by the page, behind loading.tsx. */
 async function HabitsSection({
   userId,
   timezone,
+  supabase,
+  baseData,
+  initialView,
 }: {
   userId: string;
   timezone: string;
+  supabase: SupabaseServerClient;
+  baseData: ReturnType<typeof fetchBaseData>;
+  initialView: DashboardView;
 }) {
-  const supabase = await createServerSupabase();
-
-  // Challenges query doesn't depend on habitIds — start it parallel with habits
-  const [habits, { data: challenges }] = await Promise.all([
-    fetchHabits(supabase, userId),
-    supabase
-      .from("group_challenges")
-      .select("id, title, emoji")
-      .eq("is_active", true),
-  ]);
+  // Already in flight since before the profile resolved.
+  const [habits, { data: challenges }] = await baseData;
 
   const habitIds = habits.map((h) => h.id);
   const today = todayDateKey(timezone);
@@ -226,6 +239,7 @@ async function HabitsSection({
     <DashboardClient
       habits={habitsWithCompletions}
       timezone={timezone}
+      initialView={initialView}
     />
   );
 }

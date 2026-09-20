@@ -1,11 +1,11 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 
 export default function NewHabitLoading() {
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+      <SkeletonScreen label="Loading" className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         <Skeleton variant="text" width="40%" height={32} />
         <div className="space-y-4">
           <div className="space-y-2">
@@ -26,7 +26,7 @@ export default function NewHabitLoading() {
           </div>
           <Skeleton variant="rect" width="100%" height={48} className="rounded-lg" />
         </div>
-      </div>
+      </SkeletonScreen>
     </div>
   );
 }

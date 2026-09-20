@@ -1,9 +1,9 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 
 export default function ProfileLoading() {
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+      <SkeletonScreen label="Loading profile" className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         {/* Profile header */}
         <div className="flex items-center gap-4">
           <Skeleton variant="circle" width={64} height={64} decorative />
@@ -61,7 +61,7 @@ export default function ProfileLoading() {
           {/* Sign out button */}
           <Skeleton variant="rect" width="100%" height={40} className="rounded-lg" decorative />
         </div>
-      </div>
+      </SkeletonScreen>
     </div>
   );
 }

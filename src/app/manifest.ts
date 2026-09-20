@@ -10,8 +10,16 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     display_override: ["standalone", "minimal-ui"],
-    background_color: "#FAFAF9",
-    theme_color: "#6366F1",
+    // Must match the app's real painted background so the splash screen
+    // flows into the app instead of flashing a different colour.
+    // `--color-bg-primary` light = #fafaf9 (src/styles/tokens.css), and the
+    // inline theme-init script in the root layout paints the same value.
+    // Browsers may substitute a dark equivalent for prefers-color-scheme:dark;
+    // the manifest format has no dark variant of its own.
+    background_color: "#fafaf9",
+    // Matches <meta name="theme-color"> in the document head, so the status
+    // bar colour does not change between splash and app.
+    theme_color: "#fafaf9",
     categories: ["lifestyle", "health", "productivity"],
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },

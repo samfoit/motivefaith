@@ -117,8 +117,11 @@ export function useGroupDetails(groupId: string | undefined) {
           profile: m.profile,
         }));
 
-      // Separate group data from the nested members
-      const { group_members: _, ...groupData } = group;
+      // Separate the group's own columns from the nested members array.
+      // `group_members` is destructured purely so the rest-spread excludes
+      // it; the explicit `void` marks it as deliberately discarded.
+      const { group_members, ...groupData } = group;
+      void group_members;
 
       return { group: groupData, members: membersWithProfiles };
     },

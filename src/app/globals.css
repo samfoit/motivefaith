@@ -96,10 +96,73 @@ body {
   animation: auth-card-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Skeleton shimmer keyframes (SSR fallback; also injected at runtime by Skeleton component) */
+/* ── Skeleton system ─────────────────────────────────────────────────────
+   One visual language for every loading state in the app: one shimmer, one
+   duration, one easing, one radius scale. Defined here rather than inline so
+   the timing and the reduced-motion opt-out live in a single place.
+
+   Timing (see RESEARCH.md for sources):
+     --skeleton-delay  200ms  nothing is shown for the first 200ms, so a
+                              state that resolves quickly is never seen at
+                              all. This is what removes the measured 79-86ms
+                              flashes.
+     --skeleton-min    500ms  once shown, a skeleton is held this long so it
+                              cannot blink. Enforced by useDelayedLoading()
+                              for client-controlled states; see that hook for
+                              why server-streamed Suspense fallbacks can only
+                              get the delay half.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --skeleton-delay: 200ms;
+  --skeleton-min: 500ms;
+  --skeleton-shimmer-duration: 1.2s;
+}
+
 @keyframes motive-shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+
+@keyframes motive-skeleton-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Layered, not unlayered. Tailwind v4 puts its utilities in `@layer
+   utilities`, and an unlayered declaration beats every layered one whatever
+   the specificity — so unlayered, the `border-radius` below would silently
+   override the `rounded-*` class on a <Skeleton> and flatten every
+   `rounded-full` toggle and `rounded-xl` block in the loading screens to
+   `--radius-sm`. In `components` these are defaults a utility can override,
+   which is what the ~20 call sites already assume. Same for the variant
+   radii and `--text`'s `display`. */
+@layer components {
+  .motive-skeleton {
+    background-color: var(--color-skeleton);
+    background-image: linear-gradient(
+      90deg,
+      var(--color-skeleton) 0%,
+      var(--color-skeleton-highlight) 40%,
+      var(--color-skeleton) 100%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    border-radius: var(--radius-sm);
+    animation: motive-shimmer var(--skeleton-shimmer-duration) linear infinite;
+  }
+
+  .motive-skeleton--circle { border-radius: var(--radius-full); }
+  .motive-skeleton--text { border-radius: 4px; display: block; }
+  .motive-skeleton--static { animation: none; }
+
+  /* Delay-before-show. `both` fill means opacity is 0 during the delay, so a
+     skeleton torn down inside the window is never painted. Applied to the
+     whole screen so every skeleton in a group reveals on one timeline rather
+     than each drifting independently. */
+  .motive-skeleton-screen {
+    animation: motive-skeleton-reveal 120ms ease-out var(--skeleton-delay) both;
+  }
 }
 
 /* Streak celebration particle keyframes (moved from inline <style> in StreakCelebration) */
@@ -276,4 +339,59 @@ body {
 
 .nav-progress-bar {
   animation: nav-progress 3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ── PWA install prompt entrance (replaces motion/react) ──────────────────
+   This banner is rendered by the authenticated layout on every page, so
+   importing motion/react for it put ~113KB of animation library on the
+   critical path of every screen for a banner most users never see. The
+   entrance is a slide-and-fade, which CSS does natively. */
+
+@keyframes install-prompt-enter {
+  from { opacity: 0; transform: translateY(80px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.install-prompt-enter {
+  animation: install-prompt-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────
+   Honour prefers-reduced-motion across every animation in the app. The
+   skeleton delay is deliberately preserved — it is timing hygiene, not
+   motion — but the shimmer and the fade are dropped. */
+
+@media (prefers-reduced-motion: reduce) {
+  .motive-skeleton {
+    animation: none;
+  }
+
+  /* Keep the 200ms delay, drop the fade: a hard cut rather than a transition. */
+  .motive-skeleton-screen {
+    animation: motive-skeleton-reveal 1ms linear var(--skeleton-delay) both;
+  }
+
+  .dv-stagger-container > *,
+  .dv-progress-bar,
+  .dv-all-done,
+  .mv-day-list,
+  .auth-card-enter,
+  .fr-stagger-container > *,
+  .install-prompt-enter,
+  .nav-progress-bar,
+  .landing-animate-on-scroll,
+  .landing-checkmark,
+  .landing-dot,
+  .landing-encourage {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .dv-streak-btn,
+  .dv-streak-btn:hover,
+  .dv-streak-btn:active {
+    transition: none;
+    transform: none;
+  }
 }

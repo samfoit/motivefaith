@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
 import { X, Share, PlusSquare, MoreVertical, Download } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
@@ -259,16 +258,10 @@ export function InstallPrompt() {
     platform === "desktop-chrome" ||
     platform === "desktop-edge";
 
+  if (!visible) return null;
+
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          initial={{ opacity: 0, y: 80 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 80 }}
-          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed bottom-20 inset-x-0 z-50 px-4 pb-[env(safe-area-inset-bottom)]"
-        >
+    <div className="install-prompt-enter fixed bottom-20 inset-x-0 z-50 px-4 pb-[env(safe-area-inset-bottom)]">
           <div
             className={cn(
               "mx-auto max-w-md rounded-xl shadow-lg",
@@ -342,9 +335,7 @@ export function InstallPrompt() {
               </Button>
             </div>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </div>
   );
 }
 

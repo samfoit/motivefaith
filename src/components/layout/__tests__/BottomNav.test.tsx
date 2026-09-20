@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // We need to override usePathname per-test, so mock it with a ref
 const mockPathname = vi.fn().mockReturnValue("/main/dashboard");
@@ -16,7 +17,35 @@ vi.mock("@/lib/stores/quick-capture-store", () => ({
     selector({ open: mockOpen }),
 }));
 
+// BottomNav reads the signed-in user id to decide whether to show its unread
+// badges. Stub the client so the hook resolves to "signed out" rather than
+// reaching for real credentials; the badge queries are `enabled: !!userId`, so
+// they stay idle and these tests exercise the nav structure itself.
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    auth: {
+      getSession: async () => ({ data: { session: null } }),
+    },
+  }),
+}));
+
 import { BottomNav } from "../BottomNav";
+
+/**
+ * BottomNav calls `useQueryClient()`, so it can only render beneath a
+ * provider. A fresh QueryClient per render keeps tests isolated, and retries
+ * are off so a failing query surfaces immediately instead of being retried.
+ */
+function renderNav() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <BottomNav />
+    </QueryClientProvider>,
+  );
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -25,7 +54,7 @@ beforeEach(() => {
 
 describe("BottomNav", () => {
   it("renders 5 nav items", () => {
-    render(<BottomNav />);
+    renderNav();
     // 4 links + 1 button (Capture)
     const nav = screen.getByRole("navigation");
     const links = nav.querySelectorAll("a");
@@ -34,7 +63,7 @@ describe("BottomNav", () => {
   });
 
   it("nav has aria-label 'Main navigation'", () => {
-    render(<BottomNav />);
+    renderNav();
     expect(screen.getByRole("navigation")).toHaveAttribute(
       "aria-label",
       "Main navigation",
@@ -42,7 +71,7 @@ describe("BottomNav", () => {
   });
 
   it("renders Home, Feed, Capture, Friends, Profile", () => {
-    render(<BottomNav />);
+    renderNav();
     expect(screen.getByText("Home")).toBeInTheDocument();
     expect(screen.getByText("Feed")).toBeInTheDocument();
     expect(screen.getByLabelText("Capture")).toBeInTheDocument();
@@ -52,27 +81,27 @@ describe("BottomNav", () => {
 
   it("highlights correct item based on pathname (dashboard)", () => {
     mockPathname.mockReturnValue("/main/dashboard");
-    render(<BottomNav />);
+    renderNav();
     const homeLink = screen.getByText("Home").closest("a");
     expect(homeLink).toHaveAttribute("aria-current", "page");
   });
 
   it("highlights Feed when pathname is /main/feed", () => {
     mockPathname.mockReturnValue("/main/feed");
-    render(<BottomNav />);
+    renderNav();
     const feedLink = screen.getByText("Feed").closest("a");
     expect(feedLink).toHaveAttribute("aria-current", "page");
   });
 
   it("Capture button calls openCapture from Zustand store", async () => {
     const user = userEvent.setup();
-    render(<BottomNav />);
+    renderNav();
     await user.click(screen.getByLabelText("Capture"));
     expect(mockOpen).toHaveBeenCalledTimes(1);
   });
 
   it("nav links have correct href attributes", () => {
-    render(<BottomNav />);
+    renderNav();
     expect(screen.getByText("Home").closest("a")).toHaveAttribute(
       "href",
       "/main/dashboard",
@@ -93,7 +122,7 @@ describe("BottomNav", () => {
 
   it("aria-current=page on active link only", () => {
     mockPathname.mockReturnValue("/main/friends");
-    render(<BottomNav />);
+    renderNav();
     const friendsLink = screen.getByText("Friends").closest("a");
     const homeLink = screen.getByText("Home").closest("a");
     expect(friendsLink).toHaveAttribute("aria-current", "page");
@@ -102,14 +131,14 @@ describe("BottomNav", () => {
 
   it("no aria-current on any link when pathname does not match", () => {
     mockPathname.mockReturnValue("/auth/login");
-    render(<BottomNav />);
+    renderNav();
     const nav = screen.getByRole("navigation");
     const activateLinks = nav.querySelectorAll("[aria-current]");
     expect(activateLinks.length).toBe(0);
   });
 
   it("Capture button does not render as a link", () => {
-    render(<BottomNav />);
+    renderNav();
     const captureBtn = screen.getByLabelText("Capture");
     expect(captureBtn.tagName).toBe("BUTTON");
     expect(captureBtn).not.toHaveAttribute("href");

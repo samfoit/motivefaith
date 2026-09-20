@@ -5,6 +5,7 @@ import * as Switch from "@radix-ui/react-switch";
 import { Bell, Clock } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { createClient } from "@/lib/supabase/client";
+import { untypedRpc } from "@/lib/supabase/rpc";
 import type { Json } from "@/lib/supabase/types";
 
 // ---------------------------------------------------------------------------
@@ -134,8 +135,9 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
     setIsSaving(true);
     try {
       const supabase = createClient();
-      // Cast needed: RPC not yet in auto-generated types (added in 010_notifications migration)
-      await (supabase.rpc as Function)("update_own_notification_prefs", {
+      // RPC not yet in the auto-generated types (added in the 010_notifications
+      // migration); untypedRpc keeps the assertion in one place.
+      await untypedRpc<void>(supabase, "update_own_notification_prefs", {
         p_prefs: updated,
       });
     } catch (err) {

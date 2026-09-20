@@ -16,6 +16,11 @@ const eslintConfig = defineConfig([
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    // Service worker source. Targets the ServiceWorkerGlobalScope, not the
+    // app: ES5 syntax on purpose (widest SW support, no transpile step) and
+    // worker globals the app's config doesn't know about. Built into
+    // public/sw.js by scripts/post-build.mjs.
+    "src/sw/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

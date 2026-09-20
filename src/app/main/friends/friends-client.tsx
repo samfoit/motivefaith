@@ -16,8 +16,9 @@ import { cn } from "@/lib/utils/cn";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { useDelayedLoading } from "@/lib/hooks/useDelayedLoading";
 import { FRIEND_POLL_MIN_MS, FRIEND_POLL_JITTER_MS } from "@/lib/constants/limits";
 import {
   useFriendsList,
@@ -121,6 +122,14 @@ export function FriendsClient({
   const requests = useFriendRequests(userId, initialRequests ? { initialData: initialRequests } : undefined);
   const search = useSearchUsers(deferredQuery, userId);
 
+  // Timing hygiene for the three client-fetched regions: nothing is shown for
+  // the first 200ms, and once shown it is held for 500ms. Without this these
+  // resolved in well under 100ms from the persisted query cache and flashed
+  // (measured at 86ms; see DIAGNOSIS.md R4).
+  const showFriendsLoading = useDelayedLoading(friends.isLoading);
+  const showRequestsLoading = useDelayedLoading(requests.isLoading);
+  const showSearchLoading = useDelayedLoading(search.isLoading);
+
   // Mutations
   const sendRequest = useSendFriendRequest();
   const acceptRequest = useAcceptFriendRequest();
@@ -223,11 +232,11 @@ export function FriendsClient({
             <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">
               Search results
             </h2>
-            {search.isLoading ? (
+            {showSearchLoading ? (
               <div className="flex justify-center py-6">
                 <Loader2 className="w-5 h-5 animate-spin text-[var(--color-text-tertiary)]" />
               </div>
-            ) : search.data && search.data.length > 0 ? (
+            ) : search.isLoading ? null : search.data && search.data.length > 0 ? (
               <div className="space-y-2">
                 {search.data.map((profile) => (
                   <SearchResultCard
@@ -274,8 +283,8 @@ export function FriendsClient({
 
             {/* --- Friends Tab --- */}
             <Tabs.Content value="friends">
-              {friends.isLoading ? (
-                <LoadingState />
+              {showFriendsLoading ? (
+                <LoadingState label="Loading friends" />
               ) : friends.data && friends.data.length > 0 ? (
                 <div className="fr-stagger-container space-y-2">
                   {friends.data.map((friend) => (
@@ -299,8 +308,8 @@ export function FriendsClient({
 
             {/* --- Requests Tab --- */}
             <Tabs.Content value="requests">
-              {requests.isLoading ? (
-                <LoadingState />
+              {showRequestsLoading ? (
+                <LoadingState label="Loading requests" />
               ) : (
                 <div className="space-y-6">
                   {/* Incoming */}
@@ -564,9 +573,9 @@ function EmptyState({
   );
 }
 
-function LoadingState() {
+function LoadingState({ label }: { label: string }) {
   return (
-    <div className="space-y-2" role="status" aria-label="Loading friends">
+    <SkeletonScreen label={label} className="space-y-2">
       {Array.from({ length: 4 }, (_, i) => (
         <div
           key={i}
@@ -580,6 +589,6 @@ function LoadingState() {
           <Skeleton variant="rect" width={32} height={32} className="rounded-lg" decorative />
         </div>
       ))}
-    </div>
+    </SkeletonScreen>
   );
 }

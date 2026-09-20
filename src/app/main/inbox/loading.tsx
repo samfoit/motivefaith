@@ -1,11 +1,11 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 
 export default function InboxLoading() {
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+      <SkeletonScreen label="Loading inbox" className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         <Skeleton variant="text" width={80} height={32} />
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
@@ -21,7 +21,7 @@ export default function InboxLoading() {
             </div>
           ))}
         </div>
-      </div>
+      </SkeletonScreen>
     </div>
   );
 }

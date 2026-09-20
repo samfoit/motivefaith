@@ -1,31 +1,52 @@
-/// Service Worker for MotiveFaith — push, caching, offline sync
+/// Service Worker for MotiveFaith — app shell, push, caching, offline sync
+///
+/// SOURCE FILE. The deployed worker is generated into `public/sw.js` by
+/// `scripts/post-build.js`, which substitutes the __MOTIVE_*__ tokens below
+/// with the real build id and the hashed asset paths from the build manifest.
+/// Do not edit `public/sw.js` — it is generated and git-ignored.
 
-// Auto-generated at build time — no manual bump needed.
-// 3b27SkVEhDO29tSKQZzwy is replaced by the build script; falls back to timestamp.
-var CACHE_VERSION = "U0tjyUVd2loiNjINbzybo";
-if (CACHE_VERSION === "__BUILD_" + "ID__") {
-  // Fallback: not replaced by build script — use a timestamp so each
-  // new SW file evaluation gets a unique cache name.
+// Substituted at build time. The guard below is what runs if someone loads
+// this source directly (e.g. in a unit test), never in a deployed worker.
+var CACHE_VERSION = "__MOTIVE_BUILD_ID__";
+if (CACHE_VERSION.indexOf("__MOTIVE_") === 0) {
   CACHE_VERSION = "dev-" + Date.now();
 }
 var CACHE_NAME = "motive-v" + CACHE_VERSION;
 var MAX_CACHE_ENTRIES = 100;
 
-// App shell files to precache on install.
-// __CRITICAL_ASSETS__ is replaced by the post-build script with hashed
-// static assets (CSS, main JS entry); falls back to the base set.
-var APP_SHELL = ["/", "/offline", "/manifest.webmanifest", "/icon-192.png"];
-var CRITICAL_ASSETS = "__CRITICAL_ASSETS__";
-if (CRITICAL_ASSETS !== "__CRITICAL_" + "ASSETS__") {
-  try { APP_SHELL = APP_SHELL.concat(JSON.parse(CRITICAL_ASSETS)); } catch (e) { /* ignore */ }
+// The app shell: the persistent chrome plus every render-blocking asset needed
+// to paint it. Substituted at build time with the real hashed CSS/JS paths so
+// a repeat visit or an installed-PWA launch never waits on the network for
+// them. Falls back to the navigable routes alone if substitution didn't run.
+var SHELL_ROUTES = ["/", "/offline", "/manifest.webmanifest", "/icon-192.png"];
+var CRITICAL_ASSETS = [];
+var INJECTED_ASSETS = "__MOTIVE_CRITICAL_ASSETS__";
+if (INJECTED_ASSETS.indexOf("__MOTIVE_") !== 0) {
+  try {
+    CRITICAL_ASSETS = JSON.parse(INJECTED_ASSETS);
+  } catch (e) {
+    CRITICAL_ASSETS = [];
+  }
 }
+var APP_SHELL = SHELL_ROUTES.concat(CRITICAL_ASSETS);
 
-/** Trim cache to MAX_CACHE_ENTRIES (keeps most recent) */
+/**
+ * Trim the cache to MAX_CACHE_ENTRIES, evicting oldest-first but never
+ * touching the precached app shell — evicting the shell would silently
+ * reintroduce the blank-first-paint this worker exists to prevent.
+ */
 function trimCache(cacheName, maxEntries) {
-  caches.open(cacheName).then(function (cache) {
-    cache.keys().then(function (keys) {
-      if (keys.length <= maxEntries) return;
-      var toDelete = keys.slice(0, keys.length - maxEntries);
+  var shell = {};
+  for (var i = 0; i < APP_SHELL.length; i++) {
+    shell[new URL(APP_SHELL[i], self.location.origin).pathname] = true;
+  }
+  return caches.open(cacheName).then(function (cache) {
+    return cache.keys().then(function (keys) {
+      var evictable = keys.filter(function (key) {
+        return !shell[new URL(key.url).pathname];
+      });
+      if (evictable.length <= maxEntries) return;
+      var toDelete = evictable.slice(0, evictable.length - maxEntries);
       return Promise.all(
         toDelete.map(function (key) { return cache.delete(key); }),
       );
@@ -40,7 +61,17 @@ function trimCache(cacheName, maxEntries) {
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(APP_SHELL);
+      // Content-hashed assets are immutable, so a plain cache-fill is safe.
+      // Each asset is added independently: a single 404 (e.g. an asset list
+      // that went stale between build and deploy) must not fail the whole
+      // install and leave the user with no precached shell at all.
+      return Promise.all(
+        APP_SHELL.map(function (url) {
+          return cache.add(new Request(url, { cache: "reload" })).catch(function () {
+            /* non-fatal — the runtime handlers will fetch it on demand */
+          });
+        }),
+      );
     }),
   );
   // Do NOT call self.skipWaiting() here — activation is deferred to the
@@ -94,6 +125,39 @@ self.addEventListener("fetch", function (event) {
   // Skip Supabase API calls (auth, realtime, etc.)
   if (url.hostname !== self.location.hostname) return;
 
+  /** Pages whose HTML embeds the signed-in user's own data. */
+  function isAuthenticatedPath(pathname) {
+    return pathname.indexOf("/main/") === 0;
+  }
+
+  /**
+   * Whether a navigation response may be written to the cache.
+   *
+   * The request path is not enough to answer this. `proxy.ts` redirects a
+   * signed-in user from /auth/login and /auth/signup to /main/dashboard, and
+   * fetch() follows that redirect transparently — so a "public" request can
+   * resolve to authenticated dashboard HTML, which would then be stored under
+   * /auth/login and served to whoever opens the login page next: the same user
+   * after logout, or anyone else on a shared device. Judge the response:
+   *
+   *  - `redirected` catches the hop itself. It is also disqualifying on its
+   *    own, because a response with the redirected flag set cannot legally be
+   *    returned from respondWith() for a navigation request — caching one
+   *    would break the page it was cached for.
+   *  - the *final* url is re-checked against the authenticated prefix, to
+   *    cover a same-path rewrite ever landing on one.
+   */
+  function isCacheableNavigation(response) {
+    if (!isCacheableResponse(response)) return false;
+    if (response.redirected) return false;
+    if (!response.url) return true; // no url to judge; the hop check stands
+    try {
+      return !isAuthenticatedPath(new URL(response.url).pathname);
+    } catch (e) {
+      return false;
+    }
+  }
+
   /** Only cache same-origin responses with safe content types. */
   function isCacheableResponse(response) {
     if (!response.ok) return false;
@@ -110,38 +174,60 @@ self.addEventListener("fetch", function (event) {
     );
   }
 
-  // Network-first for navigation requests (HTML pages)
   if (event.request.mode === "navigate") {
-    // Skip caching authenticated pages to prevent stale user data
-    // from being served on shared devices or after logout.
-    var isAuthenticatedPage = url.pathname.startsWith("/main/");
-    event.respondWith(
-      // Use navigation preload response if available (started in parallel
-      // with SW boot), otherwise fall back to a normal fetch.
-      (event.preloadResponse || Promise.resolve()).then(function (preloaded) {
+    // Authenticated pages are never written to the cache: their HTML embeds
+    // the user's own data, which must not survive logout or leak on a shared
+    // device. They stay network-first, falling back to the offline page.
+    //
+    // Public pages use stale-while-revalidate: a repeat visit paints from
+    // cache with no network in the critical path, and the fresh copy replaces
+    // it in the background for next time.
+    var isAuthenticatedPage = isAuthenticatedPath(url.pathname);
+
+    var fromNetwork = (event.preloadResponse || Promise.resolve())
+      .then(function (preloaded) {
         return preloaded || fetch(event.request);
       })
-        .then(function (response) {
-          if (!isAuthenticatedPage && isCacheableResponse(response)) {
-            var clone = response.clone();
-            caches.open(CACHE_NAME).then(function (cache) {
-              cache.put(event.request, clone);
-            });
-          }
-          return response;
-        })
-        .catch(function () {
-          if (isAuthenticatedPage) {
-            // Serve a dedicated offline page instead of the public landing
-            // page, which would confuse authenticated users.
-            return caches.match("/offline").then(function (offlinePage) {
-              return offlinePage || new Response("Offline", { status: 503 });
-            });
-          }
-          return caches.match(event.request).then(function (cached) {
-            return cached || caches.match("/");
+      .then(function (response) {
+        if (!isAuthenticatedPage && isCacheableNavigation(response)) {
+          var clone = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) {
+            cache.put(event.request, clone);
+          });
+        }
+        return response;
+      });
+
+    if (isAuthenticatedPage) {
+      event.respondWith(
+        fromNetwork.catch(function () {
+          // A dedicated offline page rather than the public landing page,
+          // which would be confusing for a signed-in user.
+          return caches.match("/offline").then(function (offlinePage) {
+            return offlinePage || new Response("Offline", { status: 503 });
           });
         }),
+      );
+      return;
+    }
+
+    event.respondWith(
+      caches.match(event.request).then(function (cached) {
+        // A redirected response is refused for a navigation request, so an
+        // entry left by an earlier worker would 500 the page rather than
+        // serve it. isCacheableNavigation() stops new ones being written;
+        // this stops an old one being served.
+        if (cached && !cached.redirected) {
+          // Revalidate in the background; don't make the user wait for it.
+          event.waitUntil(fromNetwork.catch(function () {}));
+          return cached;
+        }
+        return fromNetwork.catch(function () {
+          return caches.match("/").then(function (home) {
+            return home || new Response("Offline", { status: 503 });
+          });
+        });
+      }),
     );
     return;
   }
@@ -170,11 +256,21 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
-  // Network-first for everything else (API-like routes on same origin)
+  // Network-first for everything else (API-like routes on same origin).
+  //
+  // The same privacy rule as navigations applies here, and for the same
+  // reason: a client-side navigation to /main/* fetches the route's RSC
+  // payload with mode "cors", not "navigate", so it lands in this branch.
+  // Without this check the navigate handler's refusal to cache authenticated
+  // HTML was being undone one branch further down — the user's own feed,
+  // profile and dashboard payloads were sitting in Cache Storage after
+  // logout. Verified present in the cache before this guard was added.
+  var isAuthenticatedPayload = url.pathname.startsWith("/main/");
+
   event.respondWith(
     fetch(event.request)
       .then(function (response) {
-        if (isCacheableResponse(response)) {
+        if (!isAuthenticatedPayload && isCacheableResponse(response)) {
           var clone = response.clone();
           caches.open(CACHE_NAME).then(function (cache) {
             cache.put(event.request, clone);

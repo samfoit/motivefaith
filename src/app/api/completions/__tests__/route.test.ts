@@ -118,13 +118,18 @@ describe("POST /api/completions", () => {
     expect(body.error).toBe("Failed to save completion");
   });
 
-  it("defaults evidence_url and notes to null when not provided", async () => {
+  it("omits evidence_url and notes when not provided, so the SQL defaults apply", async () => {
+    // `insert_completion` declares both as `TEXT DEFAULT NULL`
+    // (supabase/migrations/004_functions.sql), and the generated types mark
+    // them optional. Leaving them undefined drops the keys from the JSON body,
+    // which is how PostgREST is told to use the default — equivalent to NULL
+    // here, and the type-correct way to express "not provided".
     await POST(makeRequest({ habitId: "h1", type: "quick" }));
     expect(mockRpc).toHaveBeenCalledWith(
       "insert_completion",
       expect.objectContaining({
-        p_evidence_url: null,
-        p_notes: null,
+        p_evidence_url: undefined,
+        p_notes: undefined,
       }),
     );
   });

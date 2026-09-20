@@ -103,10 +103,24 @@ function AuthHooks() {
   return null;
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+/**
+ * Decides whether the auth-only hooks should run, and renders nothing.
+ *
+ * Kept as its own leaf so the `usePathname()` subscription lives here rather
+ * than on `Providers`. `Providers` wraps the entire app, so subscribing it to
+ * route changes made every navigation re-render the whole provider tree; this
+ * narrows that to a component with no output. It also keeps the read out of
+ * the way of prerendering, where `usePathname()` suspends on routes with
+ * dynamic params.
+ */
+function AuthHooksGate() {
   const pathname = usePathname();
-  const isAuthRoute = pathname.startsWith("/main") || pathname.startsWith("/auth/onboarding");
+  const isAuthRoute =
+    pathname.startsWith("/main") || pathname.startsWith("/auth/onboarding");
+  return isAuthRoute ? <AuthHooks /> : null;
+}
 
+export function Providers({ children }: { children: React.ReactNode }) {
   useServiceWorker();
 
   useEffect(() => {
@@ -134,7 +148,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
-      {isAuthRoute && <AuthHooks />}
+      <AuthHooksGate />
       {children}
     </PersistQueryClientProvider>
   );

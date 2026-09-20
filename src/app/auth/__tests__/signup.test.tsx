@@ -75,6 +75,14 @@ import SignupPage from "../signup/page";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A well-formed default response. The page reads `data.session` after a
+  // successful call, so a mock that only sets `error` makes it throw after the
+  // assertion has already passed — which surfaces as an unhandled rejection
+  // rather than a test failure. Individual tests override this.
+  mockSignUp.mockResolvedValue({
+    data: { session: { access_token: "token" }, user: { id: "u1" } },
+    error: null,
+  });
 });
 
 function fillAndSubmit(overrides: Partial<Record<"name" | "username" | "email" | "password" | "dob", string>> = {}) {
@@ -137,7 +145,6 @@ describe("SignupPage", () => {
   });
 
   it("calls supabase.auth.signUp with correct data on valid submit", async () => {
-    mockSignUp.mockResolvedValue({ error: null });
     render(<SignupPage />);
     fillAndSubmit();
 
@@ -157,7 +164,12 @@ describe("SignupPage", () => {
   });
 
   it("redirects to /auth/onboarding on success", async () => {
-    mockSignUp.mockResolvedValue({ error: null });
+    // A session is returned when email confirmation is not required; without
+    // one the page shows the "check your email" screen instead of redirecting.
+    mockSignUp.mockResolvedValue({
+      data: { session: { access_token: "token" }, user: { id: "u1" } },
+      error: null,
+    });
     render(<SignupPage />);
     fillAndSubmit();
 
@@ -166,8 +178,9 @@ describe("SignupPage", () => {
     });
   });
 
-  it("shows error toast on signup failure", async () => {
+  it("surfaces the provider's message on signup failure", async () => {
     mockSignUp.mockResolvedValue({
+      data: { session: null, user: null },
       error: { message: "Email already in use" },
     });
     render(<SignupPage />);
@@ -177,7 +190,7 @@ describe("SignupPage", () => {
       expect(mockShow).toHaveBeenCalledWith(
         expect.objectContaining({
           variant: "error",
-          description: "Could not create account. Please try again.",
+          description: "Email already in use",
         }),
       );
     });

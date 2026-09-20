@@ -52,6 +52,60 @@ vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+// ---------------------------------------------------------------------------
+// Web Storage
+//
+// Node 22+ ships its own `localStorage` / `sessionStorage` globals, which are
+// `undefined` unless the process is started with `--localstorage-file`. Those
+// native globals shadow the implementations jsdom installs, so without this
+// every `localStorage.*` call in a test throws
+// "Cannot read properties of undefined". Both descriptors are configurable,
+// so replace them with a spec-shaped in-memory store.
+// ---------------------------------------------------------------------------
+
+class MemoryStorage implements Storage {
+  #entries = new Map<string, string>();
+
+  get length() {
+    return this.#entries.size;
+  }
+  key(index: number): string | null {
+    return [...this.#entries.keys()][index] ?? null;
+  }
+  getItem(key: string): string | null {
+    return this.#entries.get(String(key)) ?? null;
+  }
+  setItem(key: string, value: string): void {
+    this.#entries.set(String(key), String(value));
+  }
+  removeItem(key: string): void {
+    this.#entries.delete(String(key));
+  }
+  clear(): void {
+    this.#entries.clear();
+  }
+}
+
+for (const name of ["localStorage", "sessionStorage"] as const) {
+  if (!globalThis[name]) {
+    const storage = new MemoryStorage();
+    Object.defineProperty(globalThis, name, {
+      value: storage,
+      configurable: true,
+      writable: true,
+    });
+    // jsdom's `window` is the same object as `globalThis` here, but define it
+    // explicitly so this keeps working if that ever stops being true.
+    if (window !== (globalThis as unknown as Window)) {
+      Object.defineProperty(window, name, {
+        value: storage,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+}
+
 // Stub IntersectionObserver
 class MockIntersectionObserver {
   observe = vi.fn();

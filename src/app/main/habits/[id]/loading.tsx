@@ -1,11 +1,11 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 
 export default function HabitDetailLoading() {
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+      <SkeletonScreen label="Loading habit" className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         {/* Back button + title */}
         <div className="flex items-center gap-3">
           <Skeleton variant="circle" width={32} height={32} />
@@ -44,7 +44,7 @@ export default function HabitDetailLoading() {
             />
           ))}
         </div>
-      </div>
+      </SkeletonScreen>
     </div>
   );
 }
