@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { ArrowLeft, ChevronDown, Send } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -9,11 +9,12 @@ import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
 import { Pill } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
-import { JourneyHabitCard } from "@/components/social/JourneyHabitCard";
+import { SharedHabits } from "@/components/social/SharedHabits";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { createClient } from "@/lib/supabase/client";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
+import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
 import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
 
 // ---------------------------------------------------------------------------
@@ -32,7 +33,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const timelineEndRef = useRef<HTMLDivElement>(null);
+  // Opens the thread at the newest message and jumps back there on new ones.
+  const scrollToLatest = useScrollToLatest();
   const inputBarRef = useRef<HTMLDivElement>(null);
   useKeyboardOffset(inputBarRef, "calc(4rem + env(safe-area-inset-bottom))");
 
@@ -60,14 +62,6 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   }, [router]);
 
   const friendFirstName = friend.display_name.split(" ")[0];
-
-  const HABITS_PREVIEW_COUNT = 4;
-  const [habitsExpanded, setHabitsExpanded] = useState(false);
-  const visibleHabits = useMemo(
-    () => (habitsExpanded ? habits : habits.slice(0, HABITS_PREVIEW_COUNT)),
-    [habits, habitsExpanded],
-  );
-  const hasMoreHabits = habits.length > HABITS_PREVIEW_COUNT;
 
   // Realtime subscriptions
   useEffect(() => {
@@ -124,9 +118,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
             return [...prev, newEnc];
           });
 
-          setTimeout(() => {
-            timelineEndRef.current?.scrollIntoView({ behavior: "smooth" });
-          }, 50);
+          setTimeout(() => scrollToLatest("smooth"), 50);
         },
       )
       .subscribe();
@@ -134,7 +126,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [friend.id, friend.display_name, userId, debouncedRefresh]);
+  }, [friend.id, friend.display_name, userId, debouncedRefresh, scrollToLatest]);
 
   // Refresh stale data on tab focus / visibility change
   useEffect(() => {
@@ -188,9 +180,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
     inputRef.current?.focus();
 
     // Scroll to the new message
-    setTimeout(() => {
-      timelineEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 50);
+    setTimeout(() => scrollToLatest("smooth"), 50);
 
     setIsSending(true);
     const supabase = createClient();
@@ -231,7 +221,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
 
     // Refresh server data for eventual consistency
     debouncedRefresh();
-  }, [message, isSending, userId, friend.id, showToast, debouncedRefresh]);
+  }, [message, isSending, userId, friend.id, showToast, debouncedRefresh, scrollToLatest]);
 
   const handleHeartCompletion = useCallback(async (completionId: string, isHearted: boolean) => {
     const supabase = createClient();
@@ -350,70 +340,17 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
           </div>
         </div>
 
-        {/* Shared Habits */}
-        {habits.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2
-                className="font-display font-semibold text-text-primary"
-                style={{ fontSize: "var(--text-lg)" }}
-              >
-                Shared Habits
-              </h2>
-              {habits.length > 1 && (
-                <span className="text-xs text-text-tertiary">
-                  {habits.length} habits
-                </span>
-              )}
-            </div>
-            <div className="space-y-2">
-              {visibleHabits.map((habit) => (
-                <JourneyHabitCard
-                  key={habit.id}
-                  habit={habit}
-                  friendName={friendFirstName}
-                />
-              ))}
-            </div>
-            {hasMoreHabits && (
-              <button
-                type="button"
-                onClick={() => setHabitsExpanded((v) => !v)}
-                className={cn(
-                  "w-full mt-2 py-2 rounded-lg text-sm font-medium",
-                  "text-brand hover:bg-brand-light transition-colors",
-                  "flex items-center justify-center gap-1",
-                )}
-              >
-                <ChevronDown
-                  className={cn(
-                    "w-4 h-4 transition-transform duration-200",
-                    habitsExpanded && "rotate-180",
-                  )}
-                />
-                {habitsExpanded
-                  ? "Show less"
-                  : `Show all ${habits.length} habits`}
-              </button>
-            )}
-          </section>
-        )}
+        {/* Shared habits — one line of chips, details in a sheet */}
+        <SharedHabits habits={habits} friendName={friendFirstName} />
 
         {/* Timeline */}
         <section>
-          <h2
-            className="font-display font-semibold text-text-primary mb-3"
-            style={{ fontSize: "var(--text-lg)" }}
-          >
-            Activity
-          </h2>
           <JourneyTimeline
             completions={completions}
             encouragements={mergedEncouragements}
             friendName={friendFirstName}
             onHeartCompletion={handleHeartCompletion}
           />
-          <div ref={timelineEndRef} />
         </section>
       </div>
 

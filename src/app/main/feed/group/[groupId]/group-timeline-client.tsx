@@ -43,6 +43,7 @@ import * as RadixDialog from "@radix-ui/react-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
+import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
 import { useRegenerateInviteCode, useRemoveGroupMember } from "@/lib/hooks/useGroups";
 import { useCreateChallenge, useJoinChallenge, useLeaveChallenge } from "@/lib/hooks/useGroupChallenges";
 import { ReportSheet } from "@/components/social/ReportSheet";
@@ -69,7 +70,8 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const timelineEndRef = useRef<HTMLDivElement>(null);
+  // Opens the thread at the newest message and jumps back there on new ones.
+  const scrollToLatest = useScrollToLatest();
   const inputBarRef = useRef<HTMLDivElement>(null);
   useKeyboardOffset(inputBarRef, "calc(4rem + env(safe-area-inset-bottom))");
 
@@ -223,9 +225,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
             return [...prev, newMsg];
           });
 
-          setTimeout(() => {
-            timelineEndRef.current?.scrollIntoView({ behavior: "smooth" });
-          }, 50);
+          setTimeout(() => scrollToLatest("smooth"), 50);
         },
       )
       .on(
@@ -290,7 +290,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [group.id, userId, members, memberIds, debouncedRefresh]);
+  }, [group.id, userId, members, memberIds, debouncedRefresh, scrollToLatest]);
 
   // Focus/visibility refresh
   useEffect(() => {
@@ -470,9 +470,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     setMessage("");
     inputRef.current?.focus();
 
-    setTimeout(() => {
-      timelineEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 50);
+    setTimeout(() => scrollToLatest("smooth"), 50);
 
     setIsSending(true);
     const supabase = createClient();
@@ -507,7 +505,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     }
 
     debouncedRefresh();
-  }, [message, isSending, userId, group.id, members, showToast, debouncedRefresh]);
+  }, [message, isSending, userId, group.id, members, showToast, debouncedRefresh, scrollToLatest]);
 
   // Challenge handlers
   const handleCreateChallenge = async (formData: ChallengeFormData) => {
@@ -808,7 +806,8 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
               No activity in the last 24 hours.
             </p>
           ) : (
-            <div className="space-y-2">
+            // Bubbles slide in from ±20px — clipped so the page never widens.
+            <div className="space-y-2 overflow-x-clip">
               {timeline.map((entry) => {
                 if (entry.type === "completion") {
                   const c = entry.data as GroupTimelineData["completions"][number];
@@ -949,7 +948,6 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
               })}
             </div>
           )}
-          <div ref={timelineEndRef} />
         </section>
       </div>
 

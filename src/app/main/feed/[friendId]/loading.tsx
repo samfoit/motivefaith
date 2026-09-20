@@ -16,26 +16,21 @@ export default function JourneyLoading() {
           </div>
         </div>
 
-        {/* Shared Habits section */}
-        <div className="space-y-3">
-          <Skeleton variant="text" width={120} height={16} />
-          {[1, 2].map((i) => (
-            <div
-              key={i}
-              className="rounded-lg bg-elevated p-4 shadow-sm border-l-[3px] border-gray-200 space-y-2"
-            >
-              <div className="flex items-center gap-2">
-                <Skeleton variant="circle" width={24} height={24} />
-                <Skeleton variant="text" width="50%" height={18} />
-              </div>
-              <Skeleton variant="text" width="30%" height={14} />
-            </div>
+        {/* Shared habits: one line of chips */}
+        <div className="flex items-center gap-2">
+          {[112, 96, 128].map((w) => (
+            <Skeleton
+              key={w}
+              variant="rect"
+              width={w}
+              height={30}
+              className="rounded-full shrink-0"
+            />
           ))}
         </div>
 
-        {/* Timeline section */}
+        {/* Timeline */}
         <div className="space-y-3">
-          <Skeleton variant="text" width={100} height={16} />
           {[1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}

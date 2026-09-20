@@ -121,7 +121,10 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
 
   return (
     <>
-      <div className="space-y-2">
+      {/* Bubbles animate in from ±20px; clipping keeps that slide from
+          briefly widening the page and flashing a horizontal scrollbar.
+          `clip` rather than `hidden` so no scroll container is created. */}
+      <div className="space-y-2 overflow-x-clip">
         {entries.map((entry) => {
           if (entry.kind === "encouragement") {
             return (
