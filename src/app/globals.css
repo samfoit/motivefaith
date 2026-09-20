@@ -287,6 +287,42 @@ body {
   animation-play-state: running;
 }
 
+/* ── Habit card colour ───────────────────────────────────────────────────
+   The habit's colour used to run down the left edge as a 3px strip, which
+   put it directly against the drawer's chevron — two marks in the same few
+   pixels, one of them tappable. It tints the whole card instead, the way
+   Keep tints a note: the same identity and customisation, nothing competing
+   with the handle. Dark mode needs a heavier mix to read at all.
+
+   The fallback keeps the mix fully opaque for a habit with no colour — the
+   drawer sits directly behind this surface, so any alpha would show it. */
+
+.habit-tint {
+  background-color: color-mix(
+    in srgb,
+    var(--habit-color, var(--color-bg-elevated)) 9%,
+    var(--color-bg-elevated)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--habit-color, var(--color-bg-elevated)) 22%,
+    var(--color-bg-elevated)
+  );
+}
+
+[data-theme="dark"] .habit-tint {
+  background-color: color-mix(
+    in srgb,
+    var(--habit-color, var(--color-bg-elevated)) 10%,
+    var(--color-bg-elevated)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--habit-color, var(--color-bg-elevated)) 28%,
+    var(--color-bg-elevated)
+  );
+}
+
 /* ── Habit card check-in drawer ──────────────────────────────────────────
    The card surface slides right off a row of check-in icons. The icons scale
    in through a custom property rather than a plain transform so the pressed

@@ -310,20 +310,19 @@ export const HabitCard = React.memo(function HabitCard({
       <div
         ref={surfaceRef}
         className={cn(
-          // An explicit background is load-bearing here: the drawer sits
-          // directly behind the card and must not show through it.
-          "hc-surface relative flex items-center gap-2 rounded-lg py-4 pl-2 pr-4 shadow-sm",
-          "border-l-[3px] cursor-pointer select-none",
+          // The habit's colour tints the whole card (see .habit-tint), which
+          // also gives the drawer an opaque surface to hide behind.
+          "hc-surface habit-tint relative flex items-center gap-2 rounded-lg border py-4 pl-2 pr-4 shadow-sm",
+          "cursor-pointer select-none",
           "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
           "active:brightness-[0.98]",
         )}
         style={{
-          backgroundColor: "var(--color-bg-elevated)",
-          borderLeftColor: habit.color ?? undefined,
+          ["--habit-color" as string]: habit.color ?? undefined,
           touchAction: "pan-y",
           WebkitTouchCallout: "none",
           WebkitTapHighlightColor: "transparent",
-        }}
+        } as React.CSSProperties}
         onContextMenu={(e) => e.preventDefault()}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

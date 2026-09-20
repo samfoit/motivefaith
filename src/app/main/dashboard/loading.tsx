@@ -19,7 +19,7 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
  */
 function HabitCardSkeleton() {
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm border-l-[3px] border-gray-200">
+    <div className="flex items-center gap-3 rounded-lg bg-[var(--color-bg-elevated)] p-4 shadow-sm border border-[var(--color-bg-secondary)]">
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-center gap-2">
           <Skeleton variant="circle" width={28} height={28} />

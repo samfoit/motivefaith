@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { motion } from "motion/react";
 import { Clock, Users, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -62,8 +63,10 @@ type UpdateFn = <K extends keyof HabitForm>(key: K, val: HabitForm[K]) => void;
 export function PreviewCard({ form }: { form: HabitForm }) {
   return (
     <div
-      className="flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm border-l-[3px]"
-      style={{ borderLeftColor: form.color }}
+      // Mirrors the dashboard card, tint and all, so the colour picker shows
+      // what the habit will actually look like.
+      className="habit-tint flex items-center gap-3 rounded-lg border p-4 shadow-sm"
+      style={{ ["--habit-color" as string]: form.color } as React.CSSProperties}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
