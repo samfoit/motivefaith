@@ -37,7 +37,7 @@ export const ToastProvider: React.FC<{ children?: React.ReactNode }> = ({
     <RadixToast.Provider swipeDirection="down">
       {children}
       <RadixToast.Viewport
-        className="fixed bottom-6 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 space-y-2 outline-none"
+        className="fixed bottom-6 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 px-4 space-y-2 outline-none"
         style={{ pointerEvents: "none" }}
       />
     </RadixToast.Provider>

@@ -15,31 +15,29 @@ const STATE_CONFIG: Record<
 > = {
   unsupported: {
     label: "Not Supported",
-    description: "Push notifications are not available on this device.",
+    description: "This device can't receive push.",
   },
   "requires-install": {
     label: "Install Required",
-    description:
-      "Add MotiveFaith to your home screen to enable notifications.",
+    description: "Add MotiveFaith to your home screen first.",
   },
   denied: {
     label: "Blocked",
-    description:
-      "Notifications are blocked. Enable them in your browser settings.",
+    description: "Turn them back on in browser settings.",
   },
   prompt: {
     label: "Notifications Off",
-    description: "Get notified when friends complete habits or need encouragement.",
-    actionLabel: "Enable Notifications",
+    description: "Get friend activity and encouragements.",
+    actionLabel: "Turn On",
   },
   unsubscribed: {
     label: "Notifications Off",
-    description: "You won't receive push notifications.",
+    description: "Push is off on this device.",
     actionLabel: "Turn On",
   },
   subscribed: {
     label: "Notifications On",
-    description: "You'll be notified about friend activity and encouragements.",
+    description: "Friend activity and encouragements.",
     actionLabel: "Turn Off",
   },
 };
@@ -70,7 +68,7 @@ export function NotificationToggle({
   return (
     <div
       className={cn(
-        "flex items-center gap-4 rounded-lg bg-elevated p-4 shadow-sm",
+        "flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm",
         className,
       )}
     >
@@ -102,6 +100,7 @@ export function NotificationToggle({
         <Button
           variant={isActive ? "ghost" : "secondary"}
           size="sm"
+          className="shrink-0"
           onClick={isActive ? onUnsubscribe : onSubscribe}
           disabled={isLoading}
         >

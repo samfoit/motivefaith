@@ -136,8 +136,11 @@ const MILESTONE_MESSAGES: Record<number, string> = {
   100: "100 days — legendary!",
 };
 
+// Four tabs at their natural width ran past the right edge of a 360px phone
+// and took the whole page into horizontal scroll with them. Equal shares of
+// the row instead, the way the dashboard's view switcher divides its own.
 const TAB_TRIGGER_CLASS = cn(
-  "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+  "flex-1 min-w-0 truncate px-2 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors",
   "text-[var(--color-text-secondary)]",
   "data-[state=active]:bg-brand data-[state=active]:text-white",
   "hover:text-[var(--color-text-primary)]",

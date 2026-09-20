@@ -90,6 +90,11 @@ function ToggleRow({
   );
 }
 
+/**
+ * Label above the field rather than beside it: a native time input will not
+ * shrink below the width of its own clock control, so two of them side by side
+ * with inline labels ran off the card — and off the page — on a 360px phone.
+ */
 function TimeSelect({
   label,
   value,
@@ -100,18 +105,20 @@ function TimeSelect({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-[var(--color-text-tertiary)] w-10">{label}</span>
+    <label className="min-w-0 space-y-1">
+      <span className="block text-xs text-[var(--color-text-tertiary)]">
+        {label}
+      </span>
       <input
         type="time"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          "rounded-md border bg-bg-elevated px-2 py-1 text-sm text-text-primary",
+          "w-full min-w-0 rounded-md border bg-bg-elevated px-2 py-1 text-sm text-text-primary",
           "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand",
         )}
       />
-    </div>
+    </label>
   );
 }
 
@@ -226,7 +233,7 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
         <p className="text-xs text-[var(--color-text-tertiary)] mb-2">
           No notifications during these hours
         </p>
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <TimeSelect
             label="From"
             value={prefs.quiet_start}

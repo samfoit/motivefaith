@@ -285,11 +285,11 @@ export function ProfileClient({
               </h2>
             </div>
             <div className="rounded-lg bg-elevated p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">Theme</p>
-                </div>
-                <ThemeToggle />
+              {/* Wraps rather than overflows: the three-way switch needs the
+                  whole row to itself on a 320px screen. */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-text-primary">Theme</p>
+                <ThemeToggle className="min-w-0" />
               </div>
             </div>
           </section>

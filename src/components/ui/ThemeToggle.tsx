@@ -35,7 +35,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       role="radiogroup"
       aria-label="Theme"
       className={cn(
-        "inline-flex rounded-lg bg-[var(--color-bg-secondary)] p-1 gap-1",
+        "inline-flex max-w-full rounded-lg bg-[var(--color-bg-secondary)] p-1 gap-1",
         className,
       )}
     >
@@ -50,15 +50,15 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
             aria-label={label}
             onClick={() => setTheme(value)}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+              "flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-all",
               "duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
               isActive
                 ? "bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] shadow-sm"
                 : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
             )}
           >
-            <Icon className="w-4 h-4" />
-            <span>{label}</span>
+            <Icon className="w-4 h-4 shrink-0" />
+            <span className="truncate">{label}</span>
           </button>
         );
       })}
