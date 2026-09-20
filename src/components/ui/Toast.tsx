@@ -4,11 +4,23 @@ import { cn } from "@/lib/utils/cn";
 
 export type ToastVariant = "success" | "error" | "info" | "encourage";
 
+export type ToastAction = {
+  label: string;
+  onClick: () => void;
+  /** Screen-reader alternative describing how to achieve the same thing. */
+  altText?: string;
+};
+
 type ToastItem = {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
   variant?: ToastVariant;
+  /** Renders a primary button in the toast (e.g. "Undo"). */
+  action?: ToastAction;
+  /** Milliseconds on screen. Defaults to 3s — raise it when there's an action
+   *  to take, since the toast is the only place to take it. */
+  duration?: number;
 };
 
 const VARIANT_CLASSES: Record<ToastVariant, string> = {
@@ -60,7 +72,7 @@ export const useToast = (): UseToastReturn => {
       {toasts.map((t) => (
         <RadixToast.Root
           key={t.id}
-          duration={3000}
+          duration={t.duration ?? 3000}
           onOpenChange={(open) => {
             if (!open) remove(t.id);
           }}
@@ -81,7 +93,20 @@ export const useToast = (): UseToastReturn => {
             </RadixToast.Description>
           )}
 
-          <div className="mt-2 flex justify-end">
+          <div className="mt-2 flex justify-end gap-1">
+            {t.action && (
+              <RadixToast.Action
+                altText={t.action.altText ?? t.action.label}
+                asChild
+              >
+                <button
+                  onClick={t.action.onClick}
+                  className="text-xs font-semibold px-2 py-1 rounded-md underline underline-offset-2 hover:bg-white/30"
+                >
+                  {t.action.label}
+                </button>
+              </RadixToast.Action>
+            )}
             <RadixToast.Close asChild>
               <button className="text-xs px-2 py-1 rounded-md hover:bg-white/30">
                 Close

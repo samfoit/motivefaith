@@ -287,6 +287,23 @@ body {
   animation-play-state: running;
 }
 
+/* ── Habit card check-in drawer ──────────────────────────────────────────
+   The card surface slides right off a row of check-in icons. The icons scale
+   in through a custom property rather than a plain transform so the pressed
+   state can still override it here — the open/closed scale is written inline
+   from React. */
+
+.hc-option {
+  transform: scale(var(--hc-option-scale, 1));
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hc-option:active {
+  --hc-option-scale: 0.9;
+}
+
 /* ── CompletionForm CSS animations (replaces motion/react) ── */
 
 @keyframes cf-fade-in {
@@ -393,5 +410,11 @@ body {
   .dv-streak-btn:active {
     transition: none;
     transform: none;
+  }
+
+  /* The drawer still opens and closes — it just arrives without the slide. */
+  .hc-surface,
+  .hc-option {
+    transition: none !important;
   }
 }

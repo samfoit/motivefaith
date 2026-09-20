@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo, useCallback, useTransition } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
 import { isHabitScheduledOn, parseTimeWindow } from "@/lib/utils/schedule";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
+import type { CheckInAction } from "@/lib/constants/check-in";
 import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
@@ -111,6 +112,25 @@ const MILESTONE_MESSAGES: Record<number, string> = {
   100: "100 days — well done, good and faithful servant!",
 };
 
+/**
+ * How long a quick check-in stays undoable.
+ *
+ * The write is held back for this window rather than written and later
+ * deleted: reversing a completion server-side would also have to unwind the
+ * streak the insert trigger just advanced, and there is no honest way to know
+ * what `streak_best` was before it. Nothing is sent until the window closes,
+ * so "undo" is simply "never sent" — and the toast that offers it is on screen
+ * for exactly as long as the window lasts.
+ */
+const UNDO_WINDOW_MS = 6000;
+
+type PendingCompletion = {
+  timer: ReturnType<typeof setTimeout>;
+  toastId: string;
+  /** Sends the check-in now, ending its undo window early. */
+  commit: () => Promise<void>;
+};
+
 interface DashboardClientProps {
   habits: HabitWithCompletions[];
   timezone: string;
@@ -161,12 +181,16 @@ export function DashboardClient({
   }
 
   const completeHabit = useCompleteHabit();
-  const { show: showToast, ToastElements } = useToast();
+  const { show: showToast, remove: removeToast, ToastElements } = useToast();
   const [showConfetti, setShowConfetti] = useState(false);
   const [flyout, setFlyout] = useState<{ emoji: string; from: { x: number; y: number } } | null>(null);
   const [completionHabitId, setCompletionHabitId] = useState<string | null>(
     null,
   );
+  // Which check-in the habit card's drawer asked for, so the sheet can open
+  // straight onto the camera, recorder or note instead of the picker.
+  const [completionAction, setCompletionAction] =
+    useState<Exclude<CheckInAction, "quick"> | null>(null);
   // Seeded from the server, which read the preference cookie — so the view
   // the user actually wants is the one that gets server-rendered, and there is
   // no post-hydration swap into a not-yet-downloaded chunk.
@@ -289,11 +313,26 @@ export function DashboardClient({
     }
   };
 
+  // Quick check-ins waiting out their undo window, keyed by habit. Each entry
+  // carries its own commit closure, captured when the check-in was made, so
+  // the timer and the page-hide flush can send it without re-subscribing every
+  // time `habits` changes.
+  const pendingRef = useRef(new Map<string, PendingCompletion>());
+
+  const settle = useCallback((habitId: string): PendingCompletion | null => {
+    const pending = pendingRef.current.get(habitId);
+    if (!pending) return null;
+    clearTimeout(pending.timer);
+    pendingRef.current.delete(habitId);
+    return pending;
+  }, []);
+
   const handleQuickComplete = useCallback(
-    async (habitId: string, origin?: { x: number; y: number }) => {
+    (habitId: string, origin?: { x: number; y: number }) => {
       if (completionMap.get(habitId)) return;
       const habit = habits.find((h) => h.id === habitId);
       const prevStreak = habit?.streak_current ?? 0;
+      const tempId = `temp-${Date.now()}`;
 
       // Fly the emoji to the feed icon to show it's being shared
       if (origin) {
@@ -309,7 +348,7 @@ export function DashboardClient({
                 completions: [
                   ...h.completions,
                   {
-                    id: `temp-${Date.now()}`,
+                    id: tempId,
                     completed_at: new Date().toISOString(),
                     completion_type: "quick" as const,
                   },
@@ -320,13 +359,60 @@ export function DashboardClient({
         ),
       );
 
-      try {
-        await completeHabit.mutateAsync({ habitId, type: "quick" });
-        checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
-        router.refresh();
-      } catch {
-        setHabits(initialHabits);
-      }
+      const undo = () => {
+        const pending = settle(habitId);
+        if (!pending) return; // Window already closed — the check-in is sent.
+        removeToast(pending.toastId);
+        setHabits((prev) =>
+          prev.map((h) =>
+            h.id === habitId
+              ? {
+                  ...h,
+                  completions: h.completions.filter((c) => c.id !== tempId),
+                  streak_current: prevStreak,
+                }
+              : h,
+          ),
+        );
+      };
+
+      const commit = async () => {
+        const pending = settle(habitId);
+        if (!pending) return;
+        // Take the toast down with the window, so an "Undo" that would no
+        // longer undo anything is never left on screen.
+        removeToast(pending.toastId);
+        try {
+          await completeHabit.mutateAsync({ habitId, type: "quick" });
+          checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
+          router.refresh();
+        } catch {
+          setHabits(initialHabits);
+          showToast({
+            variant: "error",
+            title: "Check-in failed",
+            description: habit?.title,
+          });
+        }
+      };
+
+      const toastId = showToast({
+        variant: "success",
+        title: `${habit?.emoji ?? "✓"} Checked in`,
+        description: habit?.title,
+        duration: UNDO_WINDOW_MS,
+        action: {
+          label: "Undo",
+          altText: `Undo the check-in for ${habit?.title ?? "this habit"}`,
+          onClick: undo,
+        },
+      });
+
+      pendingRef.current.set(habitId, {
+        toastId,
+        commit,
+        timer: setTimeout(commit, UNDO_WINDOW_MS),
+      });
     },
     [
       habits,
@@ -335,8 +421,30 @@ export function DashboardClient({
       checkMilestone,
       router,
       initialHabits,
+      showToast,
+      removeToast,
+      settle,
     ],
   );
+
+  useEffect(() => {
+    const pending = pendingRef.current;
+    const flush = () => {
+      for (const entry of [...pending.values()]) void entry.commit();
+    };
+    // Leaving the page — or backgrounding it on mobile — ends the undo window:
+    // send what is held rather than dropping it.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      flush();
+    };
+  }, []);
 
   const handleHabitPress = useCallback(
     (habitId: string) => {
@@ -345,12 +453,22 @@ export function DashboardClient({
     [router],
   );
 
-  const handleLongPress = useCallback(
-    (habitId: string) => {
+  const handleCheckIn = useCallback(
+    (
+      habitId: string,
+      action: CheckInAction,
+      origin?: { x: number; y: number },
+    ) => {
       if (completionMap.get(habitId)) return;
+      // A quick check-in needs nothing else from the user — log it in place.
+      if (action === "quick") {
+        handleQuickComplete(habitId, origin);
+        return;
+      }
+      setCompletionAction(action);
       setCompletionHabitId(habitId);
     },
-    [completionMap],
+    [completionMap, handleQuickComplete],
   );
 
   const handleCreateHabit = useCallback(() => {
@@ -391,7 +509,7 @@ export function DashboardClient({
           hasHabits={habits.length > 0}
           onQuickComplete={handleQuickComplete}
           onHabitPress={handleHabitPress}
-          onLongPress={handleLongPress}
+          onCheckIn={handleCheckIn}
           onCreateHabit={handleCreateHabit}
         />
       )}
@@ -416,8 +534,12 @@ export function DashboardClient({
       <CompletionForm
         open={!!completionHabit}
         onOpenChange={(open) => {
-          if (!open) setCompletionHabitId(null);
+          if (!open) {
+            setCompletionHabitId(null);
+            setCompletionAction(null);
+          }
         }}
+        initialAction={completionAction}
         habitId={completionHabit?.id ?? ""}
         habitTitle={completionHabit?.title ?? ""}
         habitEmoji={completionHabit?.emoji ?? ""}

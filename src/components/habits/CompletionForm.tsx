@@ -3,10 +3,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Camera,
+  Check,
   MessageSquare,
   Loader2,
   Mic,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Sheet } from "@/components/ui/Sheet";
@@ -42,6 +42,12 @@ export interface CompletionFormProps {
   habitId: string;
   habitTitle: string;
   habitEmoji: string;
+  /**
+   * Check-in already chosen elsewhere (the habit card's drawer), so the sheet
+   * skips its own picker and opens on that step. Backing out of the step lands
+   * on the picker as usual.
+   */
+  initialAction?: "content" | "voice" | "message" | null;
   onComplete: (params: {
     type: CompletionType;
     evidenceUrl?: string;
@@ -78,6 +84,7 @@ export function CompletionForm({
   habitId,
   habitTitle,
   habitEmoji,
+  initialAction,
   onComplete,
 }: CompletionFormProps) {
   const [mode, setMode] = useState<Mode>("select");
@@ -103,6 +110,22 @@ export function CompletionForm({
       ? "video"
       : "photo"
     : null;
+
+  // Jump straight to the step the habit card asked for. Deliberately keyed on
+  // `open` alone: re-running it would drag the user back here after they hit
+  // "back", or reopen a camera they just dismissed.
+  useEffect(() => {
+    if (!open || !initialAction) return;
+    if (initialAction === "content") {
+      if (isCameraSupported()) setCameraOpen(true);
+      else fileInputRef.current?.click();
+    } else if (initialAction === "voice") {
+      setVoiceOpen(true);
+    } else {
+      setMode("message");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Transfer focus from proxy to real textarea once it mounts
   useEffect(() => {
@@ -468,7 +491,7 @@ export function CompletionForm({
                       "color-mix(in srgb, var(--color-success) 15%, transparent)",
                   }}
                 >
-                  <Zap
+                  <Check
                     className="w-5 h-5"
                     style={{ color: "var(--color-success)" }}
                   />

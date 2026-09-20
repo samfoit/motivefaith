@@ -1,7 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { HabitCard, type HabitWithCompletions } from "../HabitCard";
+import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
+
+/** The sliding card surface — the click target for "tapping the card". */
+function surfaceOf(container: HTMLElement): HTMLElement {
+  const surface = container.querySelector(".hc-surface");
+  if (!surface) throw new Error("card surface not found");
+  return surface as HTMLElement;
+}
 
 // ---------------------------------------------------------------------------
 // Test fixture
@@ -35,6 +43,10 @@ function makeHabit(overrides: Partial<HabitWithCompletions> = {}): HabitWithComp
 // ---------------------------------------------------------------------------
 
 describe("HabitCard", () => {
+  beforeEach(() => {
+    useHabitDrawerStore.setState({ openHabitId: null });
+  });
+
   it("renders habit title, emoji, and streak", () => {
     render(
       <HabitCard
@@ -144,9 +156,7 @@ describe("HabitCard", () => {
       />,
     );
 
-    // Click the card div itself (not the button)
-    const card = container.firstChild as HTMLElement;
-    await user.click(card);
+    await user.click(surfaceOf(container));
 
     expect(onPress).toHaveBeenCalledWith("habit-1");
   });
@@ -164,8 +174,7 @@ describe("HabitCard", () => {
       />,
     );
 
-    const card = container.firstChild as HTMLElement;
-    await user.click(card);
+    await user.click(surfaceOf(container));
 
     expect(onPress).toHaveBeenCalledWith("habit-1");
   });
@@ -187,5 +196,89 @@ describe("HabitCard", () => {
 
     // formatDistanceToNow will render something like "about 1 hour ago"
     expect(screen.getByText(/hour ago/i)).toBeInTheDocument();
+  });
+
+  it("opens the check-in drawer from the chevron and reports the choice", async () => {
+    const user = userEvent.setup();
+    const onCheckIn = vi.fn();
+    const onPress = vi.fn();
+
+    render(
+      <HabitCard
+        habit={makeHabit()}
+        completedToday={false}
+        onQuickComplete={vi.fn()}
+        onPress={onPress}
+        onCheckIn={onCheckIn}
+      />,
+    );
+
+    const toggle = screen.getByRole("button", {
+      name: "Show check-in options for Morning Run",
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(toggle);
+    expect(
+      screen.getByRole("button", {
+        name: "Hide check-in options for Morning Run",
+      }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(
+      screen.getByRole("button", { name: "Voice note for Morning Run" }),
+    );
+
+    expect(onCheckIn).toHaveBeenCalledWith(
+      "habit-1",
+      "voice",
+      { x: expect.any(Number), y: expect.any(Number) },
+    );
+    // Picking an option closes the drawer and never navigates.
+    expect(useHabitDrawerStore.getState().openHabitId).toBeNull();
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it("closes an open drawer instead of navigating when the card is tapped", async () => {
+    const user = userEvent.setup();
+    const onPress = vi.fn();
+
+    const { container } = render(
+      <HabitCard
+        habit={makeHabit()}
+        completedToday={false}
+        onQuickComplete={vi.fn()}
+        onPress={onPress}
+        onCheckIn={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+    await user.click(surfaceOf(container));
+
+    expect(useHabitDrawerStore.getState().openHabitId).toBeNull();
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it("offers no check-in drawer once the habit is done for the day", () => {
+    render(
+      <HabitCard
+        habit={makeHabit()}
+        completedToday={true}
+        onQuickComplete={vi.fn()}
+        onCheckIn={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /check-in options/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Quick check-in/ }),
+    ).not.toBeInTheDocument();
   });
 });

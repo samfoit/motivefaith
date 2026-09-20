@@ -106,6 +106,22 @@ for (const name of ["localStorage", "sessionStorage"] as const) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Pointer Capture API
+//
+// jsdom implements pointer events but not pointer capture, so anything that
+// captures a pointer mid-gesture (Radix's swipe-to-dismiss, the habit card's
+// check-in drag) throws "target.hasPointerCapture is not a function" the
+// moment a test presses a pointer down. Capture is a no-op here; reporting
+// "nothing captured" is the honest answer.
+// ---------------------------------------------------------------------------
+
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
+}
+
 // Stub IntersectionObserver
 class MockIntersectionObserver {
   observe = vi.fn();

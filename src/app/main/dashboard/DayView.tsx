@@ -7,6 +7,7 @@ import {
   HabitCard,
   type HabitWithCompletions,
 } from "@/components/habits/HabitCard";
+import type { CheckInAction } from "@/lib/constants/check-in";
 import { Button } from "@/components/ui/Button";
 
 type TimeGroup = "morning" | "afternoon" | "evening" | "anytime";
@@ -34,7 +35,11 @@ interface DayViewProps {
   hasHabits: boolean;
   onQuickComplete: (habitId: string, origin?: { x: number; y: number }) => void;
   onHabitPress: (habitId: string) => void;
-  onLongPress: (habitId: string) => void;
+  onCheckIn: (
+    habitId: string,
+    action: CheckInAction,
+    origin?: { x: number; y: number },
+  ) => void;
   onCreateHabit: () => void;
 }
 
@@ -47,7 +52,7 @@ export const DayView = memo(function DayView({
   hasHabits,
   onQuickComplete,
   onHabitPress,
-  onLongPress,
+  onCheckIn,
   onCreateHabit,
 }: DayViewProps) {
   if (!hasHabits) {
@@ -157,7 +162,7 @@ export const DayView = memo(function DayView({
                         completedToday={completionMap.get(habit.id) ?? false}
                         onQuickComplete={onQuickComplete}
                         onPress={onHabitPress}
-                        onLongPress={onLongPress}
+                        onCheckIn={onCheckIn}
                       />
                     </div>
                   ))}
