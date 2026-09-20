@@ -175,7 +175,7 @@ export const CompletionBubble = React.memo(function CompletionBubble({
 
             {/* Notes */}
             {notes && (
-              <p className="text-xs text-[var(--color-text-secondary)] italic">
+              <p className="text-xs text-[var(--color-text-secondary)] italic break-words">
                 &ldquo;{notes}&rdquo;
               </p>
             )}

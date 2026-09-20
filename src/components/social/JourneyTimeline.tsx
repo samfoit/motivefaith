@@ -229,7 +229,11 @@ function EncouragementBubble({
     >
       <div
         className={cn(
-          "max-w-[75%] rounded-xl px-3.5 py-2.5 space-y-1",
+          // min-w-0 is what makes max-w-[75%] stick: without it the flex
+          // item's automatic minimum is the width of its longest unbroken
+          // run of text, so one pasted URL stretched the bubble past the
+          // edge of the screen and took the page into horizontal scroll.
+          "min-w-0 max-w-[75%] rounded-xl px-3.5 py-2.5 space-y-1",
           data.isMe ? "rounded-br-sm" : "rounded-bl-sm",
         )}
         style={{
@@ -243,7 +247,7 @@ function EncouragementBubble({
         {data.content && (
           <p
             className={cn(
-              "text-text-primary",
+              "text-text-primary break-words",
               data.encouragement_type === "emoji" ? "text-2xl" : "text-sm",
             )}
           >
