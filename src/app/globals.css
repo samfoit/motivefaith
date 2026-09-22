@@ -296,27 +296,27 @@ body {
    The habit's color used to run down the left edge as a 3px strip, which
    put it directly against the drawer's chevron — two marks in the same few
    pixels, one of them tappable. It tints the whole card instead, the way
-   Keep tints a note: the same identity and customisation, nothing competing
+   Keep tints a note: the same identity and customization, nothing competing
    with the handle.
 
    The two surfaces do different jobs.
 
-   The border is the colour, exactly as picked — no mix, no correction. It is
+   The border is the color, exactly as picked — no mix, no correction. It is
    the only place the chosen hex appears at full strength, so it is what tells
    someone the swatch they tapped is the swatch they got. Muting it here is
-   what made people feel they never quite saw their own colour.
+   what made people feel they never quite saw their own color.
 
    The fill is atmosphere, and it is kept to a whisper so four cards stacked
    read as one list rather than four swatches. `--habit-tint-fill` is the
    dial; it is the only thing to change to take the wash up or down.
 
-   The fill alone is normalised, and it has to be: at 5% a near-black pick
+   The fill alone is normalized, and it has to be: at 5% a near-black pick
    would darken the card instead of tinting it, and saturated hues mixed in
    sRGB over a dark ground turn to mud. So the fill keeps the hue, caps the
    chroma, and pulls the lightness into a band the surface can carry. Chroma
-   is capped but never floored — a floor would hand grey a hue it never had.
+   is capped but never floored — a floor would hand gray a hue it never had.
 
-   No colour is the default and the common case, so the uncoloured card is
+   No color is the default and the common case, so the uncolored card is
    the baseline the rest is judged against: an untinted surface with a plain
    neutral hairline. The fill falls back to the card's own background rather
    than to transparent — the drawer sits directly behind this surface, so any

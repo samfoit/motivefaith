@@ -326,7 +326,7 @@ self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
   // Whitelist allowed navigation targets to prevent push payload injection.
-  // Use URL constructor to normalise the path and resolve any traversal segments.
+  // Use URL constructor to normalize the path and resolve any traversal segments.
   var ALLOWED_PREFIXES = ["/main/", "/auth/"];
   var rawUrl =
     (event.notification.data && event.notification.data.url) ||
@@ -335,9 +335,9 @@ self.addEventListener("notificationclick", function (event) {
   if (typeof rawUrl === "string" && rawUrl.startsWith("/") && !rawUrl.startsWith("//")) {
     try {
       // Resolve against a dummy base so "../" segments are collapsed
-      var normalised = new URL(rawUrl, self.location.origin).pathname;
-      if (ALLOWED_PREFIXES.some(function (p) { return normalised.startsWith(p); })) {
-        url = normalised;
+      var normalized = new URL(rawUrl, self.location.origin).pathname;
+      if (ALLOWED_PREFIXES.some(function (p) { return normalized.startsWith(p); })) {
+        url = normalized;
       }
     } catch {
       // malformed URL — keep default
@@ -407,7 +407,7 @@ function syncQueuedCompletions() {
         }
 
         // Sanitise items before sending — strip evidence URLs that should
-        // not have been persisted in the offline queue (defence-in-depth).
+        // not have been persisted in the offline queue (defense-in-depth).
         var sanitised = queue.map(function (item) {
           return {
             id: item.id,

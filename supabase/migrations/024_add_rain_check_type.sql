@@ -4,7 +4,7 @@
 -- ============================================================
 --
 -- A rain check is a deliberate skip: the day is marked as handled so the
--- streak survives, but nothing is counted as a completion. It is modelled
+-- streak survives, but nothing is counted as a completion. It is modeled
 -- as a completion_type so it inherits RLS, realtime, the offline queue and
 -- the feed/journey merge without new plumbing.
 --

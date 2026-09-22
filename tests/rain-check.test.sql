@@ -6,7 +6,7 @@
 --
 -- A rain check is a deliberate skip. It must HOLD the streak: the day counts
 -- as covered, but streak_current, streak_best and total_completions never move.
--- These tests pin that behaviour down in update_streak(), reset_stale_streaks()
+-- These tests pin that behavior down in update_streak(), reset_stale_streaks()
 -- and get_missed_habit_count().
 -- =============================================================================
 

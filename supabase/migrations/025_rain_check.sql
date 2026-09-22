@@ -42,7 +42,7 @@ SET search_path = pg_catalog, public
 AS $$
   SELECT CASE r
     WHEN 'sick'   THEN 'Feeling unwell'
-    WHEN 'travel' THEN 'Travelling'
+    WHEN 'travel' THEN 'Traveling'
     WHEN 'rest'   THEN 'Taking a rest day'
     WHEN 'busy'   THEN 'Busy day'
     WHEN 'other'  THEN 'No reason given'

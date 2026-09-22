@@ -10,7 +10,7 @@ import "./globals.css";
 
 // Inter and DM Sans are preloaded (next/font's default); JetBrains Mono is not.
 //
-// This is a deliberate, measured choice — please don't "optimise" the preloads
+// This is a deliberate, measured choice — please don't "optimize" the preloads
 // away without re-reading this.
 //
 // Dropping both preloads is genuinely faster to first paint. The two tags put

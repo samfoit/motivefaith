@@ -18,7 +18,7 @@ export interface RainCheckReasonOption {
 /** Ordered as they appear in the reason sheet, commonest first. */
 export const RAIN_CHECK_REASONS: readonly RainCheckReasonOption[] = [
   { code: "sick", label: "Sick", icon: Thermometer },
-  { code: "travel", label: "Travelling", icon: Plane },
+  { code: "travel", label: "Traveling", icon: Plane },
   { code: "rest", label: "Rest day", icon: Moon },
   { code: "busy", label: "Busy", icon: Clock },
   { code: "other", label: "Other", icon: MoreHorizontal },
@@ -36,7 +36,7 @@ export const VALID_RAIN_CHECK_REASONS = new Set<string>(
  */
 export const RAIN_CHECK_REASON_LABELS: Record<RainCheckReason, string> = {
   sick: "Feeling unwell",
-  travel: "Travelling",
+  travel: "Traveling",
   rest: "Taking a rest day",
   busy: "Busy day",
   other: "No reason given",

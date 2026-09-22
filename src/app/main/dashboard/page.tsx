@@ -87,7 +87,7 @@ export default async function DashboardPage() {
 
   // The habits and challenges queries only need the user id, so start them
   // now rather than after the profile resolves — those are independent round
-  // trips and awaiting the profile first serialised them for no reason.
+  // trips and awaiting the profile first serialized them for no reason.
   const supabase = await createServerSupabase();
   const baseData = fetchBaseData(supabase, user.id);
   // Nothing awaits `baseData` until <HabitsSection> renders, with `await

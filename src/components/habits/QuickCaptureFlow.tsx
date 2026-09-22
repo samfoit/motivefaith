@@ -105,7 +105,7 @@ export function QuickCaptureFlow() {
   useEffect(() => {
     if (step !== "habit-select") return;
 
-    let cancelled = false;
+    let canceled = false;
 
     async function fetchIncompleteHabits() {
       setHabitsLoading(true);
@@ -123,7 +123,7 @@ export function QuickCaptureFlow() {
 
         if (rpcError) throw rpcError;
 
-        if (!cancelled) {
+        if (!canceled) {
           setHabits(
             (data ?? []).map((h) => ({
               ...h,
@@ -135,7 +135,7 @@ export function QuickCaptureFlow() {
           setHabitsLoading(false);
         }
       } catch {
-        if (!cancelled) {
+        if (!canceled) {
           setError("Failed to load habits");
           setHabitsLoading(false);
         }
@@ -144,7 +144,7 @@ export function QuickCaptureFlow() {
 
     fetchIncompleteHabits();
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [step]);
 

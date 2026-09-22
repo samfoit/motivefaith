@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils/cn";
 import { HABIT_COLORS, isSameColor, hasNoColor } from "@/lib/constants/colors";
 
 interface ColorPickerProps {
-  /** null is "no colour" — the default, and the first swatch in the row. */
+  /** null is "no color" — the default, and the first swatch in the row. */
   value: string | null;
   onChange: (color: string | null) => void;
   /** Rendered above the row; pass "" where the section heading already says it. */
@@ -53,7 +53,7 @@ export function ColorPicker({
   const none = hasNoColor(value);
   const isPreset = !none && HABIT_COLORS.some((c) => isSameColor(value, c.value));
   // Only a real hex that is not one of the presets counts as custom — without
-  // the `none` guard an uncoloured habit lights up the custom swatch instead.
+  // the `none` guard an uncolored habit lights up the custom swatch instead.
   const custom = !none && !isPreset;
 
   const measure = useCallback(() => {
@@ -82,7 +82,7 @@ export function ColorPicker({
   useEffect(() => {
     const el = rowRef.current;
     if (!el) return;
-    // No colour is the default and the first swatch, so there is nothing to
+    // No color is the default and the first swatch, so there is nothing to
     // scroll to — and scrolling anyway would hide it, along with the start of
     // the palette, behind the right-hand end of the row.
     if (hasNoColor(value)) return;
@@ -182,7 +182,7 @@ export function ColorPicker({
 
   // Capture phase: swallow the click that ends a drag before it reaches the
   // swatch underneath — including the custom slot, where it would otherwise
-  // open the OS colour picker.
+  // open the OS color picker.
   const handleClickCapture = useCallback((e: React.MouseEvent) => {
     if (!suppressClickRef.current) return;
     suppressClickRef.current = false;
@@ -239,9 +239,9 @@ export function ColorPicker({
         )}
         style={{ maskImage: mask, WebkitMaskImage: mask }}
       >
-        {/* No colour — the default. A plain card, not a pale one, so it
+        {/* No color — the default. A plain card, not a pale one, so it
             reads as "leave this alone" rather than as another pale swatch.
-            The slash is what separates it from a light grey pick. */}
+            The slash is what separates it from a light gray pick. */}
         <button
           type="button"
           aria-pressed={none}

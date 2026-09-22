@@ -5,7 +5,7 @@
  * correct view directly. With localStorage the server always rendered "day",
  * the client read the stored value after hydration, and switching to week or
  * month mounted a lazily-imported component whose chunk had not been fetched
- * yet — producing a bare grey placeholder ~2s after the page already looked
+ * yet — producing a bare gray placeholder ~2s after the page already looked
  * finished (measured at 290ms; see DIAGNOSIS.md R5).
  *
  * Not sensitive, so a plain readable cookie is fine.

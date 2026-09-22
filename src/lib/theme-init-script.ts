@@ -1,5 +1,5 @@
 /**
- * The inline theme-initialisation script, kept in one place so the markup in
+ * The inline theme-initialization script, kept in one place so the markup in
  * the root layout and any test that asserts on it cannot drift apart.
  *
  * This has to run synchronously in <head>, before first paint, or the page

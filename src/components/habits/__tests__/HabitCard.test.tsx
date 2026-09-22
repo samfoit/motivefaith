@@ -102,7 +102,7 @@ describe("HabitCard", () => {
     const btn = screen.getByRole("button", { name: "Complete Morning Run" });
     await user.click(btn);
 
-    // The second argument is the centre of the button, used as the origin for
+    // The second argument is the center of the button, used as the origin for
     // the completion flyout animation. jsdom reports a zero-sized rect, so
     // assert the shape rather than the coordinates.
     expect(onQuickComplete).toHaveBeenCalledTimes(1);

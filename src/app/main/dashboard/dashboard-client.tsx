@@ -37,7 +37,7 @@ import {
  * arrived by the time React hydrates. Measured at ~257ms on Slow 4G + 4x CPU,
  * which is why this screen uses a 500ms reveal delay rather than the default
  * 200ms — below that it would appear for a few dozen milliseconds and read as
- * a glitch. It replaces a bare `w-full h-64` grey rectangle that shared no
+ * a glitch. It replaces a bare `w-full h-64` gray rectangle that shared no
  * visual language with any other skeleton in the app.
  */
 function ViewSwitchSkeleton() {

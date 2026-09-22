@@ -244,7 +244,7 @@ describe("computeEffectiveStreak", () => {
 
   // A rain check is a completions row like any other, which is exactly what
   // lets it hold the streak here without any special casing. These pin that
-  // down so the behaviour survives a future refactor of the callers.
+  // down so the behavior survives a future refactor of the callers.
   describe("rain checks", () => {
     it("holds the streak when yesterday was rain-checked", () => {
       const result = computeEffectiveStreak(

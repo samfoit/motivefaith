@@ -35,7 +35,7 @@ node tests/perf/login.mjs http://localhost:3111
 | `measure.mjs <label> <url> [--auth=path] [--runs=N] [--sw]` | FCP / LCP / TTFB / CLS / TBT, JS transferred and decoded, and the **critical-path resource race** (stylesheet vs. font preloads) |
 | `visibletrace.mjs <url> <label> [viewCookie]` | Skeletons that are *actually painted* — in the DOM and past the reveal delay. Samples from document_start, not DOMContentLoaded (a streamed response fires that only once the stream completes) |
 | `swmeasure.mjs <label> <url> [--standalone]` | Repeat visit with the service worker controlling; reports precache contents |
-| `offlinecheck.mjs <base> [authPath] [--standalone]` | Precache contents, offline behaviour, installed-PWA launch |
+| `offlinecheck.mjs <base> [authPath] [--standalone]` | Precache contents, offline behavior, installed-PWA launch |
 | `console.mjs <path...>` | Console errors, CSP violations, hydration warnings |
 | `latency-proxy.mjs` | TCP proxy adding `DELAY_MS` per direction to the first chunk of each burst |
 

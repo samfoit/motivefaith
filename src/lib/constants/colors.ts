@@ -29,23 +29,23 @@ export const HABIT_COLORS: readonly HabitColor[] = [
 ] as const;
 
 /**
- * No colour is the default, and it is a real choice rather than an absence:
- * a habit starts as a plain card and picks up a colour only if its owner
- * wants one. Most lists then stay neutral, which is what keeps a colour
+ * No color is the default, and it is a real choice rather than an absence:
+ * a habit starts as a plain card and picks up a color only if its owner
+ * wants one. Most lists then stay neutral, which is what keeps a color
  * meaningful on the few habits that carry one.
  *
  * Stored as NULL on habits.color — see migration 026.
  */
 export const DEFAULT_HABIT_COLOR: string | null = null;
 
-/** True when a habit has deliberately not been given a colour. */
+/** True when a habit has deliberately not been given a color. */
 export function hasNoColor(color: string | null | undefined): boolean {
   return color == null || color === "";
 }
 
 /**
  * Hex comparison that tolerates the casing differences across stored rows.
- * Null and "" are the same absence of colour, so they compare equal.
+ * Null and "" are the same absence of color, so they compare equal.
  */
 export function isSameColor(
   a: string | null | undefined,

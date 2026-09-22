@@ -127,7 +127,7 @@ fallback guard on line 6 is dead code for the same reason.
 | 2 | `src/app/main/loading.tsx` | **byte-identical duplicate of layer 1** |
 | 3 | `src/app/main/dashboard/loading.tsx` | title + progress + **streak row** + **2 groups** |
 | 4 | `src/app/main/dashboard/page.tsx:141` `HabitsSkeleton` | **view toggle** + progress + 3 cards |
-| 5 | `src/app/main/dashboard/dashboard-client.tsx:16,20,24` | a bare `w-full h-64` grey rectangle |
+| 5 | `src/app/main/dashboard/dashboard-client.tsx:16,20,24` | a bare `w-full h-64` gray rectangle |
 
 Layers 3 and 4 disagree about whether there is a streak row and a view toggle;
 layer 5 shares no visual language with any of them. Each layer's shimmer
@@ -147,13 +147,13 @@ feedback.
 
 ### R5 — `next/dynamic` view swap flashes a skeleton long after hydration
 
-`dashboard-client.tsx:117` initialises `viewMode` to `"day"` for SSR, then
+`dashboard-client.tsx:117` initializes `viewMode` to `"day"` for SSR, then
 `:124–129` restores the stored value in an effect. For any user whose last view
 was `week` or `month`, the stored view mounts **fresh on the client**, its chunk
 is not yet downloaded, and `next/dynamic`'s `loading` fallback renders.
 
 Measured: a single shimmer element appears at **t = 2691 ms** and is gone by
-**t = 2980 ms** — a 290 ms grey box, ~2 seconds after the page already looked
+**t = 2980 ms** — a 290 ms gray box, ~2 seconds after the page already looked
 complete. This matches "skeleton flicker *after hydration*" exactly.
 
 ### R6 — Server-side request waterfall: 4 sequential round trips before content
@@ -198,15 +198,15 @@ by fingerprinting library-specific symbols in the minified output:
 `ANALYZE=true next build` completes and emits no report. The bundle table above
 had to be produced by fingerprinting chunks by hand.
 
-### R10 — Manifest colours don't match the app, and there is no dark variant
+### R10 — Manifest colors don't match the app, and there is no dark variant
 
 `src/app/manifest.ts:13–14` — `background_color: "#FAFAF9"`, `theme_color: "#6366F1"`.
-The document's actual colours (`src/app/layout.tsx:33–36`) are `#fafaf9` light /
+The document's actual colors (`src/app/layout.tsx:33–36`) are `#fafaf9` light /
 `#1a1a1e` dark. So an installed PWA launched in dark mode shows a **light splash
 screen with an indigo status bar**, then paints a near-black app. Per MDN, the
 manifest `background_color` should match the stylesheet's background.
 
-### R11 — `prefers-reduced-motion` is never honoured
+### R11 — `prefers-reduced-motion` is never honored
 
 `grep -rn "prefers-reduced-motion" src` → **0 matches.** The shimmer, the
 `dv-stagger-container` entrance animations, the streak particles and the flyout
@@ -224,7 +224,7 @@ what is happening here — I'd rather say so than manufacture agreement.
 | Root layout or a top-level provider is a Client Component forcing the tree client-side | **No.** `src/app/layout.tsx` is a Server Component. `Providers` is a client component but receives `children` as a prop, so the subtree still renders on the server. |
 | A provider gates render until ready (`if (!ready) return null`) | **No.** `src/components/providers.tsx:136–139` renders `{children}` unconditionally. `PersistQueryClientProvider` does not block children on IndexedDB restore. |
 | Root layout's `await headers()` blocks the shell | **No — measured.** The shell arrives at **10 ms**. `headers()` resolves at request time and costs nothing. It *does* force every route dynamic (R1.1), which matters, but it is not what delays paint. |
-| Missing/black `background_color` causes a literally black splash | **No.** `theme-color` meta tags *are* emitted (`#fafaf9` / `#1a1a1e`, verified in served HTML at byte 2383), and the inline theme-init script sets `documentElement.style.background` before first paint. The manifest colours are wrong (R10) but they produce a *light* splash, not a black one. |
+| Missing/black `background_color` causes a literally black splash | **No.** `theme-color` meta tags *are* emitted (`#fafaf9` / `#1a1a1e`, verified in served HTML at byte 2383), and the inline theme-init script sets `documentElement.style.background` before first paint. The manifest colors are wrong (R10) but they produce a *light* splash, not a black one. |
 | A blocking font or third-party script in the critical path | **No.** Fonts are self-hosted via `next/font` with `display: "swap"`. Turnstile is `dns-prefetch` only. Vercel Analytics/Speed Insights load async. |
 | Skeleton markup dimensions cause layout shift | **Not currently.** **CLS is 0.000 on every route measured.** The geometry mismatches in R3 are real, but today they resolve before paint. The goal here is to *keep* CLS at zero while restructuring. |
 | CSP is blocking Next's inline RSC scripts | **No.** Verified in the served HTML: Next stamps its own nonce onto every script tag, matching the response CSP. |
@@ -283,7 +283,7 @@ by design: the dashboard is per-user and must render on demand.
 | `/main/dashboard` route chunks | 511 KB | **387 KB** |
 | `motion` on the dashboard critical path | yes (113 KB) | **no** |
 
-## Loading behaviour
+## Loading behavior
 
 Measuring skeletons that are **actually painted** (in the DOM, and past the
 reveal delay — the earlier probe counted DOM presence, which overstates it):
@@ -514,7 +514,7 @@ applied:
 That is consistent with Chrome re-emitting the LCP candidate when a font load
 completes and invalidates the text paint, even when the painted result is
 identical. I could not confirm this from outside the browser, so it stays
-labelled a hypothesis.
+labeled a hypothesis.
 
 **Outcome.** This was a product call between a real ~240 ms improvement in when
 content appears and a ~790 ms improvement in the number the field reports, and
@@ -535,7 +535,7 @@ to get that back without the LCP cost, none of them attempted here:
 - Self-host a single variable face and drop DM Sans, removing one preload
   entirely — a design decision, not a performance one.
 - Serve over HTTP/2/3 in production (this harness measures HTTP/1.1 on
-  loopback), where prioritisation may let the stylesheet win without dropping
+  loopback), where prioritization may let the stylesheet win without dropping
   the preloads. **Worth re-measuring against a real deployment before doing
   anything else here** — the contention may be materially smaller there.
 
@@ -633,7 +633,7 @@ Timing the raw HTML flush for `/main/dashboard`, same machine, same backend:
 Identical. This is the Phase 1 finding again: **the shell was never slow.** It
 was already in the first flush at 10 ms. The blank screen came from the
 render-blocking stylesheet and from nothing being cached — both addressed by
-other means (R2, R12). PPR optimises the part that was already fast.
+other means (R2, R12). PPR optimizes the part that was already fast.
 
 It would help where this harness cannot measure: in production a dynamic route
 costs a server round trip (serverless cold start included) that a CDN-served
@@ -646,7 +646,7 @@ Three findings from the prototype stand on their own and are **not** done here:
 
 - `BottomNav` splitting into a static shell plus a live layer is the right
   shape for an app shell, independent of PPR.
-- `Math.random()` in a `useState` initialiser (`auth/habit-facts.tsx:61`) is a
+- `Math.random()` in a `useState` initializer (`auth/habit-facts.tsx:61`) is a
   real latent hydration mismatch — server and client pick different facts.
 - `usePathname()` high in the tree (`providers.tsx`) forces work down the whole
   subtree.
@@ -668,7 +668,7 @@ it looked.
 ## R14 — The auth pages swapped their fact ~1.7s after first paint
 
 `src/app/auth/habit-facts.tsx` picked its starting fact with `Math.random()` in
-a `useState` initialiser. That runs during SSR too, so the server and the client
+a `useState` initializer. That runs during SSR too, so the server and the client
 chose **different** facts.
 
 React never warned about the mismatch. `FactCard` is keyed by the fact text, so
@@ -698,7 +698,7 @@ purely to decide whether to mount the auth-only hooks. `Providers` wraps every
 route, so that subscribed the entire provider tree to route changes.
 
 **Fix:** moved the read into an `AuthHooksGate` leaf that renders `null`. Same
-behaviour, subscription narrowed to a component with no output, and the read is
+behavior, subscription narrowed to a component with no output, and the read is
 out of the way of prerendering (where it suspends on dynamic-param routes).
 
 ## R16 — The BottomNav Suspense boundary: refactor kept, boundary rejected

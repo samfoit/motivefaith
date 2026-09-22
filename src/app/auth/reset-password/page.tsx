@@ -15,7 +15,7 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  // Initialise from URL so we don't call setState synchronously in the effect
+  // Initialize from URL so we don't call setState synchronously in the effect
   const [exchanging, setExchanging] = useState(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).has("code");
