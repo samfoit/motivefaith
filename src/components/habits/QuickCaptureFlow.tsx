@@ -128,7 +128,7 @@ export function QuickCaptureFlow() {
             (data ?? []).map((h) => ({
               ...h,
               emoji: h.emoji ?? "✅",
-              color: h.color ?? "#6366F1",
+              color: h.color ?? null,
               streak_current: h.streak_current ?? 0,
             })),
           );

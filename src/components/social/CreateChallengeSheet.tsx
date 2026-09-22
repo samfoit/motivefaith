@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import {
   HABIT_EMOJIS,
-  CATEGORIES,
   FREQUENCIES,
   DAYS,
 } from "@/lib/constants/habit";
+import { ColorPicker } from "@/components/habits/ColorPicker";
 import type { Database } from "@/lib/supabase/types";
 
 type HabitFrequency = Database["public"]["Enums"]["habit_frequency"];
@@ -26,8 +26,7 @@ export type ChallengeFormData = {
   title: string;
   emoji: string;
   description: string;
-  color: string;
-  category: string;
+  color: string | null;
   frequency: HabitFrequency;
   scheduleDays: number[];
   startDate: string;
@@ -43,8 +42,7 @@ export function CreateChallengeSheet({
     title: "",
     emoji: "🎯",
     description: "",
-    color: "#6366F1",
-    category: "general",
+    color: null,
     frequency: "daily",
     scheduleDays: [0, 1, 2, 3, 4, 5, 6],
     startDate: new Date().toISOString().slice(0, 10),
@@ -70,9 +68,8 @@ export function CreateChallengeSheet({
         title: "",
         emoji: "🎯",
         description: "",
-        color: "#6366F1",
-        category: "general",
-        frequency: "daily",
+        color: null,
+            frequency: "daily",
         scheduleDays: [0, 1, 2, 3, 4, 5, 6],
         startDate: new Date().toISOString().slice(0, 10),
         endDate: "",
@@ -132,32 +129,12 @@ export function CreateChallengeSheet({
           rows={2}
         />
 
-        {/* Category */}
-        <div>
-          <label className="text-sm font-medium text-[var(--color-text-secondary)] mb-2 block">
-            Category
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  update("category", cat.id);
-                  update("color", cat.color);
-                }}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                  form.category === cat.id
-                    ? "bg-brand text-white"
-                    : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
-                )}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Color */}
+        <ColorPicker
+          value={form.color}
+          onChange={(c) => update("color", c)}
+          label="Color"
+        />
 
         {/* Frequency */}
         <div>

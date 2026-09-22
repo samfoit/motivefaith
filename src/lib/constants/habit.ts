@@ -1,4 +1,3 @@
-import { HandHeart, BookOpen, Dumbbell, Heart, Users, Palette } from "lucide-react";
 import type { Database } from "@/lib/supabase/types";
 
 export type HabitFrequency = Database["public"]["Enums"]["habit_frequency"];
@@ -37,15 +36,6 @@ export const HABIT_EMOJIS = [
   "✝️",
   "🙏",
 ];
-
-export const CATEGORIES = [
-  { id: "spiritual", label: "Spiritual", color: "#8b5cf6", Icon: HandHeart },
-  { id: "learning", label: "Learning", color: "#3b82f6", Icon: BookOpen },
-  { id: "fitness", label: "Fitness", color: "#ef4444", Icon: Dumbbell },
-  { id: "health", label: "Health", color: "#22c55e", Icon: Heart },
-  { id: "social", label: "Social", color: "#f59e0b", Icon: Users },
-  { id: "creative", label: "Creative", color: "#ec4899", Icon: Palette },
-] as const;
 
 export const FREQUENCIES: {
   value: HabitFrequency;

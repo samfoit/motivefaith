@@ -24,7 +24,7 @@ const VARIANT_CLASS: Record<Variant, string> = {
 /**
  * A single shimmer block.
  *
- * The visual language (colour, shimmer, duration, radius) lives in
+ * The visual language (color, shimmer, duration, radius) lives in
  * `.motive-skeleton` in globals.css so every skeleton in the app shares one
  * definition and one reduced-motion opt-out. Previously each instance carried
  * its own inline `animation`, which meant nothing could be changed centrally.

@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/Toast";
 import {
   StepName,
   StepSchedule,
-  StepCategory,
+  StepColor,
   StepSharing,
   StepReview,
   DEFAULT_FORM,
@@ -27,7 +27,7 @@ const SuccessScreen = dynamic(
   { ssr: false },
 );
 
-const STEP_LABELS = ["Name", "Schedule", "Category", "Sharing", "Review"];
+const STEP_LABELS = ["Name", "Schedule", "Color", "Sharing", "Review"];
 
 // ---------------------------------------------------------------------------
 // Animation variants
@@ -102,7 +102,6 @@ export function WizardClient({ userId }: { userId: string }) {
           time_window: form.timeWindowEnabled
             ? { start: form.timeWindowStart, end: form.timeWindowEnd }
             : null,
-          category: form.category,
           is_shared: form.isShared,
         })
         .select("id")
@@ -206,7 +205,7 @@ export function WizardClient({ userId }: { userId: string }) {
             >
               {step === 0 && <StepName form={form} update={update} />}
               {step === 1 && <StepSchedule form={form} update={update} />}
-              {step === 2 && <StepCategory form={form} update={update} />}
+              {step === 2 && <StepColor form={form} update={update} />}
               {step === 3 && (
                 <StepSharing form={form} update={update} userId={userId} />
               )}

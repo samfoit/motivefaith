@@ -94,6 +94,12 @@ function ToggleRow({
  * Label above the field rather than beside it: a native time input will not
  * shrink below the width of its own clock control, so two of them side by side
  * with inline labels ran off the card — and off the page — on a 360px phone.
+ *
+ * That control is also why the row above stacks instead of squeezing. At
+ * 320px two columns leave 122px for a field whose own contents measure 120px:
+ * the values sit hard against their borders and the gap between the two
+ * closes up. WebKit sizes the control larger still, and overflows rather
+ * than clipping.
  */
 function TimeSelect({
   label,
@@ -223,7 +229,7 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
         onCheckedChange={(v) => update({ encouragement_alerts: v })}
       />
 
-      <div className="border-t border-[var(--color-border)] pt-3 mt-3">
+      <div className="border-t border-surface-hover pt-3 mt-3">
         <div className="flex items-center gap-2 mb-2">
           <Clock className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
           <span className="text-xs font-medium text-[var(--color-text-secondary)]">
@@ -233,7 +239,10 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
         <p className="text-xs text-[var(--color-text-tertiary)] mb-2">
           No notifications during these hours
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        {/* auto-fit rather than a breakpoint: the pair sits in a card inside
+            a page gutter, so what matters is the width the row actually gets,
+            not the viewport's. Below two 9rem columns it stacks. */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3">
           <TimeSelect
             label="From"
             value={prefs.quiet_start}

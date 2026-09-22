@@ -10,20 +10,20 @@ import { Input } from "@/components/ui/Input";
 import { TextArea } from "@/components/ui/TextArea";
 import {
   HABIT_EMOJIS,
-  CATEGORIES,
   FREQUENCIES,
   DAYS,
   type HabitFrequency,
 } from "@/lib/constants/habit";
+import { ColorPicker } from "@/components/habits/ColorPicker";
 import { getScheduledDays, parseTimeWindow as parseTimeWindowJson } from "@/lib/utils/schedule";
-import type { Tables } from "@/lib/supabase/types";
+import type { Habit } from "@/lib/types/habit";
 import type { ToastVariant } from "@/components/ui/Toast";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Habit = Tables<"habits">;
+
 
 export interface EditHabitSheetProps {
   open: boolean;
@@ -42,8 +42,7 @@ interface EditForm {
   timeWindowEnabled: boolean;
   timeWindowStart: string;
   timeWindowEnd: string;
-  category: string;
-  color: string;
+  color: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,8 +76,7 @@ function buildFormFromHabit(habit: Habit): EditForm {
     timeWindowEnabled: tw.enabled,
     timeWindowStart: tw.start,
     timeWindowEnd: tw.end,
-    category: habit.category ?? "general",
-    color: habit.color ?? "#6366F1",
+    color: habit.color ?? null,
   };
 }
 
@@ -117,7 +115,6 @@ export function EditHabitSheet({
       form.emoji !== initial.emoji ||
       form.description !== initial.description ||
       form.frequency !== initial.frequency ||
-      form.category !== initial.category ||
       form.color !== initial.color ||
       form.timeWindowEnabled !== initial.timeWindowEnabled ||
       form.timeWindowStart !== initial.timeWindowStart ||
@@ -142,7 +139,6 @@ export function EditHabitSheet({
       time_window: form.timeWindowEnabled
         ? { start: form.timeWindowStart, end: form.timeWindowEnd }
         : null,
-      category: form.category,
       color: form.color,
     };
 
@@ -174,11 +170,6 @@ export function EditHabitSheet({
       ? form.scheduleDays.filter((d) => d !== day)
       : [...form.scheduleDays, day];
     update("scheduleDays", next);
-  };
-
-  const selectCategory = (cat: (typeof CATEGORIES)[number]) => {
-    update("category", cat.id);
-    update("color", cat.color);
   };
 
   return (
@@ -326,70 +317,14 @@ export function EditHabitSheet({
           </div>
         </section>
 
-        {/* ---- Category & Color ---- */}
+        {/* ---- Color ---- */}
         <section className="space-y-4">
-          <h3 className="text-sm font-medium text-text-secondary">
-            Category & Color
-          </h3>
-
-          <div className="grid grid-cols-2 gap-3">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => selectCategory(cat)}
-                className={cn(
-                  "flex items-center gap-3 p-4 rounded-lg transition-all text-left",
-                  form.category === cat.id
-                    ? "ring-2 bg-elevated shadow-sm"
-                    : "bg-bg-secondary hover:bg-surface-hover",
-                )}
-                style={{
-                  outline:
-                    form.category === cat.id
-                      ? `2px solid ${cat.color}`
-                      : undefined,
-                  outlineOffset:
-                    form.category === cat.id ? "-2px" : undefined,
-                }}
-              >
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${cat.color}15` }}
-                >
-                  <cat.Icon
-                    className="w-5 h-5"
-                    style={{ color: cat.color }}
-                  />
-                </div>
-                <span className="text-sm font-medium text-text-primary">
-                  {cat.label}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <label
-              htmlFor="edit-color-picker"
-              className="text-sm text-text-secondary"
-
-            >
-              Custom color
-            </label>
-            <div className="relative">
-              <input
-                id="edit-color-picker"
-                type="color"
-                value={form.color}
-                onChange={(e) => update("color", e.target.value)}
-                className="w-8 h-8 rounded-lg border-none cursor-pointer appearance-none bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0"
-              />
-            </div>
-            <span className="text-xs font-mono text-text-tertiary">
-              {form.color}
-            </span>
-          </div>
+          <h3 className="text-sm font-medium text-text-secondary">Color</h3>
+          <ColorPicker
+            value={form.color}
+            onChange={(c) => update("color", c)}
+            label=""
+          />
         </section>
 
         {/* ---- Save ---- */}

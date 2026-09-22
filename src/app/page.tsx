@@ -51,7 +51,7 @@ const STEPS = [
   {
     num: "1",
     title: "Create a habit",
-    desc: "Set your schedule, pick a category, and choose how you'll complete it.",
+    desc: "Set your schedule, pick a color, and choose how you'll complete it.",
   },
   {
     num: "2",
