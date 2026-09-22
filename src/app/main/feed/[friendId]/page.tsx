@@ -24,6 +24,8 @@ type RpcHabit = {
   streak_best: number;
   is_owner: boolean;
   completed_today: boolean;
+  rain_checked_today: boolean;
+  rain_check_moved_to: string | null;
 };
 
 type RpcCompletion = {
@@ -31,6 +33,8 @@ type RpcCompletion = {
   habit_id: string;
   user_id: string;
   completion_type: string;
+  rain_check_reason: string | null;
+  rain_check_moved_to: string | null;
   evidence_url: string | null;
   notes: string | null;
   completed_at: string;
@@ -117,6 +121,8 @@ export default async function JourneyPage({ params }: Props) {
       owner_id: h.owner_id,
       isOwner: h.is_owner,
       completedToday: h.completed_today,
+      rainCheckedToday: h.rain_checked_today ?? false,
+      rainCheckMovedTo: h.rain_check_moved_to ?? null,
     }),
   );
 
@@ -126,6 +132,8 @@ export default async function JourneyPage({ params }: Props) {
     id: c.id,
     habit_id: c.habit_id,
     completion_type: (c.completion_type ?? "quick") as JourneyCompletion["completion_type"],
+    rain_check_reason: c.rain_check_reason,
+    rain_check_moved_to: c.rain_check_moved_to,
     evidence_url: c.evidence_url,
     notes: c.notes,
     completed_at: c.completed_at,

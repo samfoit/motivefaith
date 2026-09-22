@@ -5,6 +5,7 @@ import { untypedRpc } from "@/lib/supabase/rpc";
 import { FeedClient } from "./feed-client";
 import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
+import { isRainCheck } from "@/lib/constants/completion";
 
 // --------------------------------------------------------------------------
 // Types for the RPC result
@@ -65,7 +66,9 @@ function buildFriendRows(
     if (compTime >= encTime && comp) {
       const isMe = comp.user_id === userId;
       const actor = isMe ? "You" : profile.display_name.split(" ")[0];
-      previewText = `${actor} completed ${comp.habit_emoji} ${comp.habit_title}`;
+      previewText = isRainCheck(comp.completion_type)
+        ? `${actor} took a rain check on ${comp.habit_emoji} ${comp.habit_title}`
+        : `${actor} completed ${comp.habit_emoji} ${comp.habit_title}`;
       latestActivity = comp.completed_at;
     } else if (enc) {
       const isMe = enc.user_id === userId;
@@ -230,6 +233,7 @@ async function FeedWithGroups({
         group_id: string;
         user_id: string;
         completed_at: string;
+        completion_type: string;
         habit_emoji: string;
         habit_title: string;
         user_name: string;
@@ -242,12 +246,20 @@ async function FeedWithGroups({
 
   const latestCompMap = new Map<
     string,
-    { user_id: string; completed_at: string; habit_emoji: string; habit_title: string; user_name: string }
+    {
+      user_id: string;
+      completed_at: string;
+      completion_type: string;
+      habit_emoji: string;
+      habit_title: string;
+      user_name: string;
+    }
   >();
   for (const row of latestComps ?? []) {
     latestCompMap.set(row.group_id, {
       user_id: row.user_id,
       completed_at: row.completed_at,
+      completion_type: row.completion_type,
       habit_emoji: row.habit_emoji,
       habit_title: row.habit_title,
       user_name: row.user_name,
@@ -295,7 +307,9 @@ async function FeedWithGroups({
         latestComp.user_id === userId
           ? "You"
           : latestComp.user_name.split(" ")[0];
-      previewText = `${actor} completed ${latestComp.habit_emoji} ${latestComp.habit_title}`;
+      previewText = isRainCheck(latestComp.completion_type)
+        ? `${actor} took a rain check on ${latestComp.habit_emoji} ${latestComp.habit_title}`
+        : `${actor} completed ${latestComp.habit_emoji} ${latestComp.habit_title}`;
       latestActivity = latestComp.completed_at;
     } else if (latestMsg) {
       const authorName =

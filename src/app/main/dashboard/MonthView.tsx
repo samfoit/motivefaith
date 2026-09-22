@@ -13,7 +13,7 @@ import {
 import { Flame, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { toDateKey, getDayOfWeek } from "@/lib/utils/timezone";
-import { isHabitScheduledOn } from "@/lib/utils/schedule";
+import { isHabitDueOn } from "@/lib/utils/schedule";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 
 // Memoized day cell to avoid re-computing per-day data for the entire grid
@@ -36,7 +36,7 @@ const MonthDayCell = memo(function MonthDayCell({
 }) {
   const td = isToday(day);
   const future = isFuture(day) && !td;
-  const scheduled = habits.filter((h) => isHabitScheduledOn(h, day, timezone));
+  const scheduled = habits.filter((h) => isHabitDueOn(h, day, dayKey, timezone));
   const completedHabits = scheduled.filter(
     (h) => completionKeys.get(h.id)?.has(dayKey) ?? false,
   );
@@ -140,7 +140,10 @@ export const MonthView = memo(function MonthView({
   }, [habits, timezone]);
 
   const selectedDayHabits = useMemo(
-    () => habits.filter((h) => isHabitScheduledOn(h, selectedDay, timezone)),
+    () =>
+      habits.filter((h) =>
+        isHabitDueOn(h, selectedDay, toDateKey(selectedDay, timezone), timezone),
+      ),
     [habits, selectedDay, timezone],
   );
 

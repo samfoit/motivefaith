@@ -16,8 +16,17 @@ interface PushPayload {
   body: string;
   /** URL to open on click */
   url?: string;
-  /** Notification category */
-  type?: "completion" | "missed_habit" | "encouragement";
+  /**
+   * Notification category. Doubles as the service worker's notification tag,
+   * so each category coalesces separately.
+   */
+  type?:
+    | "completion"
+    | "rain_check"
+    | "missed_habit"
+    | "encouragement"
+    | "group_message"
+    | "weekly_summary";
   /** User ID that owns this subscription — used to scope cleanup */
   user_id?: string;
 }

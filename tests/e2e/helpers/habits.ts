@@ -4,6 +4,11 @@ interface HabitOptions {
   title: string;
   frequency?: string;
   category?: string;
+  /**
+   * Weekday names ("Thursday") to switch off. Only meaningful with
+   * frequency "Custom", which is the one chip that reveals the day picker.
+   */
+  deselectDays?: string[];
 }
 
 /**
@@ -11,7 +16,12 @@ interface HabitOptions {
  */
 export async function createHabit(
   page: Page,
-  { title, frequency = "daily", category = "fitness" }: HabitOptions,
+  {
+    title,
+    frequency = "daily",
+    category = "fitness",
+    deselectDays = [],
+  }: HabitOptions,
 ) {
   await page.goto("/main/habits/new");
   await page.waitForLoadState("networkidle");
@@ -34,6 +44,11 @@ export async function createHabit(
   const frequencyChip = page.getByText(new RegExp(frequency, "i"));
   if (await frequencyChip.isVisible().catch(() => false)) {
     await frequencyChip.click();
+  }
+  // "Custom" carries the previous chip's days over, so every day starts on
+  // and the caller switches off the ones it wants free.
+  for (const day of deselectDays) {
+    await page.getByRole("button", { name: day, exact: true }).click();
   }
   if (await nextButton.isVisible().catch(() => false)) {
     await nextButton.click();

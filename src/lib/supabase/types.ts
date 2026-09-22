@@ -44,6 +44,10 @@ export type Database = {
           habit_id: string
           id: string
           notes: string | null
+          rain_check_moved_to: string | null
+          rain_check_reason:
+            | Database["public"]["Enums"]["rain_check_reason"]
+            | null
           user_id: string
         }
         Insert: {
@@ -57,6 +61,10 @@ export type Database = {
           habit_id: string
           id?: string
           notes?: string | null
+          rain_check_moved_to?: string | null
+          rain_check_reason?:
+            | Database["public"]["Enums"]["rain_check_reason"]
+            | null
           user_id: string
         }
         Update: {
@@ -70,6 +78,10 @@ export type Database = {
           habit_id?: string
           id?: string
           notes?: string | null
+          rain_check_moved_to?: string | null
+          rain_check_reason?:
+            | Database["public"]["Enums"]["rain_check_reason"]
+            | null
           user_id?: string
         }
         Relationships: [
@@ -854,6 +866,8 @@ export type Database = {
           p_evidence_url?: string
           p_habit_id: string
           p_notes?: string
+          p_rain_check_moved_to?: string
+          p_rain_check_reason?: Database["public"]["Enums"]["rain_check_reason"]
         }
         Returns: {
           completed_at: string | null
@@ -864,6 +878,10 @@ export type Database = {
           habit_id: string
           id: string
           notes: string | null
+          rain_check_moved_to: string | null
+          rain_check_reason:
+            | Database["public"]["Enums"]["rain_check_reason"]
+            | null
           user_id: string
         }
         SetofOptions: {
@@ -884,6 +902,10 @@ export type Database = {
           habit_id: string
           id: string
           notes: string | null
+          rain_check_moved_to: string | null
+          rain_check_reason:
+            | Database["public"]["Enums"]["rain_check_reason"]
+            | null
           user_id: string
         }[]
         SetofOptions: {
@@ -899,6 +921,10 @@ export type Database = {
       }
       is_group_admin: { Args: { g_id: string }; Returns: boolean }
       is_group_member: { Args: { g_id: string }; Returns: boolean }
+      is_habit_day_covered: {
+        Args: { p_date: string; p_habit_id: string; p_today: string }
+        Returns: boolean
+      }
       is_habit_owner: { Args: { h_id: string }; Returns: boolean }
       is_valid_schedule: { Args: { schedule: Json }; Returns: boolean }
       update_own_profile: {
@@ -911,10 +937,17 @@ export type Database = {
       }
     }
     Enums: {
-      completion_type: "photo" | "video" | "message" | "quick" | "voice"
+      completion_type:
+        | "photo"
+        | "video"
+        | "message"
+        | "quick"
+        | "voice"
+        | "rain_check"
       encouragement_type: "nudge" | "message" | "emoji" | "voice"
       friendship_status: "pending" | "accepted" | "blocked"
       group_role: "admin" | "member"
+      rain_check_reason: "sick" | "travel" | "rest" | "busy" | "other"
       habit_frequency:
         | "daily"
         | "weeksdays"
@@ -1060,10 +1093,11 @@ export const Constants = {
   },
   public: {
     Enums: {
-      completion_type: ["photo", "video", "message", "quick", "voice"],
+      completion_type: ["photo", "video", "message", "quick", "voice", "rain_check"],
       encouragement_type: ["nudge", "message", "emoji", "voice"],
       friendship_status: ["pending", "accepted", "blocked"],
       group_role: ["admin", "member"],
+      rain_check_reason: ["sick", "travel", "rest", "busy", "other"],
       habit_frequency: [
         "daily",
         "weeksdays",

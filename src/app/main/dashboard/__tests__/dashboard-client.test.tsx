@@ -32,7 +32,6 @@ const habit: HabitWithCompletions = {
   frequency: "daily",
   schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
   time_window: null,
-  category: "fitness",
   is_shared: false,
   streak_current: 4,
   streak_best: 12,
@@ -104,9 +103,286 @@ describe("DashboardClient quick check-in", () => {
     expect(
       screen.getByRole("button", { name: "Complete Morning Run" }),
     ).not.toBeDisabled();
-    expect(screen.getByText(/4-day streak/)).toBeInTheDocument();
+    expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
 
     await vi.advanceTimersByTimeAsync(6000);
     expect(mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("DashboardClient rain check", () => {
+  beforeEach(() => {
+    mutateAsync.mockClear();
+  });
+
+  async function takeRainCheck(user: ReturnType<typeof userEvent.setup>) {
+    await renderDashboard();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Rain check for Morning Run" }),
+    );
+  }
+
+  it("holds the streak instead of advancing it", async () => {
+    const user = userEvent.setup();
+    await takeRainCheck(user);
+
+    await user.click(screen.getByRole("button", { name: /Sick/ }));
+    await user.click(screen.getByRole("button", { name: "Take rain check" }));
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        habitId: "habit-1",
+        type: "rain_check",
+        evidenceUrl: undefined,
+        notes: undefined,
+        rainCheckReason: "sick",
+      }),
+    );
+
+    // Still 4, not 5 — a skip keeps the streak alive without growing it.
+    expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
+  });
+
+  it("sends without a reason when none is picked", async () => {
+    const user = userEvent.setup();
+    await takeRainCheck(user);
+
+    await user.click(screen.getByRole("button", { name: "Take rain check" }));
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "rain_check",
+          rainCheckReason: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("leaves the habit open to a real check-in afterwards", async () => {
+    const user = userEvent.setup();
+    await takeRainCheck(user);
+    await user.click(screen.getByRole("button", { name: "Take rain check" }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+
+    // A rain check settles the day; it must not lock the habit the way a
+    // completion does.
+    expect(
+      screen.getByRole("button", {
+        name: "Morning Run rain-checked today — check in anyway",
+      }),
+    ).not.toBeDisabled();
+  });
+});
+
+/**
+ * A rain check can name the day it will be made up on instead of simply
+ * skipping. Time is pinned to Sunday 15 June 2025 so the Mon/Wed/Fri habit
+ * below is genuinely off-schedule today — which is the whole point of a
+ * makeup appearing at all.
+ */
+describe("DashboardClient moved rain check", () => {
+  const SUNDAY = new Date("2025-06-15T12:00:00Z");
+
+  beforeEach(() => {
+    mutateAsync.mockClear();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(SUNDAY);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function renderWith(habits: HabitWithCompletions[]) {
+    render(
+      <ToastProvider>
+        <Suspense fallback={null}>
+          <DashboardClient habits={habits} timezone="UTC" initialView="day" />
+        </Suspense>
+      </ToastProvider>,
+    );
+  }
+
+  const mwf: HabitWithCompletions = {
+    ...habit,
+    schedule: { days: [1, 3, 5] },
+  };
+
+  it("sends the chosen day with the rain check", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    // Wednesday, so the Mon/Wed/Fri habit is due today and can be moved.
+    vi.setSystemTime(new Date("2025-06-18T12:00:00Z"));
+    renderWith([mwf]);
+    await screen.findByRole("button", { name: "Complete Morning Run" });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Rain check for Morning Run" }),
+    );
+
+    await user.click(
+      screen.getByRole("radio", { name: "Move it to another day" }),
+    );
+    await user.click(screen.getByRole("radio", { name: "Saturday" }));
+    await user.click(screen.getByRole("button", { name: "Move to Saturday" }));
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "rain_check",
+          rainCheckMovedTo: "2025-06-21",
+        }),
+      ),
+    );
+  });
+
+  it("offers only the days the habit is free on", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.setSystemTime(new Date("2025-06-18T12:00:00Z"));
+    renderWith([mwf]);
+    await screen.findByRole("button", { name: "Complete Morning Run" });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Rain check for Morning Run" }),
+    );
+    await user.click(
+      screen.getByRole("radio", { name: "Move it to another day" }),
+    );
+
+    // Friday and Monday already have their own occurrence, so moving onto
+    // them would double-book the day. The picker leaves them out, and arms
+    // the first day that is actually free.
+    for (const free of ["Thursday", "Saturday", "Sunday", "Tuesday"]) {
+      expect(screen.getByRole("radio", { name: free })).toBeInTheDocument();
+    }
+    for (const busy of ["Friday", "Monday", "Wednesday"]) {
+      expect(screen.queryByRole("radio", { name: busy })).not.toBeInTheDocument();
+    }
+    expect(
+      screen.getByRole("button", { name: "Move to Thursday" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no move at all for a habit scheduled every day", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWith([habit]);
+    await screen.findByRole("button", { name: "Complete Morning Run" });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Rain check for Morning Run" }),
+    );
+
+    // Every day is already spoken for, so a rain check is a plain skip.
+    expect(
+      screen.getByRole("button", { name: "Take rain check" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("radio", { name: "Move it to another day" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a makeup on the day it was moved to, off-schedule", async () => {
+    // Rain-checked Friday 13th, promised for today.
+    renderWith([
+      {
+        ...mwf,
+        completions: [
+          {
+            id: "c1",
+            completed_at: "2025-06-13T10:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-15",
+          },
+        ],
+      },
+    ]);
+
+    await screen.findByRole("button", { name: "Complete Morning Run" });
+    expect(screen.getByText("Moved from Friday")).toBeInTheDocument();
+  });
+
+  it("keeps an unmoved habit off a day it is not scheduled for", async () => {
+    renderWith([mwf]);
+    expect(
+      await screen.findByText("No habits scheduled for today"),
+    ).toBeInTheDocument();
+  });
+
+  it("will not let a makeup itself be rain-checked", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWith([
+      {
+        ...mwf,
+        completions: [
+          {
+            id: "c1",
+            completed_at: "2025-06-13T10:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-15",
+          },
+        ],
+      },
+    ]);
+    await screen.findByRole("button", { name: "Complete Morning Run" });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Rain check for Morning Run" }),
+    );
+
+    // A promise cannot be deferred again, so the sheet never opens.
+    expect(
+      screen.queryByRole("button", { name: "Take rain check" }),
+    ).not.toBeInTheDocument();
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("shows where today's rain check went on the card", async () => {
+    renderWith([
+      {
+        // Every day except Tuesday, which is therefore the one day it can
+        // move onto — a daily habit could not have been moved at all.
+        ...habit,
+        schedule: { days: [0, 1, 3, 4, 5, 6] },
+        completions: [
+          {
+            id: "c1",
+            completed_at: "2025-06-15T09:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-17",
+          },
+        ],
+      },
+    ]);
+
+    await screen.findByRole("button", {
+      name: "Morning Run rain-checked today — check in anyway",
+    });
+    expect(screen.getByText("Moved to Tuesday")).toBeInTheDocument();
   });
 });

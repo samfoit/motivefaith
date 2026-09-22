@@ -2,12 +2,15 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Camera, Video, MessageSquare, Zap, Play, X, Heart, MoreHorizontal, Mic } from "lucide-react";
+import { Camera, CloudRain, Video, MessageSquare, Zap, Play, X, Heart, MoreHorizontal, Mic } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
 import { EvidenceAudio } from "@/components/ui/EvidenceAudio";
 import { Avatar } from "@/components/ui/Avatar";
+import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import { rainCheckReasonLabel } from "@/lib/constants/rain-check";
+import { weekdayName } from "@/lib/utils/timezone";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,7 +21,11 @@ export interface CompletionBubbleProps {
   habitEmoji: string;
   habitTitle: string;
   habitColor: string;
-  completionType: "photo" | "video" | "message" | "quick" | "voice";
+  completionType: CompletionType;
+  /** Set only on a rain check — why they skipped. */
+  rainCheckReason?: string | null;
+  /** Set when the rain check was moved rather than skipped; a date key. */
+  rainCheckMovedTo?: string | null;
   evidenceUrl: string | null;
   notes: string | null;
   completedAt: string;
@@ -46,6 +53,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   video: Video,
   message: MessageSquare,
   voice: Mic,
+  rain_check: CloudRain,
 };
 
 export function slideVariant(isMe: boolean) {
@@ -69,6 +77,8 @@ export const CompletionBubble = React.memo(function CompletionBubble({
   habitTitle,
   habitColor,
   completionType,
+  rainCheckReason,
+  rainCheckMovedTo,
   evidenceUrl,
   notes,
   completedAt,
@@ -80,6 +90,9 @@ export const CompletionBubble = React.memo(function CompletionBubble({
   senderAvatar,
 }: CompletionBubbleProps) {
   const Icon = TYPE_ICONS[completionType] ?? Zap;
+  // A rain check is news, not an achievement — it reads quieter than a
+  // completion and never borrows the habit's color.
+  const rainCheck = isRainCheck(completionType);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   return (
@@ -130,9 +143,22 @@ export const CompletionBubble = React.memo(function CompletionBubble({
               </span>
               <Icon
                 className="w-3 h-3 flex-shrink-0"
-                style={{ color: habitColor }}
+                style={{ color: rainCheck ? "var(--color-rain)" : habitColor }}
               />
             </div>
+
+            {/* Rain check — the reason stands in for the achievement */}
+            {rainCheck && (
+              <p
+                className="text-xs font-medium"
+                style={{ color: "var(--color-rain)" }}
+              >
+                {rainCheckMovedTo
+                  ? `Moved to ${weekdayName(rainCheckMovedTo)}`
+                  : "Rain check"}{" "}
+                &middot; {rainCheckReasonLabel(rainCheckReason)}
+              </p>
+            )}
 
             {/* Photo evidence */}
             {completionType === "photo" && evidenceUrl && (

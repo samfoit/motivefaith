@@ -9,6 +9,7 @@ const DB_VERSION = 1;
 const STORE_NAME = "pending-completions";
 
 import type { CompletionType } from "@/lib/constants/completion";
+import type { RainCheckReason } from "@/lib/constants/rain-check";
 
 export interface QueuedCompletion {
   id: string;
@@ -16,6 +17,10 @@ export interface QueuedCompletion {
   type: CompletionType;
   evidenceUrl?: string;
   notes?: string;
+  /** Only set on a "rain_check". */
+  rainCheckReason?: RainCheckReason;
+  /** Only set on a "rain_check" that was moved; a YYYY-MM-DD key. */
+  rainCheckMovedTo?: string;
   queuedAt: string;
 }
 

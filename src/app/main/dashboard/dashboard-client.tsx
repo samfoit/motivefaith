@@ -2,12 +2,19 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
-import { isHabitScheduledOn, parseTimeWindow } from "@/lib/utils/schedule";
+import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
+import {
+  isHabitScheduledOn,
+  makeupOriginOn,
+  parseTimeWindow,
+} from "@/lib/utils/schedule";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
+import type { MoveLabels } from "@/lib/types/habit";
 import type { CheckInAction } from "@/lib/constants/check-in";
+import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import type { RainCheckReason } from "@/lib/constants/rain-check";
 import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
@@ -152,13 +159,52 @@ function getTimeGroup(
 }
 
 function isCompletedToday(
-  completions: { completed_at: string }[],
+  completions: { completed_at: string; completion_type?: string | null }[],
   tz: string,
 ): boolean {
   const today = todayDateKey(tz);
-  return completions.some((c) => toDateKey(c.completed_at, tz) === today);
+  return completions.some(
+    (c) =>
+      !isRainCheck(c.completion_type) && toDateKey(c.completed_at, tz) === today,
+  );
 }
 
+/**
+ * A rain check settles the day without closing the habit: it is shown
+ * differently, and the user can still change their mind and check in.
+ */
+function isRainCheckedToday(
+  completions: { completed_at: string; completion_type?: string | null }[],
+  tz: string,
+): boolean {
+  const today = todayDateKey(tz);
+  return completions.some(
+    (c) =>
+      isRainCheck(c.completion_type) && toDateKey(c.completed_at, tz) === today,
+  );
+}
+
+
+/**
+ * The day today's rain check promised to make the habit up on, as a weekday
+ * name — or null when today's rain check was a plain skip, or there isn't one.
+ */
+function rainCheckMovedToToday(
+  completions: {
+    completed_at: string;
+    completion_type?: string | null;
+    rain_check_moved_to?: string | null;
+  }[],
+  tz: string,
+): string | null {
+  const today = todayDateKey(tz);
+  for (const c of completions) {
+    if (!isRainCheck(c.completion_type)) continue;
+    if (toDateKey(c.completed_at, tz) !== today) continue;
+    if (c.rain_check_moved_to) return weekdayName(c.rain_check_moved_to);
+  }
+  return null;
+}
 
 export function DashboardClient({
   habits: initialHabits,
@@ -238,9 +284,46 @@ export function DashboardClient({
     return map;
   }, [habits, timezone]);
 
+  const rainCheckMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    habits.forEach((h) =>
+      map.set(h.id, isRainCheckedToday(h.completions, timezone)),
+    );
+    return map;
+  }, [habits, timezone]);
+
+  /**
+   * Habits sitting on today only because an earlier rain check was moved onto
+   * it, keyed to the weekday they moved from. This is the one way a habit
+   * appears off its own schedule.
+   */
+  const makeupMap = useMemo(() => {
+    const today = todayDateKey(timezone);
+    const map = new Map<string, string>();
+    habits.forEach((h) => {
+      const from = makeupOriginOn(h.completions, today, timezone);
+      if (from) map.set(h.id, weekdayName(from));
+    });
+    return map;
+  }, [habits, timezone]);
+
+  const moveMap = useMemo(() => {
+    const map = new Map<string, MoveLabels>();
+    habits.forEach((h) => {
+      const movedTo = rainCheckMovedToToday(h.completions, timezone);
+      const movedFrom = makeupMap.get(h.id) ?? null;
+      if (movedTo || movedFrom) map.set(h.id, { movedTo, movedFrom });
+    });
+    return map;
+  }, [habits, timezone, makeupMap]);
+
   const todayHabits = useMemo(
-    () => habits.filter((h) => isHabitScheduledOn(h, new Date(), timezone)),
-    [habits, timezone],
+    () =>
+      habits.filter(
+        (h) =>
+          isHabitScheduledOn(h, new Date(), timezone) || makeupMap.has(h.id),
+      ),
+    [habits, timezone, makeupMap],
   );
 
   const groupedHabits = useMemo(() => {
@@ -274,15 +357,22 @@ export function DashboardClient({
     type,
     evidenceUrl,
     notes,
+    rainCheckReason,
+    rainCheckMovedTo,
   }: {
-    type: "photo" | "video" | "message" | "quick" | "voice";
+    type: CompletionType;
     evidenceUrl?: string;
     notes?: string;
+    rainCheckReason?: RainCheckReason;
+    rainCheckMovedTo?: string;
   }) => {
     if (!completionHabitId) return;
     const habitId = completionHabitId;
     const habit = habits.find((h) => h.id === habitId);
     const prevStreak = habit?.streak_current ?? 0;
+    // A rain check holds the streak where it is — it never advances it, and
+    // it can never cross a milestone.
+    const rainCheck = isRainCheck(type);
 
     // Optimistic update
     setHabits((prev) =>
@@ -296,17 +386,29 @@ export function DashboardClient({
                   id: `temp-${Date.now()}`,
                   completed_at: new Date().toISOString(),
                   completion_type: type,
+                  rain_check_moved_to: rainCheckMovedTo ?? null,
                 },
               ],
-              streak_current: (h.streak_current ?? 0) + 1,
+              streak_current: rainCheck
+                ? (h.streak_current ?? 0)
+                : (h.streak_current ?? 0) + 1,
             }
           : h,
       ),
     );
 
     try {
-      await completeHabit.mutateAsync({ habitId, type, evidenceUrl, notes });
-      checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
+      await completeHabit.mutateAsync({
+        habitId,
+        type,
+        evidenceUrl,
+        notes,
+        rainCheckReason,
+        rainCheckMovedTo,
+      });
+      if (!rainCheck) {
+        checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
+      }
       router.refresh();
     } catch {
       setHabits(initialHabits);
@@ -460,6 +562,16 @@ export function DashboardClient({
       origin?: { x: number; y: number },
     ) => {
       if (completionMap.get(habitId)) return;
+      if (action === "rain_check") {
+        // Already skipped today — no point stacking a second rain check on it.
+        if (rainCheckMap.get(habitId)) return;
+        // A makeup cannot itself be rain-checked: the habit is only on today
+        // because an earlier skip promised it, and moving a promise again
+        // would let it be deferred forever. The habit's own scheduled days
+        // still offer it.
+        const habit = habits.find((h) => h.id === habitId);
+        if (habit && !isHabitScheduledOn(habit, new Date(), timezone)) return;
+      }
       // A quick check-in needs nothing else from the user — log it in place.
       if (action === "quick") {
         handleQuickComplete(habitId, origin);
@@ -468,7 +580,7 @@ export function DashboardClient({
       setCompletionAction(action);
       setCompletionHabitId(habitId);
     },
-    [completionMap, handleQuickComplete],
+    [completionMap, rainCheckMap, habits, timezone, handleQuickComplete],
   );
 
   const handleCreateHabit = useCallback(() => {
@@ -505,6 +617,8 @@ export function DashboardClient({
           groupedHabits={groupedHabits}
           topStreaks={topStreaks}
           completionMap={completionMap}
+          rainCheckMap={rainCheckMap}
+          moveMap={moveMap}
           completedCount={completedCount}
           hasHabits={habits.length > 0}
           onQuickComplete={handleQuickComplete}
@@ -543,6 +657,8 @@ export function DashboardClient({
         habitId={completionHabit?.id ?? ""}
         habitTitle={completionHabit?.title ?? ""}
         habitEmoji={completionHabit?.emoji ?? ""}
+        habitSchedule={completionHabit?.schedule}
+        timezone={timezone}
         onComplete={handleCompletion}
       />
 

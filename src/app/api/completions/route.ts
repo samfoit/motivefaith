@@ -1,6 +1,7 @@
 import { verifyCsrf } from "@/lib/utils/csrf";
 import { jsonResponse, requireAuthUser, parseRequestBody } from "@/lib/utils/api-helpers";
-import { VALID_COMPLETION_TYPES } from "@/lib/constants/completion";
+import { COMPLETION_TYPES, VALID_COMPLETION_TYPES } from "@/lib/constants/completion";
+import { VALID_RAIN_CHECK_REASONS, isDateKey } from "@/lib/constants/rain-check";
 import type { Enums } from "@/lib/supabase/types";
 
 /** Reject bodies larger than 256 KB. */
@@ -15,11 +16,14 @@ interface CompletionInput {
   type: Enums<"completion_type">;
   evidenceUrl?: string;
   notes?: string;
+  rainCheckReason?: Enums<"rain_check_reason">;
+  rainCheckMovedTo?: string;
 }
 
 function validateItem(item: unknown): item is CompletionInput {
   if (typeof item !== "object" || item === null) return false;
-  const { habitId, type, notes, evidenceUrl } = item as Record<string, unknown>;
+  const { habitId, type, notes, evidenceUrl, rainCheckReason, rainCheckMovedTo } =
+    item as Record<string, unknown>;
   if (
     typeof habitId !== "string" ||
     typeof type !== "string" ||
@@ -37,6 +41,22 @@ function validateItem(item: unknown): item is CompletionInput {
       evidenceUrl.length > MAX_EVIDENCE_URL_LENGTH)
   )
     return false;
+  // A reason only means anything on a rain check; anywhere else it is a
+  // malformed request rather than something to quietly drop.
+  if (rainCheckReason !== undefined) {
+    if (
+      typeof rainCheckReason !== "string" ||
+      !VALID_RAIN_CHECK_REASONS.has(rainCheckReason) ||
+      type !== "rain_check"
+    )
+      return false;
+  }
+  // Same for a moved-to day. Only the shape and the pairing are checked here:
+  // how far ahead a move may sit is evaluated against completed_date in the
+  // habit owner's timezone, which only chk_rain_check_moved_to can do.
+  if (rainCheckMovedTo !== undefined) {
+    if (!isDateKey(rainCheckMovedTo) || type !== "rain_check") return false;
+  }
   return true;
 }
 
@@ -82,6 +102,8 @@ export async function POST(request: Request) {
       completion_type: item.type,
       evidence_url: item.evidenceUrl ?? null,
       notes: item.notes ?? null,
+      rain_check_reason: item.rainCheckReason ?? null,
+      rain_check_moved_to: item.rainCheckMovedTo ?? null,
     }));
 
     const { data, error } = await supabase.rpc("insert_completions_batch", {
@@ -111,8 +133,7 @@ export async function POST(request: Request) {
   if (!validateItem(body)) {
     return jsonResponse(
       {
-        error:
-          "habitId (string) and type (photo|video|message|quick|voice) are required",
+        error: `habitId (string) and type (${COMPLETION_TYPES.join("|")}) are required`,
       },
       { status: 400 },
     );
@@ -124,15 +145,27 @@ export async function POST(request: Request) {
     p_completion_type: body.type,
     p_evidence_url: body.evidenceUrl,
     p_notes: body.notes,
+    p_rain_check_reason: body.rainCheckReason,
+    p_rain_check_moved_to: body.rainCheckMovedTo,
   });
 
   if (error) {
     const isForbidden = error.code === "42501";
     const isRateLimited = error.code === "54000";
+    // A constraint the route cannot check itself — how far ahead a move may
+    // sit, and whether the habit is free that day. The client offers only
+    // valid days, so this is a malformed request, not a server fault.
+    const isInvalid = error.code === "23514";
     if (isRateLimited) {
       return jsonResponse(
         { error: "Too many requests" },
         { status: 429, headers: { "Retry-After": "60" } },
+      );
+    }
+    if (isInvalid) {
+      return jsonResponse(
+        { error: "That day is not available for this habit" },
+        { status: 400 },
       );
     }
     console.error("Completion insert failed:", isForbidden ? "ownership check" : "internal");

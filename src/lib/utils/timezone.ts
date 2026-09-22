@@ -92,6 +92,26 @@ export function subtractDays(dateKey: string, days: number): string {
 }
 
 /**
+ * Add `days` to a YYYY-MM-DD date key and return a new YYYY-MM-DD key.
+ * Uses UTC noon to avoid DST boundary issues.
+ */
+export function addDays(dateKey: string, days: number): string {
+  return subtractDays(dateKey, -days);
+}
+
+/**
+ * The weekday a YYYY-MM-DD key falls on, spelled out ("Thursday").
+ * Formatted at UTC noon: the key already carries the intended local day, so
+ * re-interpreting it in a zone could only shift it.
+ */
+export function weekdayName(dateKey: string): string {
+  return new Date(dateKey + "T12:00:00Z").toLocaleDateString("en-GB", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+}
+
+/**
  * Return the current time as "HH:MM" (24-hour) in a specific timezone.
  */
 export function currentTimeHHMM(timeZone: string): string {

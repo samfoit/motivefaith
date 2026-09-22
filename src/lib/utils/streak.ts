@@ -1,5 +1,6 @@
 import { toDateKey, todayDateKey, subtractDays, getDayOfWeek } from "./timezone";
-import { parseSchedule } from "./schedule";
+import { parseSchedule, type CompletionRow } from "./schedule";
+import { isRainCheck } from "@/lib/constants/completion";
 
 /**
  * Validates whether a habit's DB streak is still active by checking if the
@@ -11,29 +12,66 @@ import { parseSchedule } from "./schedule";
  */
 export function computeEffectiveStreak(
   habit: { streak_current: number | null; schedule: unknown; frequency?: string | null },
-  completions: { completed_at: string }[],
+  completions: CompletionRow[],
   timeZone: string,
 ): number {
   const dbStreak = habit.streak_current ?? 0;
   if (dbStreak === 0 || completions.length === 0) return 0;
 
   const today = todayDateKey(timeZone);
-  const completionDateKeys = new Set(
-    completions.map((c) => toDateKey(c.completed_at, timeZone)),
-  );
 
-  // If completed today, streak is definitely valid for any frequency
-  if (completionDateKeys.has(today)) return dbStreak;
+  // Two collections rather than one: a rain check no longer unconditionally
+  // covers its day, so real completions have to be distinguishable.
+  const realDateKeys = new Set<string>();
+  // Every rain check on a day is kept, because is_habit_day_covered() asks
+  // whether *any* row covers it — so one plain skip is enough even if another
+  // row on that day was moved and then broken.
+  const rainChecks = new Map<string, (string | null)[]>();
+  for (const c of completions) {
+    const key = toDateKey(c.completed_at, timeZone);
+    if (isRainCheck(c.completion_type)) {
+      const movedTo = c.rain_check_moved_to ?? null;
+      const existing = rainChecks.get(key);
+      if (existing) existing.push(movedTo);
+      else rainChecks.set(key, [movedTo]);
+    } else {
+      realDateKeys.add(key);
+    }
+  }
 
-  // ── Weekly frequency: streak valid if completion in current or previous week ──
+  /**
+   * Is this day settled? Mirrors is_habit_day_covered() in migration 027 —
+   * keep the two in step.
+   *
+   * A plain rain check covers its day forever. A rain check that was moved
+   * covers it only while the promise is pending, or once it has been kept:
+   * let the moved-to day pass undone and the chain snaps.
+   */
+  const coversDay = (key: string): boolean => {
+    if (realDateKeys.has(key)) return true;
+    const moves = rainChecks.get(key);
+    if (!moves) return false;
+    return moves.some(
+      (movedTo) =>
+        movedTo === null || movedTo >= today || realDateKeys.has(movedTo),
+    );
+  };
+
+  // If today is settled, the streak is valid for any frequency
+  if (coversDay(today)) return dbStreak;
+
+  // ── Weekly frequency: streak valid if a covered day in current or previous week ──
   if (habit.frequency === "weekly") {
     const todayDate = new Date(today + "T12:00:00Z");
     const dow = todayDate.getUTCDay(); // 0=Sun
     const weekStartKey = subtractDays(today, dow);
     const prevWeekStartKey = subtractDays(weekStartKey, 7);
 
-    for (const dk of completionDateKeys) {
+    for (const dk of realDateKeys) {
       if (dk >= prevWeekStartKey) return dbStreak;
+    }
+    for (const dk of rainChecks.keys()) {
+      if (dk >= prevWeekStartKey && coversDay(dk)) return dbStreak;
     }
     return 0;
   }
@@ -52,8 +90,8 @@ export function computeEffectiveStreak(
       scheduledDays.includes(dow);
 
     if (isScheduled) {
-      // Found the most recent scheduled day — was it completed?
-      return completionDateKeys.has(checkKey) ? dbStreak : 0;
+      // Found the most recent scheduled day — was it settled?
+      return coversDay(checkKey) ? dbStreak : 0;
     }
 
     checkKey = subtractDays(checkKey, 1);

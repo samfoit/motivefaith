@@ -22,7 +22,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createServerSupabase>>;
 async function fetchHabits(supabase: SupabaseServerClient, userId: string) {
   const { data } = await supabase
     .from("habits")
-    .select("id, user_id, title, description, emoji, category, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, is_shared, created_at")
+    .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, is_shared, created_at")
     .eq("user_id", userId)
     .eq("is_paused", false)
     .order("created_at");
@@ -52,7 +52,7 @@ async function fetchCompletions(
   const limit = Math.min(habitIds.length * 31, MAX_COMPLETIONS_FETCH);
   const { data } = await supabase
     .from("completions")
-    .select("id, habit_id, completed_at, completion_type")
+    .select("id, habit_id, completed_at, completion_type, rain_check_moved_to")
     .in("habit_id", habitIds)
     .gte("completed_at", fetchStartKey + "T00:00:00Z")
     .order("completed_at", { ascending: false })

@@ -414,6 +414,8 @@ function syncQueuedCompletions() {
             habitId: item.habitId,
             type: item.type,
             notes: item.notes || undefined,
+            rainCheckReason: item.rainCheckReason || undefined,
+            rainCheckMovedTo: item.rainCheckMovedTo || undefined,
             // evidenceUrl is intentionally omitted — files uploaded separately
           };
         });

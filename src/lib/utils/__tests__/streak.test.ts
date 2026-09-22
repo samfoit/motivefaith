@@ -241,4 +241,147 @@ describe("computeEffectiveStreak", () => {
     );
     expect(result).toBe(3);
   });
+
+  // A rain check is a completions row like any other, which is exactly what
+  // lets it hold the streak here without any special casing. These pin that
+  // down so the behaviour survives a future refactor of the callers.
+  describe("rain checks", () => {
+    it("holds the streak when yesterday was rain-checked", () => {
+      const result = computeEffectiveStreak(
+        { streak_current: 7, schedule: null },
+        [{ completed_at: "2025-06-14T10:00:00Z" }],
+        "UTC",
+      );
+      expect(result).toBe(7);
+    });
+
+    it("holds across a rain check that bridges two completions", () => {
+      // June 13 done, June 14 rain-checked, nothing yet today.
+      const result = computeEffectiveStreak(
+        { streak_current: 7, schedule: null },
+        [
+          { completed_at: "2025-06-13T10:00:00Z" },
+          { completed_at: "2025-06-14T10:00:00Z" },
+        ],
+        "UTC",
+      );
+      expect(result).toBe(7);
+    });
+
+    it("only covers its own day", () => {
+      // June 13 rain-checked, June 14 (the last scheduled day) uncovered.
+      const result = computeEffectiveStreak(
+        { streak_current: 7, schedule: null },
+        [{ completed_at: "2025-06-13T10:00:00Z" }],
+        "UTC",
+      );
+      expect(result).toBe(0);
+    });
+  });
+
+  // A rain check can name a day to make the habit up on. That makes it a
+  // promise, and coversDay() has to stop honouring it once the promise is
+  // broken — otherwise a moved rain check would be a free pass.
+  describe("moved rain checks", () => {
+    // Mon/Wed/Fri, so Saturday June 14 is off-schedule and can hold a makeup.
+    const mwf = { streak_current: 7, schedule: { days: [1, 3, 5] } };
+
+    it("holds while the promised day is still ahead", () => {
+      // Rain-checked Friday June 13, promised for Monday June 16.
+      const result = computeEffectiveStreak(
+        mwf,
+        [
+          {
+            completed_at: "2025-06-13T10:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-16",
+          },
+        ],
+        "UTC",
+      );
+      expect(result).toBe(7);
+    });
+
+    it("holds on the promised day itself", () => {
+      const result = computeEffectiveStreak(
+        mwf,
+        [
+          {
+            completed_at: "2025-06-13T10:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-15",
+          },
+        ],
+        "UTC",
+      );
+      expect(result).toBe(7);
+    });
+
+    it("holds once the promise has been kept", () => {
+      // Rain-checked Friday, made up on Saturday — an off-schedule day.
+      const result = computeEffectiveStreak(
+        mwf,
+        [
+          {
+            completed_at: "2025-06-13T10:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-14",
+          },
+          { completed_at: "2025-06-14T10:00:00Z", completion_type: "quick" },
+        ],
+        "UTC",
+      );
+      expect(result).toBe(7);
+    });
+
+    it("breaks once the promised day has passed undone", () => {
+      const result = computeEffectiveStreak(
+        mwf,
+        [
+          {
+            completed_at: "2025-06-13T10:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-14",
+          },
+        ],
+        "UTC",
+      );
+      expect(result).toBe(0);
+    });
+
+    it("a rain check on the promised day does not keep the promise", () => {
+      // Skipping the makeup is still skipping it.
+      const result = computeEffectiveStreak(
+        mwf,
+        [
+          {
+            completed_at: "2025-06-13T10:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-14",
+          },
+          {
+            completed_at: "2025-06-14T10:00:00Z",
+            completion_type: "rain_check",
+          },
+        ],
+        "UTC",
+      );
+      expect(result).toBe(0);
+    });
+
+    it("a plain rain check on the same day is unaffected", () => {
+      const result = computeEffectiveStreak(
+        mwf,
+        [
+          {
+            completed_at: "2025-06-13T10:00:00Z",
+            completion_type: "rain_check",
+            rain_check_moved_to: null,
+          },
+        ],
+        "UTC",
+      );
+      expect(result).toBe(7);
+    });
+  });
 });

@@ -133,4 +133,152 @@ describe("POST /api/completions", () => {
       }),
     );
   });
+
+  describe("rain checks", () => {
+    it("accepts a rain check with a reason and a note", async () => {
+      const res = await POST(
+        makeRequest({
+          habitId: "h1",
+          type: "rain_check",
+          rainCheckReason: "sick",
+          notes: "Back on it tomorrow",
+        }),
+      );
+      expect(res.status).toBe(201);
+      expect(mockRpc).toHaveBeenCalledWith(
+        "insert_completion",
+        expect.objectContaining({
+          p_completion_type: "rain_check",
+          p_rain_check_reason: "sick",
+          p_notes: "Back on it tomorrow",
+        }),
+      );
+    });
+
+    it("accepts a bare rain check — both the reason and the note are optional", async () => {
+      const res = await POST(makeRequest({ habitId: "h1", type: "rain_check" }));
+      expect(res.status).toBe(201);
+      expect(mockRpc).toHaveBeenCalledWith(
+        "insert_completion",
+        expect.objectContaining({
+          p_completion_type: "rain_check",
+          p_rain_check_reason: undefined,
+        }),
+      );
+    });
+
+    it("rejects an unknown reason", async () => {
+      const res = await POST(
+        makeRequest({
+          habitId: "h1",
+          type: "rain_check",
+          rainCheckReason: "hungover",
+        }),
+      );
+      expect(res.status).toBe(400);
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it("rejects a reason attached to a real completion", async () => {
+      // The DB CHECK constraint would reject this too; failing at the edge
+      // keeps the error legible instead of surfacing as a 500.
+      const res = await POST(
+        makeRequest({ habitId: "h1", type: "quick", rainCheckReason: "sick" }),
+      );
+      expect(res.status).toBe(400);
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it("names rain_check among the valid types when the type is bad", async () => {
+      const res = await POST(makeRequest({ habitId: "h1", type: "nope" }));
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain("rain_check");
+    });
+
+    it("accepts a moved rain check", async () => {
+      const res = await POST(
+        makeRequest({
+          habitId: "h1",
+          type: "rain_check",
+          rainCheckReason: "busy",
+          rainCheckMovedTo: "2025-06-19",
+        }),
+      );
+      expect(res.status).toBe(201);
+      expect(mockRpc).toHaveBeenCalledWith(
+        "insert_completion",
+        expect.objectContaining({
+          p_completion_type: "rain_check",
+          p_rain_check_moved_to: "2025-06-19",
+        }),
+      );
+    });
+
+    it("rejects a malformed moved-to day", async () => {
+      // How far ahead a move may sit is chk_rain_check_moved_to's business —
+      // the route only insists on a date key.
+      const res = await POST(
+        makeRequest({
+          habitId: "h1",
+          type: "rain_check",
+          rainCheckMovedTo: "next Thursday",
+        }),
+      );
+      expect(res.status).toBe(400);
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it("rejects a moved-to day attached to a real completion", async () => {
+      const res = await POST(
+        makeRequest({
+          habitId: "h1",
+          type: "quick",
+          rainCheckMovedTo: "2025-06-19",
+        }),
+      );
+      expect(res.status).toBe(400);
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it("carries the reason through a batch sync", async () => {
+      mockRpc.mockResolvedValue({ data: [{ id: "comp-1" }], error: null });
+      const res = await POST(
+        makeRequest([
+          { habitId: "h1", type: "rain_check", rainCheckReason: "travel" },
+        ]),
+      );
+      expect(res.status).toBe(201);
+      expect(mockRpc).toHaveBeenCalledWith("insert_completions_batch", {
+        p_items: [
+          expect.objectContaining({
+            completion_type: "rain_check",
+            rain_check_reason: "travel",
+          }),
+        ],
+      });
+    });
+
+    it("carries a moved-to day through a batch sync", async () => {
+      mockRpc.mockResolvedValue({ data: [{ id: "comp-1" }], error: null });
+      const res = await POST(
+        makeRequest([
+          {
+            habitId: "h1",
+            type: "rain_check",
+            rainCheckMovedTo: "2025-06-19",
+          },
+        ]),
+      );
+      expect(res.status).toBe(201);
+      expect(mockRpc).toHaveBeenCalledWith("insert_completions_batch", {
+        p_items: [
+          expect.objectContaining({
+            completion_type: "rain_check",
+            rain_check_moved_to: "2025-06-19",
+          }),
+        ],
+      });
+    });
+  });
 });
