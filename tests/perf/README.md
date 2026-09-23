@@ -24,6 +24,12 @@ npm run build && PORT=3111 npm start &
 # 4. Capture a session for the seeded dev user (writes tests/perf/auth.json, gitignored)
 export CHROME_BIN="$HOME/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
 node tests/perf/login.mjs http://localhost:3111
+
+# If captcha is enabled in supabase/config.toml, login.mjs cannot sign in
+# ("captcha verification process failed"). Either disable it there, or skip the
+# form entirely — the admin API is not captcha-guarded:
+SERVICE_ROLE_JWT=$(npx supabase status -o json | jq -r .SERVICE_ROLE_KEY) \
+  node tests/perf/login-admin.mjs
 ```
 
 **Restore `supabase/config.toml` when you're done.**
@@ -38,6 +44,7 @@ node tests/perf/login.mjs http://localhost:3111
 | `offlinecheck.mjs <base> [authPath] [--standalone]` | Precache contents, offline behavior, installed-PWA launch |
 | `console.mjs <path...>` | Console errors, CSP violations, hydration warnings |
 | `latency-proxy.mjs` | TCP proxy adding `DELAY_MS` per direction to the first chunk of each burst |
+| `login-admin.mjs [email] [out]` | Captures a session **without** the login form, for when `[auth.captcha]` is enabled and `login.mjs` cannot get past it |
 
 ## Throttling
 

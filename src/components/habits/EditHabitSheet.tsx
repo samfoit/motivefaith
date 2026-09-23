@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback } from "react";
 import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { createClient } from "@/lib/supabase/client";
+import { sendOrQueue } from "@/lib/offline-write";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -143,17 +144,39 @@ export function EditHabitSheet({
     };
 
     const supabase = createClient();
-    const { error } = await supabase
-      .from("habits")
-      .update(updates)
-      .eq("id", habit.id);
 
-    if (error) {
-      showToast({ variant: "error", title: "Failed to update habit" });
-    } else {
+    try {
+      const result = await sendOrQueue(
+        {
+          // The outbox row's own id — an edit creates no row, so this just
+          // identifies the queued write.
+          id: crypto.randomUUID(),
+          kind: "habit.update",
+          userId: habit.user_id,
+          // A patch, not the whole row: replaying a queued edit then only
+          // overwrites the fields the user actually touched, so it cannot
+          // clobber a change made elsewhere in the meantime.
+          payload: { habitId: habit.id, patch: updates },
+        },
+        async () => {
+          const { error } = await supabase
+            .from("habits")
+            .update(updates)
+            .eq("id", habit.id);
+          if (error) throw error;
+          return { queued: false as const };
+        },
+      );
+
       onSaved(updates as Partial<Habit>);
-      showToast({ variant: "success", title: "Habit updated" });
+      showToast(
+        "queued" in result && result.queued
+          ? { variant: "success", title: "Saved offline — syncs when you reconnect" }
+          : { variant: "success", title: "Habit updated" },
+      );
       onOpenChange(false);
+    } catch {
+      showToast({ variant: "error", title: "Failed to update habit" });
     }
     setIsSaving(false);
   };

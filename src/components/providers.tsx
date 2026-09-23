@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, type Query } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { usePathname } from "next/navigation";
 import { useServiceWorker } from "@/lib/hooks/useServiceWorker";
+import { useOutboxDrain } from "@/lib/hooks/useOutboxDrain";
 import { initializeTheme } from "@/lib/stores/theme-store";
 import { getBrowserTimezone } from "@/lib/utils/timezone";
 import { createClient } from "@/lib/supabase/client";
 import { createIDBPersister } from "@/lib/query-persister";
+import { readLocalUserId } from "@/lib/auth/local-session";
+import { purgeLocalUserData } from "@/lib/auth/purge-local-data";
 
 /**
  * Detect the browser's IANA timezone and sync it to the user's profile
@@ -100,6 +103,9 @@ function useInactivityTimeout() {
 function AuthHooks() {
   useSyncTimezone();
   useInactivityTimeout();
+  // Scoped to authenticated routes: a drain needs a session, and on a public
+  // page every request would 401 and leave the queue untouched anyway.
+  useOutboxDrain();
   return null;
 }
 
@@ -127,6 +133,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
     initializeTheme();
   }, []);
 
+  // One listener rather than a cleanup call at each sign-out site. This also
+  // covers the paths that never had one: the inactivity timeout above,
+  // account deletion, a refresh token that fails, and /auth/stale (which
+  // signs out server-side, so the client only learns about it when the
+  // cookie is gone and this fires on the next boot).
+  useEffect(() => {
+    const supabase = createClient();
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        void purgeLocalUserData();
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -135,7 +156,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
             staleTime: 2 * 60 * 1000, // 2 min — matches most hook overrides
             gcTime: 24 * 60 * 60 * 1000, // 24h — persist-client needs gcTime >= maxAge
             refetchOnWindowFocus: "always", // refresh data when user returns to app
+            // Attempt the fetch once even when `navigator.onLine` is false,
+            // then fall through to the persisted cache on failure.
+            //
+            // The default ("online") leaves an offline query parked in
+            // `status: "pending" / fetchStatus: "paused"` forever — it never
+            // calls queryFn, so it can neither surface an error nor fall back,
+            // and every consumer has to special-case that state. "offlineFirst"
+            // gives a clean `isError` to branch offline UI on, and it also
+            // covers the cases `navigator.onLine` gets wrong: lie-fi, captive
+            // portals, and responses the service worker can serve from cache
+            // with no network at all.
+            networkMode: "offlineFirst",
           },
+          // NOTE: mutations deliberately keep the default `networkMode:
+          // "online"`, which pauses them while offline and auto-resumes on
+          // reconnect. Mutations that handle offline themselves — by writing
+          // to the outbox inside `mutationFn` — must opt out per-mutation with
+          // `networkMode: "always"`, because a paused mutation never calls
+          // `mutationFn` at all. See `src/lib/offline-write.ts`.
         },
       }),
   );
@@ -143,7 +182,39 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [persistOptions] = useState(() => ({
     persister: createIDBPersister(),
     maxAge: 24 * 60 * 60 * 1000, // 24h — offline data stays usable for a day
-    buster: "", // change to bust persisted cache on breaking schema changes
+    // Partition the persisted cache by user. PersistQueryClientProvider
+    // discards the restored cache outright when `buster` changes, so a
+    // different user — or a signed-out visitor — on this device can never be
+    // handed the previous user's habits out of IndexedDB. That matters far
+    // more now that the cache holds real data for offline use.
+    //
+    // `readLocalUserId()` never returns another user's id: worst case it
+    // returns null, which buckets as "anon" and discards.
+    //
+    // NOTE: captured once, at mount. Sign-out must therefore be a full
+    // document navigation so this remounts and re-reads — see the comment on
+    // `handleSignOut` in src/app/main/profile/profile-client.tsx.
+    buster: readLocalUserId() ?? "anon",
+    dehydrateOptions: {
+      /**
+       * Persist any query that HAS data, not only one whose last fetch
+       * succeeded.
+       *
+       * React Query's default is `status === "success"`. That is wrong for an
+       * offline-first app, and quietly so: offline, the restored query
+       * refetches, the refetch fails, and the query flips to "error" while
+       * still holding the data it restored. Under the default it is then
+       * excluded from every subsequent write — so an optimistic completion
+       * logged offline never reaches IndexedDB, and the habits already stored
+       * there are dropped the next time the cache is persisted. The user
+       * reloads and their dashboard is empty.
+       *
+       * Verified against a real offline reload; `data !== undefined` is what
+       * keeps the cache alive across one.
+       */
+      shouldDehydrateQuery: (query: Query) =>
+        query.state.status === "success" || query.state.data !== undefined,
+    },
   }));
 
   return (

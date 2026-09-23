@@ -19,7 +19,17 @@ vi.mock("@/lib/hooks/useCompleteHabit", () => ({
   useCompleteHabit: () => ({ mutateAsync }),
 }));
 
+// The dashboard identifies the user from the Supabase auth cookie, which is
+// what keys the query cache. Fix it so the seeded key below matches.
+const TEST_USER = "user-1";
+vi.mock("@/lib/hooks/useAuthUserId", () => ({
+  useAuthUserId: () => TEST_USER,
+}));
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DashboardClient } from "../dashboard-client";
+import { dashboardKey } from "@/lib/hooks/useDashboard";
+import type { DashboardData } from "@/lib/data/dashboard";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const habit: HabitWithCompletions = {
@@ -41,14 +51,32 @@ const habit: HabitWithCompletions = {
   completions: [],
 };
 
-async function renderDashboard() {
+/**
+ * The dashboard reads its data from the React Query cache rather than props,
+ * so tests seed the cache. `queryFn` is never reached: seeded data with an
+ * infinite staleTime is already fresh.
+ */
+function renderWithHabits(habits: HabitWithCompletions[]) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  const data: DashboardData = { habits, timezone: "UTC", firstName: "Alice" };
+  queryClient.setQueryData(dashboardKey(TEST_USER), data);
+
   render(
-    <ToastProvider>
-      <Suspense fallback={null}>
-        <DashboardClient habits={[habit]} timezone="UTC" initialView="day" />
-      </Suspense>
-    </ToastProvider>,
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <Suspense fallback={null}>
+          <DashboardClient />
+        </Suspense>
+      </ToastProvider>
+    </QueryClientProvider>,
   );
+  return queryClient;
+}
+
+async function renderDashboard() {
+  renderWithHabits([habit]);
   return await screen.findByRole("button", { name: "Complete Morning Run" });
 }
 
@@ -201,13 +229,7 @@ describe("DashboardClient moved rain check", () => {
   });
 
   function renderWith(habits: HabitWithCompletions[]) {
-    render(
-      <ToastProvider>
-        <Suspense fallback={null}>
-          <DashboardClient habits={habits} timezone="UTC" initialView="day" />
-        </Suspense>
-      </ToastProvider>,
-    );
+    renderWithHabits(habits);
   }
 
   const mwf: HabitWithCompletions = {

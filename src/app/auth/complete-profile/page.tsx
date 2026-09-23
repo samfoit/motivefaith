@@ -52,7 +52,8 @@ export default function CompleteProfilePage() {
 
       if (!profile) {
         await supabase.auth.signOut();
-        router.replace("/auth/login?stale=1");
+        // Full navigation — see handleSignOut in profile-client.tsx.
+        window.location.replace("/auth/login?stale=1");
         return;
       }
 

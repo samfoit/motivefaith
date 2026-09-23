@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
 import { Loader2, X } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
@@ -57,7 +58,7 @@ interface TodayHabit {
 // ---------------------------------------------------------------------------
 
 export function QuickCaptureFlow() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const { show, ToastElements } = useToast();
   const completeHabit = useCompleteHabit();
 
@@ -240,7 +241,10 @@ export function QuickCaptureFlow() {
         });
 
         show({ title: "Habit completed!", variant: "success" });
-        router.refresh();
+        // The dashboard reads from the query cache now, not from server props,
+        // so router.refresh() would be a wasted round trip — and one that
+        // fails outright offline.
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
         reset();
       } catch (err) {
         console.error("Quick capture upload failed:", err);
@@ -254,7 +258,7 @@ export function QuickCaptureFlow() {
       completeHabit,
       notes,
       reset,
-      router,
+      queryClient,
       setStep,
       show,
     ],

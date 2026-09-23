@@ -3,6 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { queueCompletion } from "@/lib/offline-queue";
+import { notifyPendingChanged } from "@/lib/outbox-drain";
 import type { CompletionType } from "@/lib/constants/completion";
 import type { RainCheckReason } from "@/lib/constants/rain-check";
 
@@ -24,6 +25,19 @@ export function useCompleteHabit() {
   const supabase = createClient();
 
   return useMutation({
+    // REQUIRED. React Query's default mutation networkMode is "online", which
+    // checks `onlineManager.isOnline()` *before* calling mutationFn and parks
+    // the mutation instead of running it:
+    //
+    //   const canStart = () => canFetch(config.networkMode) && config.canRun();
+    //   start: () => { if (canStart()) run(); else pause().then(run); }
+    //
+    // Every offline path in this hook lives inside mutationFn, so under the
+    // default, going offline meant the completion was neither sent nor
+    // queued — it was silently lost on reload, while the UI showed it as
+    // complete from the caller's own optimistic state. "always" hands us
+    // control so the queue below is actually reached.
+    networkMode: "always",
     mutationFn: async (params: CompleteHabitParams) => {
       const offlinePayload = {
         habitId: params.habitId,
@@ -37,6 +51,7 @@ export function useCompleteHabit() {
       // Quick path: if obviously offline, skip the network attempt
       if (!navigator.onLine) {
         await queueCompletion(offlinePayload);
+        notifyPendingChanged();
         return { queued: true } as const;
       }
 
@@ -55,10 +70,12 @@ export function useCompleteHabit() {
         if (error) throw error;
         return data;
       } catch (err) {
-        // TypeError is thrown by fetch on network failure. Queue and retry
-        // via Background Sync instead of losing the completion.
+        // TypeError is thrown by fetch on network failure. Queue instead of
+        // losing the completion; it is flushed by Background Sync, or by the
+        // page-side drain on browsers without SyncManager (Safari/iOS).
         if (err instanceof TypeError) {
           await queueCompletion(offlinePayload);
+          notifyPendingChanged();
           return { queued: true } as const;
         }
         throw err; // Re-throw server/RLS errors

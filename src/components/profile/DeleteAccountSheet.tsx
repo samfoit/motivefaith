@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { AlertTriangle, X } from "lucide-react";
@@ -24,7 +23,6 @@ export function DeleteAccountSheet({
   onOpenChange,
   hasMfa,
 }: DeleteAccountSheetProps) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [password, setPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
@@ -85,7 +83,9 @@ export function DeleteAccountSheet({
         // Auth user is already gone.
       }
 
-      router.replace("/auth/login?deleted=1");
+      // Full navigation so `Providers` remounts and re-reads the persisted
+      // cache buster — see handleSignOut in profile-client.tsx.
+      window.location.replace("/auth/login?deleted=1");
     } catch (err) {
       console.error("Delete account failed:", err);
       setError("Network error. Please try again.");

@@ -9,7 +9,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { DASHBOARD_KEY_PREFIX, dashboardKey } from "@/lib/hooks/useDashboard";
+import { applyHabitCreate } from "@/lib/data/dashboard-mutations";
+import type { DashboardData } from "@/lib/data/dashboard";
+import { sendOrQueue } from "@/lib/offline-write";
+import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -52,8 +58,12 @@ const slideVariants = {
 // Wizard component
 // ---------------------------------------------------------------------------
 
-export function WizardClient({ userId }: { userId: string }) {
+export function WizardClient() {
+  // Read here rather than taken as a prop, so the page's HTML carries no user
+  // data and can be cached for offline use.
+  const userId = useAuthUserId();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { show: showToast, ToastElements } = useToast();
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -86,63 +96,108 @@ export function WizardClient({ userId }: { userId: string }) {
   };
 
   const handleSubmit = async () => {
+    // The session has not resolved, or is gone. Creating a habit with no owner
+    // would fail RLS anyway; better to say so than to queue an unusable write.
+    if (!userId) {
+      showToast({ variant: "error", title: "Sign in to create a habit" });
+      return;
+    }
     setIsSubmitting(true);
     try {
       const supabase = createClient();
-      const { data: habit, error } = await supabase
-        .from("habits")
-        .insert({
-          user_id: userId,
-          title: form.title.trim(),
-          description: form.description.trim() || null,
-          emoji: form.emoji,
-          color: form.color,
-          frequency: form.frequency,
-          schedule: { days: form.scheduleDays },
-          time_window: form.timeWindowEnabled
-            ? { start: form.timeWindowStart, end: form.timeWindowEnd }
-            : null,
-          is_shared: form.isShared,
-        })
-        .select("id")
-        .single();
 
-      if (error) throw error;
+      // The id is minted here rather than by Postgres. `habits.id` is
+      // `uuid DEFAULT gen_random_uuid()` and the RLS policy constrains
+      // `user_id`, not `id`, so the client may choose it — and choosing it is
+      // what makes a habit created offline work at all: it has a real id
+      // immediately, so completions logged against it are valid, and a replay
+      // that was interrupted mid-flight collides on the primary key instead of
+      // creating the habit twice.
+      const habitId = crypto.randomUUID();
+      const habitRow = {
+        id: habitId,
+        user_id: userId,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        emoji: form.emoji,
+        color: form.color,
+        frequency: form.frequency,
+        schedule: { days: form.scheduleDays },
+        time_window: form.timeWindowEnabled
+          ? { start: form.timeWindowStart, end: form.timeWindowEnd }
+          : null,
+        is_shared: form.isShared,
+      };
 
-      // Insert habit_shares for selected friends
-      if (form.selectedFriends.length > 0 && habit) {
-        const { error: shareError } = await supabase
-          .from("habit_shares")
-          .insert(
-            form.selectedFriends.map((friendId) => ({
-              habit_id: habit.id,
-              shared_with: friendId,
-            })),
-          );
+      const result = await sendOrQueue(
+        {
+          id: habitId,
+          kind: "habit.create",
+          userId,
+          payload: {
+            habit: habitRow,
+            friendIds: form.selectedFriends,
+            groupIds: form.selectedGroups,
+          },
+        },
+        async () => {
+          const { error } = await supabase.from("habits").insert(habitRow);
+          if (error) throw error;
 
-        if (shareError) {
-          showToast({ variant: "error", title: "Habit created, but sharing with friends failed" });
-        }
+          // Insert habit_shares for selected friends
+          if (form.selectedFriends.length > 0) {
+            const { error: shareError } = await supabase
+              .from("habit_shares")
+              .insert(
+                form.selectedFriends.map((friendId) => ({
+                  habit_id: habitId,
+                  shared_with: friendId,
+                })),
+              );
+
+            if (shareError) {
+              showToast({ variant: "error", title: "Habit created, but sharing with friends failed" });
+            }
+          }
+
+          // Insert group_habit_shares for selected groups
+          if (form.selectedGroups.length > 0) {
+            const { error: groupShareError } = await supabase
+              .from("group_habit_shares")
+              .insert(
+                form.selectedGroups.map((groupId) => ({
+                  group_id: groupId,
+                  habit_id: habitId,
+                  shared_by: userId,
+                })),
+              );
+
+            if (groupShareError) {
+              showToast({ variant: "error", title: "Habit created, but sharing with groups failed" });
+            }
+          }
+          return { queued: false as const };
+        },
+      );
+
+      if ("queued" in result && result.queued) {
+        // Put it on the dashboard now. Offline there is nothing to refetch, so
+        // without this the user would land on the dashboard and not see the
+        // habit they just created.
+        queryClient.setQueryData<DashboardData>(dashboardKey(userId), (old) =>
+          applyHabitCreate(old, habitRow),
+        );
+        showToast({
+          variant: "success",
+          title: "Saved offline",
+          description: "This habit will sync when you reconnect.",
+        });
       }
 
-      // Insert group_habit_shares for selected groups
-      if (form.selectedGroups.length > 0 && habit) {
-        const { error: groupShareError } = await supabase
-          .from("group_habit_shares")
-          .insert(
-            form.selectedGroups.map((groupId) => ({
-              group_id: groupId,
-              habit_id: habit.id,
-              shared_by: userId,
-            })),
-          );
-
-        if (groupShareError) {
-          showToast({ variant: "error", title: "Habit created, but sharing with groups failed" });
-        }
-      }
-
-      router.refresh();
+      // Drop the cached dashboard so the new habit is there when we land on
+      // it. router.refresh() no longer does anything for the dashboard — its
+      // data is client-side now.
+      void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
       setShowSuccess(true);
       setTimeout(() => router.push("/main/dashboard"), 1500);
     } catch (err) {
@@ -207,7 +262,7 @@ export function WizardClient({ userId }: { userId: string }) {
               {step === 1 && <StepSchedule form={form} update={update} />}
               {step === 2 && <StepColor form={form} update={update} />}
               {step === 3 && (
-                <StepSharing form={form} update={update} userId={userId} />
+                <StepSharing form={form} update={update} userId={userId ?? ""} />
               )}
               {step === 4 && <StepReview form={form} />}
             </motion.div>

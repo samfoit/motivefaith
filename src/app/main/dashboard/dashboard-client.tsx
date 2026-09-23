@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef, useTransition } from "react";
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+  useTransition,
+  useSyncExternalStore,
+} from "react";
 import dynamic from "next/dynamic";
 import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
 import {
@@ -9,6 +17,7 @@ import {
   parseTimeWindow,
 } from "@/lib/utils/schedule";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import type { MoveLabels } from "@/lib/types/habit";
@@ -18,10 +27,18 @@ import type { RainCheckReason } from "@/lib/constants/rain-check";
 import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
+import { DashboardContentSkeleton } from "./DashboardSkeleton";
+import { OfflinePanel } from "@/components/pwa/OfflinePanel";
 import {
   persistDashboardView,
+  readDashboardView,
   type DashboardView,
 } from "@/lib/constants/dashboard-view";
+import { useDashboard, dashboardKey } from "@/lib/hooks/useDashboard";
+import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+import type { DashboardData } from "@/lib/data/dashboard";
+import { applyCompletion, removeCompletion } from "@/lib/data/dashboard-mutations";
+import { getBrowserTimezone, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 
 /**
  * Last-resort fallback for the lazily-imported views.
@@ -108,6 +125,44 @@ const CompletionFlyout = dynamic(
 // Streak milestones
 // ---------------------------------------------------------------------------
 
+/**
+ * True only after hydration.
+ *
+ * `useSyncExternalStore` rather than a `useState` + `useEffect` flag: it needs
+ * no subscription, no state update, and no extra render pass, and it is the
+ * hydration-safe way to render something the server cannot know.
+ */
+const noopSubscribe = () => () => {};
+function useIsClient(): boolean {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
+}
+
+function getGreeting(timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    hour12: false,
+    timeZone,
+  }).formatToParts(new Date());
+  const parsed = parseInt(parts.find((p) => p.type === "hour")?.value ?? "12", 10);
+  const hour = Number.isNaN(parsed) ? 12 : parsed;
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function formatToday(timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone,
+  }).format(new Date());
+}
+
 const STREAK_MILESTONES = [7, 14, 21, 30, 50, 100] as const;
 
 const MILESTONE_MESSAGES: Record<number, string> = {
@@ -139,10 +194,12 @@ type PendingCompletion = {
 };
 
 interface DashboardClientProps {
-  habits: HabitWithCompletions[];
-  timezone: string;
-  /** Resolved on the server from the view-preference cookie. */
-  initialView: DashboardView;
+  /**
+   * Rendered beside the greeting. Passed down from the page so the link stays
+   * in the Server Component — it is the same markup for every user, which is
+   * the point of the shell.
+   */
+  headerAction?: React.ReactNode;
 }
 
 type TimeGroup = "morning" | "afternoon" | "evening" | "anytime";
@@ -206,25 +263,48 @@ function rainCheckMovedToToday(
   return null;
 }
 
-export function DashboardClient({
-  habits: initialHabits,
-  timezone,
-  initialView,
-}: DashboardClientProps) {
+export function DashboardClient({ headerAction }: DashboardClientProps) {
   const router = useRouter();
-  const [habits, setHabits] = useState(initialHabits);
+  const queryClient = useQueryClient();
+  const userId = useAuthUserId();
+  const { data, isPending, isError, refetch } = useDashboard();
+  const queryKey = dashboardKey(userId);
 
-  // Sync local state when server data changes (e.g. QuickCaptureFlow
-  // completes a habit from the layout and triggers router.refresh()).
-  // This is React's recommended pattern for adjusting state when a prop
-  // changes — setting state during render avoids the extra render cycle
-  // that useEffect would cause.
-  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-  const [prevInitialHabits, setPrevInitialHabits] = useState(initialHabits);
-  if (prevInitialHabits !== initialHabits) {
-    setPrevInitialHabits(initialHabits);
-    setHabits(initialHabits);
-  }
+  // The cache is the single source of truth, including for optimistic
+  // updates. Keeping optimism in component state instead — as this did — meant
+  // a completion logged offline disappeared from the UI on reload while still
+  // sitting unsent in the outbox, because only the cache is persisted.
+  const habits = useMemo(() => data?.habits ?? [], [data]);
+  const firstName = data?.firstName ?? null;
+  const isClient = useIsClient();
+  /** Render the real views only once there is something real to render. */
+  const showData = !isPending && !(isError && !data);
+
+  /** Roll the cache back to a captured snapshot after a failed write. */
+  const restore = useCallback(
+    (snapshot: DashboardData | undefined) => {
+      if (snapshot) queryClient.setQueryData(queryKey, snapshot);
+    },
+    [queryClient, queryKey],
+  );
+
+  /**
+   * Refetch after a write, unless it was queued offline: the optimistic entry
+   * is then the only record the UI has until the outbox drains, and a refetch
+   * would either fail or overwrite it with server data that does not have it
+   * yet.
+   */
+  const settleWrite = useCallback(
+    (result: unknown) => {
+      if (result && typeof result === "object" && "queued" in result) return;
+      if (navigator.onLine) void queryClient.invalidateQueries({ queryKey });
+    },
+    [queryClient, queryKey],
+  );
+
+  // The payload carries the user's stored timezone; before it arrives, fall
+  // back to the browser's, so dates are right from the first paint.
+  const timezone = data?.timezone || getBrowserTimezone() || DEFAULT_TIMEZONE;
 
   const completeHabit = useCompleteHabit();
   const { show: showToast, remove: removeToast, ToastElements } = useToast();
@@ -237,10 +317,12 @@ export function DashboardClient({
   // straight onto the camera, recorder or note instead of the picker.
   const [completionAction, setCompletionAction] =
     useState<Exclude<CheckInAction, "quick"> | null>(null);
-  // Seeded from the server, which read the preference cookie — so the view
-  // the user actually wants is the one that gets server-rendered, and there is
-  // no post-hydration swap into a not-yet-downloaded chunk.
-  const [viewMode, setViewMode] = useState<DashboardView>(initialView);
+  // Read synchronously in the initializer, so the user's actual view is
+  // chosen in the very first client render. Restoring it in an effect instead
+  // is what produced DIAGNOSIS R5: a second render mounted a lazily-imported
+  // view whose chunk had not downloaded, flashing a gray placeholder ~2s after
+  // the page looked finished.
+  const [viewMode, setViewMode] = useState<DashboardView>(readDashboardView);
 
   // Switching views loads a different chunk. Inside a transition React keeps
   // the view that is currently on screen until the new one is ready, instead
@@ -374,31 +456,20 @@ export function DashboardClient({
     // it can never cross a milestone.
     const rainCheck = isRainCheck(type);
 
-    // Optimistic update
-    setHabits((prev) =>
-      prev.map((h) =>
-        h.id === habitId
-          ? {
-              ...h,
-              completions: [
-                ...h.completions,
-                {
-                  id: `temp-${Date.now()}`,
-                  completed_at: new Date().toISOString(),
-                  completion_type: type,
-                  rain_check_moved_to: rainCheckMovedTo ?? null,
-                },
-              ],
-              streak_current: rainCheck
-                ? (h.streak_current ?? 0)
-                : (h.streak_current ?? 0) + 1,
-            }
-          : h,
-      ),
+    // Optimistic update, written to the cache so it is persisted and survives
+    // a reload while the write is still queued offline.
+    const snapshot = queryClient.getQueryData<DashboardData>(queryKey);
+    queryClient.setQueryData<DashboardData>(queryKey, (old) =>
+      applyCompletion(old, {
+        habitId,
+        tempId: `temp-${Date.now()}`,
+        type,
+        rainCheckMovedTo,
+      }),
     );
 
     try {
-      await completeHabit.mutateAsync({
+      const result = await completeHabit.mutateAsync({
         habitId,
         type,
         evidenceUrl,
@@ -409,9 +480,9 @@ export function DashboardClient({
       if (!rainCheck) {
         checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
       }
-      router.refresh();
+      settleWrite(result);
     } catch {
-      setHabits(initialHabits);
+      restore(snapshot);
     }
   };
 
@@ -441,40 +512,19 @@ export function DashboardClient({
         setFlyout({ emoji: habit?.emoji ?? "✓", from: origin });
       }
 
-      // Optimistic update
-      setHabits((prev) =>
-        prev.map((h) =>
-          h.id === habitId
-            ? {
-                ...h,
-                completions: [
-                  ...h.completions,
-                  {
-                    id: tempId,
-                    completed_at: new Date().toISOString(),
-                    completion_type: "quick" as const,
-                  },
-                ],
-                streak_current: (h.streak_current ?? 0) + 1,
-              }
-            : h,
-        ),
+      // Optimistic update, in the cache rather than component state — see the
+      // note on `habits` above.
+      const snapshot = queryClient.getQueryData<DashboardData>(queryKey);
+      queryClient.setQueryData<DashboardData>(queryKey, (old) =>
+        applyCompletion(old, { habitId, tempId, type: "quick" }),
       );
 
       const undo = () => {
         const pending = settle(habitId);
         if (!pending) return; // Window already closed — the check-in is sent.
         removeToast(pending.toastId);
-        setHabits((prev) =>
-          prev.map((h) =>
-            h.id === habitId
-              ? {
-                  ...h,
-                  completions: h.completions.filter((c) => c.id !== tempId),
-                  streak_current: prevStreak,
-                }
-              : h,
-          ),
+        queryClient.setQueryData<DashboardData>(queryKey, (old) =>
+          removeCompletion(old, { habitId, tempId, streak: prevStreak }),
         );
       };
 
@@ -485,11 +535,11 @@ export function DashboardClient({
         // longer undo anything is never left on screen.
         removeToast(pending.toastId);
         try {
-          await completeHabit.mutateAsync({ habitId, type: "quick" });
+          const result = await completeHabit.mutateAsync({ habitId, type: "quick" });
           checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
-          router.refresh();
+          settleWrite(result);
         } catch {
-          setHabits(initialHabits);
+          restore(snapshot);
           showToast({
             variant: "error",
             title: "Check-in failed",
@@ -521,8 +571,10 @@ export function DashboardClient({
       completionMap,
       completeHabit,
       checkMilestone,
-      router,
-      initialHabits,
+      queryClient,
+      queryKey,
+      restore,
+      settleWrite,
       showToast,
       removeToast,
       settle,
@@ -589,8 +641,51 @@ export function DashboardClient({
 
   return (
     <>
+      {/*
+        Greeting — rendered on the client only, and deliberately so.
+
+        This document is cached by the service worker and replayed to whoever
+        opens the app next, including tomorrow and including offline. A
+        time-of-day greeting or the user's name baked in at request time would
+        be both stale and a data leak. The height is reserved so filling it in
+        after hydration shifts nothing below it (the dashboard's CLS is
+        0.0000 and must stay there), and the h1 is single-line so a long
+        display name cannot reflow the header either.
+      */}
+      <div className="flex items-center justify-between min-h-[3.25rem]">
+        <div className="min-w-0">
+          {isClient && (
+            <>
+              <h1
+                className="font-display font-bold text-text-primary truncate"
+                style={{ fontSize: "var(--text-2xl)" }}
+              >
+                {getGreeting(timezone)}
+                {firstName ? `, ${firstName}` : ""}
+              </h1>
+              <p className="text-sm text-text-secondary mt-1">
+                {formatToday(timezone)}
+              </p>
+            </>
+          )}
+        </div>
+        {headerAction}
+      </div>
+
+      {isPending && <DashboardContentSkeleton />}
+
+      {/*
+        No data and no cached copy to fall back on. Without this the views
+        below would render their "create your first habit" empty state, which
+        tells the user their habits are gone rather than that the app could
+        not reach them.
+      */}
+      {isError && !data && (
+        <OfflinePanel what="Your habits" onRetry={() => void refetch()} />
+      )}
+
       {/* View Toggle */}
-      {habits.length > 0 && (
+      {showData && habits.length > 0 && (
         <div className="flex gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)]">
           {(["day", "week", "month"] as const).map((mode) => (
             <button
@@ -611,7 +706,7 @@ export function DashboardClient({
       )}
 
       {/* Views */}
-      {viewMode === "day" && (
+      {showData && viewMode === "day" && (
         <DayView
           todayHabits={todayHabits}
           groupedHabits={groupedHabits}
@@ -628,7 +723,7 @@ export function DashboardClient({
         />
       )}
 
-      {viewMode === "week" && habits.length > 0 && (
+      {showData && viewMode === "week" && habits.length > 0 && (
         <WeekView
           habits={habits}
           timezone={timezone}
@@ -636,7 +731,7 @@ export function DashboardClient({
         />
       )}
 
-      {viewMode === "month" && habits.length > 0 && (
+      {showData && viewMode === "month" && habits.length > 0 && (
         <MonthView
           habits={habits}
           timezone={timezone}
