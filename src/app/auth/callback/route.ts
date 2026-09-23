@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import {
+  PENDING_INVITE_COOKIE,
+  parseInviteUsername,
+  invitePath,
+} from "@/lib/constants/pending-invite";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
@@ -57,6 +62,16 @@ export async function GET(request: NextRequest) {
     ) {
       return NextResponse.redirect(`${origin}${normalized}`);
     }
+  }
+
+  // An invite that was followed before signing up. The cookie is the only
+  // thing that survives an email confirmation link, which lands here rather
+  // than back on the page the user started from.
+  const pendingInvite = parseInviteUsername(
+    request.cookies.get(PENDING_INVITE_COOKIE)?.value,
+  );
+  if (pendingInvite) {
+    return NextResponse.redirect(`${origin}${invitePath(pendingInvite)}`);
   }
 
   return NextResponse.redirect(`${origin}/main/dashboard`);

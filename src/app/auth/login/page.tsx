@@ -12,6 +12,7 @@ import { checkRateLimitWithToast } from "@/lib/utils/rate-limit-client";
 import { useCaptcha } from "@/lib/hooks/useCaptcha";
 import { DesktopFactsPanel, MobileFactBanner } from "../habit-facts";
 import { LOGIN_RATE_LIMIT, RATE_LIMIT_WINDOW_MS } from "@/lib/constants/limits";
+import { destinationAfterAuth } from "@/lib/constants/pending-invite";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -108,7 +109,7 @@ export default function LoginPage() {
       }
     }
 
-    router.push("/main/dashboard");
+    router.push(destinationAfterAuth());
     router.refresh();
   }
 
@@ -131,7 +132,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/main/dashboard");
+    router.push(destinationAfterAuth());
     router.refresh();
   }
 

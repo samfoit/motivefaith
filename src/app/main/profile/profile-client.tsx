@@ -13,6 +13,8 @@ import {
   Heart,
   Shield,
   Trash2,
+  Share2,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
@@ -26,6 +28,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/types";
 import { ALLOWED_IMAGE_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
+import { ShareInviteSheet } from "@/components/social/ShareInviteSheet";
 
 interface ProfileClientProps {
   userId: string;
@@ -60,6 +63,7 @@ export function ProfileClient({
   const [mfaDisableCode, setMfaDisableCode] = useState("");
 
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Check current MFA status on mount
   useEffect(() => {
@@ -283,6 +287,33 @@ export function ProfileClient({
 
         {/* Settings sections */}
         <div className="space-y-5">
+          {/* Friends */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <UserPlus className="w-4 h-4 text-text-tertiary" />
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider">
+                Friends
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className="w-full rounded-lg bg-elevated p-4 shadow-sm text-left transition-opacity active:opacity-70"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-text-primary">
+                    Invite a friend
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    Share a link that signs them up and adds you
+                  </p>
+                </div>
+                <Share2 className="w-4 h-4 flex-shrink-0 text-text-tertiary" />
+              </div>
+            </button>
+          </section>
+
           {/* Appearance */}
           <section>
             <div className="flex items-center gap-2 mb-3">
@@ -676,6 +707,13 @@ export function ProfileClient({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         hasMfa={mfaEnabled}
+      />
+
+      <ShareInviteSheet
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        username={profile?.username ?? null}
+        displayName={profile?.display_name ?? null}
       />
 
       {ToastElements}

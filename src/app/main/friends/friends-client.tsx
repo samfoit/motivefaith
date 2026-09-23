@@ -11,6 +11,7 @@ import {
   X,
   Loader2,
   Clock,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { createClient } from "@/lib/supabase/client";
@@ -23,6 +24,7 @@ import {
   FriendProfileSheet,
   type SheetFriend,
 } from "@/components/social/FriendProfileSheet";
+import { ShareInviteSheet } from "@/components/social/ShareInviteSheet";
 import { FRIEND_POLL_MIN_MS, FRIEND_POLL_JITTER_MS } from "@/lib/constants/limits";
 import {
   useFriendsList,
@@ -53,10 +55,14 @@ const TAB_TRIGGER_CLASS = cn(
 
 export function FriendsClient({
   userId,
+  username,
+  displayName,
   initialFriends,
   initialRequests,
 }: {
   userId: string;
+  username: string | null;
+  displayName: string | null;
   initialFriends?: FriendWithProfile[];
   initialRequests?: { incoming: FriendWithProfile[]; outgoing: FriendWithProfile[] };
 }) {
@@ -64,6 +70,7 @@ export function FriendsClient({
   const deferredQuery = useDeferredValue(searchQuery);
   // Tapping a friend used to do nothing at all. It now opens their habits.
   const [sheetFriend, setSheetFriend] = useState<SheetFriend | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const { show: showToast, ToastElements } = useToast();
   const queryClient = useQueryClient();
 
@@ -202,13 +209,25 @@ export function FriendsClient({
     // add empty scroll under the nav.
     <>
       <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4 sm:pt-6 sm:space-y-6">
-        {/* Header */}
-        <h1
-          className="font-display font-bold text-[var(--color-text-primary)]"
-          style={{ fontSize: "var(--text-2xl)" }}
-        >
-          Friends
-        </h1>
+        {/* Header — searching for a username only works on people who are
+            already here, so the way to reach everyone else sits beside it. */}
+        <div className="flex items-center justify-between gap-3">
+          <h1
+            className="font-display font-bold text-[var(--color-text-primary)]"
+            style={{ fontSize: "var(--text-2xl)" }}
+          >
+            Friends
+          </h1>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShareOpen(true)}
+            className="flex-shrink-0"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Invite</span>
+          </Button>
+        </div>
 
         {/* Search bar */}
         <div className="relative">
@@ -312,7 +331,13 @@ export function FriendsClient({
                 <EmptyState
                   emoji="👋"
                   title="No friends yet"
-                  description="Search for friends by username to get started"
+                  description="Search by username, or send someone your invite link."
+                  action={
+                    <Button size="sm" onClick={() => setShareOpen(true)}>
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Invite a friend</span>
+                    </Button>
+                  }
                 />
               )}
             </Tabs.Content>
@@ -383,6 +408,12 @@ export function FriendsClient({
         friend={sheetFriend}
         open={!!sheetFriend}
         onOpenChange={(o) => { if (!o) setSheetFriend(null); }}
+      />
+      <ShareInviteSheet
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        username={username}
+        displayName={displayName}
       />
       {ToastElements}
     </>
@@ -582,10 +613,12 @@ function EmptyState({
   emoji,
   title,
   description,
+  action,
 }: {
   emoji: string;
   title: string;
   description: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="text-center py-12">
@@ -596,6 +629,7 @@ function EmptyState({
       <p className="text-xs text-[var(--color-text-tertiary)]">
         {description}
       </p>
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
 }
