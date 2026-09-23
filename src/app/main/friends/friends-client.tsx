@@ -190,8 +190,12 @@ export function FriendsClient({
   const incomingCount = requests.data?.incoming.length ?? 0;
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+    // No `min-h-screen` wrapper: the layout root is already `min-h-dvh` and
+    // paints the background, so a full-viewport minimum inside `main` — which
+    // sits below the TopBar and carries the bottom-nav clearance — could only
+    // add empty scroll under the nav.
+    <>
+      <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4 sm:pt-6 sm:space-y-6">
         {/* Header */}
         <h1
           className="font-display font-bold text-[var(--color-text-primary)]"
@@ -369,7 +373,7 @@ export function FriendsClient({
       </div>
 
       {ToastElements}
-    </div>
+    </>
   );
 }
 
