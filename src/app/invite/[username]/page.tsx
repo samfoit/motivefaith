@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import { parseInviteUsername } from "@/lib/constants/pending-invite";
@@ -6,6 +7,34 @@ import type { FriendProfile } from "@/lib/hooks/useFriends";
 
 interface Props {
   params: Promise<{ username: string }>;
+}
+
+/**
+ * A shared invite is a link somebody pastes into a group chat, so the preview
+ * is the first thing most people see of this product — before the page, and
+ * often instead of it. It names the sender for the same reason the page does:
+ * "someone invited you" is a very different message from "@sam_foit did".
+ *
+ * Only the username, never the display name. This runs for crawlers with no
+ * session, and `anon` cannot read profiles.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const username = parseInviteUsername((await params).username);
+
+  const title = username
+    ? `@${username} invited you to MotiveFaith`
+    : "You've been invited to MotiveFaith";
+  const description =
+    "Track the habits that matter, with people who keep you honest.";
+
+  return {
+    title,
+    description,
+    openGraph: { type: "website", siteName: "MotiveFaith", title, description },
+    twitter: { card: "summary_large_image", title, description },
+    // An invite is for one person; it has no business in a search index.
+    robots: { index: false, follow: false },
+  };
 }
 
 /**

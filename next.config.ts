@@ -11,6 +11,14 @@ const supabaseHostname = (() => {
 })();
 
 const nextConfig: NextConfig = {
+  // The OG renderer reads its display font off disk at request time. File
+  // tracing usually finds a literal path, but a font it misses is a runtime
+  // failure on a route nobody visits by hand — so the directory is named
+  // explicitly rather than left to inference.
+  outputFileTracingIncludes: {
+    "/opengraph-image": ["./src/app/_fonts/**"],
+    "/invite/[username]/opengraph-image": ["./src/app/_fonts/**"],
+  },
   ...(process.env.NODE_ENV === "development" &&
     process.env.DEV_ORIGIN && {
       allowedDevOrigins: [process.env.DEV_ORIGIN],

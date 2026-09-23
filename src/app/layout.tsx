@@ -63,9 +63,35 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * Absolute base for every generated OG URL. Without it Next emits relative
+ * image paths, which crawlers cannot resolve — the preview silently falls back
+ * to no image at all. VERCEL_URL covers preview deploys, where the host is not
+ * known until build time.
+ */
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+
 export const metadata: Metadata = {
+  ...(siteUrl ? { metadataBase: new URL(siteUrl) } : {}),
   title: "MotiveFaith",
   description: "Faith-driven accountability habit tracker",
+  // The image itself comes from `opengraph-image.tsx` alongside this file;
+  // Next wires it into both cards, so neither names a URL here.
+  openGraph: {
+    type: "website",
+    siteName: "MotiveFaith",
+    title: "MotiveFaith",
+    description:
+      "Keep the habits that matter, with people who keep you honest.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MotiveFaith",
+    description:
+      "Keep the habits that matter, with people who keep you honest.",
+  },
   icons: {
     icon: [
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
