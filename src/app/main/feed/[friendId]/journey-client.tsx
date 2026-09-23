@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -10,7 +10,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Pill } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { SharedHabits } from "@/components/social/SharedHabits";
-import { DiscoverableHabits } from "@/components/social/DiscoverableHabits";
+import { FriendProfileSheet } from "@/components/social/FriendProfileSheet";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { createClient } from "@/lib/supabase/client";
 import { sendOrQueue } from "@/lib/offline-write";
@@ -18,7 +18,6 @@ import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
 import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
-import type { ProfileHabit } from "@/lib/types/partners";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -27,15 +26,11 @@ import type { ProfileHabit } from "@/lib/types/partners";
 interface JourneyClientProps {
   data: JourneyData;
   userId: string;
-  /** Their public habits you are not partnered on yet. */
-  discoverable?: ProfileHabit[];
 }
 
-export function JourneyClient({
-  data,
-  userId,
-  discoverable = [],
-}: JourneyClientProps) {
+export function JourneyClient({ data, userId }: JourneyClientProps) {
+  // Their habits live behind a tap on their name, not inline above the thread.
+  const [profileOpen, setProfileOpen] = useState(false);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { show: showToast, ToastElements } = useToast();
@@ -361,33 +356,36 @@ export function JourneyClient({
           >
             <ArrowLeft className="w-5 h-5 text-text-secondary" />
           </button>
-          <Avatar
-            src={friend.avatar_url}
-            name={friend.display_name}
-            size="sm"
-          />
-          <div className="min-w-0">
-            <h1 className="font-display font-bold text-text-primary text-base truncate">
-              {friend.display_name}
-            </h1>
-            <Pill size="sm" variant="default">
-              Friends{" "}
-              {formatDistanceToNow(new Date(friendshipSince), {
-                addSuffix: false,
-              })}
-            </Pill>
-          </div>
+          <button
+            type="button"
+            onClick={() => setProfileOpen(true)}
+            className="flex min-w-0 items-center gap-3 text-left rounded-lg transition-opacity active:opacity-70"
+            aria-label={`View ${friend.display_name}'s habits`}
+          >
+            <Avatar
+              src={friend.avatar_url}
+              name={friend.display_name}
+              size="sm"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1">
+                <span className="font-display font-bold text-text-primary text-base truncate">
+                  {friend.display_name}
+                </span>
+                <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
+              </span>
+              <Pill size="sm" variant="default">
+                Friends{" "}
+                {formatDistanceToNow(new Date(friendshipSince), {
+                  addSuffix: false,
+                })}
+              </Pill>
+            </span>
+          </button>
         </div>
 
         {/* Shared habits — one line of chips, details in a sheet */}
         <SharedHabits habits={habits} friendName={friendFirstName} />
-
-        {/* Habits of theirs you could ask to watch */}
-        <DiscoverableHabits
-          habits={discoverable}
-          friendName={friendFirstName}
-          onChanged={() => router.refresh()}
-        />
 
         {/* Timeline */}
         <section>
@@ -445,6 +443,12 @@ export function JourneyClient({
         </form>
       </div>
 
+      <FriendProfileSheet
+        friend={friend}
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        onChanged={() => router.refresh()}
+      />
       {ToastElements}
     </div>
   );

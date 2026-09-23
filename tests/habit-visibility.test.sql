@@ -65,19 +65,37 @@ INSERT INTO storage.objects (bucket_id, name, owner) VALUES
   ('completions', 'a1000000-0000-4000-8000-000000000001/b0000000-0000-4000-8000-000000000002/public.jpg',  'a1000000-0000-4000-8000-000000000001');
 
 -- ---------------------------------------------------------------------------
--- Test 1: the backfill
+-- Test 1: the defaults that make the backfill safe
 -- ---------------------------------------------------------------------------
+-- This began as two assertions about 029's backfill — that every habit had
+-- been made private and every share given a status. Those are facts about one
+-- moment in the past, and asserting them against live rows makes the suite
+-- fail the first time anyone makes a habit public. What is durable, and what
+-- the backfill was really establishing, is the pair of column defaults: a
+-- habit nobody has opted in is private, and a partnership nobody has answered
+-- grants nothing.
 
 DO $$
-DECLARE n INT;
+DECLARE v_vis habit_visibility; v_status habit_partner_status;
 BEGIN
-  SELECT count(*) INTO n FROM public.habits WHERE visibility <> 'private' AND created_at < now() - interval '1 second';
-  ASSERT n = 0, 'TEST 1a FAILED: pre-existing habits should all have been made private';
-  RAISE NOTICE 'TEST 1a PASSED: backfill left every pre-existing habit private';
+  INSERT INTO public.habits (id, user_id, title, emoji)
+  VALUES ('e9000000-0000-4000-8000-000000000009',
+          'a1000000-0000-4000-8000-000000000001', 'Default Check', '🧪');
+  SELECT visibility INTO v_vis FROM public.habits
+   WHERE id = 'e9000000-0000-4000-8000-000000000009';
+  ASSERT v_vis = 'private', 'TEST 1a FAILED: a new habit defaults to %, not private', v_vis;
+  RAISE NOTICE 'TEST 1a PASSED: a habit nobody opted in is private';
 
-  SELECT count(*) INTO n FROM public.habit_shares WHERE status IS NULL OR initiated_by IS NULL;
-  ASSERT n = 0, 'TEST 1b FAILED: backfill left habit_shares rows without a status or initiator';
-  RAISE NOTICE 'TEST 1b PASSED: every pre-existing share has a status and an initiator';
+  INSERT INTO public.habit_shares (habit_id, shared_with, initiated_by)
+  VALUES ('e9000000-0000-4000-8000-000000000009',
+          'a2000000-0000-4000-8000-000000000002',
+          'a1000000-0000-4000-8000-000000000001');
+  SELECT status INTO v_status FROM public.habit_shares
+   WHERE habit_id = 'e9000000-0000-4000-8000-000000000009';
+  ASSERT v_status = 'pending', 'TEST 1b FAILED: a new share defaults to %, not pending', v_status;
+  RAISE NOTICE 'TEST 1b PASSED: a partnership nobody answered defaults to pending';
+
+  DELETE FROM public.habits WHERE id = 'e9000000-0000-4000-8000-000000000009';
 END $$;
 
 -- ---------------------------------------------------------------------------

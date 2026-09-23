@@ -20,14 +20,14 @@ describe("VisibilityPicker", () => {
     expect(onChange).toHaveBeenCalledWith("public");
   });
 
-  it("does not promise that public means watched", () => {
+  it("does not promise that public means followed", () => {
     // The distinction the whole feature rests on: public is about being
     // findable, not about who sees the streak. If this copy drifts back into
     // "everyone can see your progress", the setting is lying.
     render(<VisibilityPicker value="public" onChange={vi.fn()} />);
 
     expect(
-      screen.getByText(/ask to be your partner/i),
+      screen.getByText(/ask to follow it/i),
     ).toBeInTheDocument();
   });
 });

@@ -53,7 +53,7 @@ export function useRespondToPartner() {
   });
 }
 
-/** Ask to watch a friend's public habit. */
+/** Ask to follow a friend's public habit. */
 export function useRequestPartner() {
   const invalidate = useInvalidatePartnerViews();
 

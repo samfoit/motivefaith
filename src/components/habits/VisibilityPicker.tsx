@@ -22,7 +22,7 @@ const OPTIONS: {
     icon: Globe,
     label: "Public",
     description:
-      "Friends can see this on your profile and ask to be your partner.",
+      "Friends can see this on your profile and ask to follow it.",
   },
 ];
 
@@ -36,7 +36,7 @@ interface VisibilityPickerProps {
  * Where a habit can be *found* — not who can see how it is going.
  *
  * The two are worth keeping apart in the copy, because people reasonably read
- * "public" as "everyone watches my streak". They do not: a public habit tells
+ * "public" as "everyone follows my streak". They do not: a public habit tells
  * friends it exists and what it is called, so they have something to ask
  * about. The streak arrives with the partnership, whichever way round the
  * partnership was started.

@@ -467,7 +467,7 @@ export function HabitDetailClient({
     setRemovingShareId(null);
   };
 
-  /** Answer someone who asked to watch this habit. */
+  /** Answer someone who asked to follow this habit. */
   const handleRespond = async (shareId: string, accept: boolean) => {
     setRespondingId(shareId);
     const supabase = createClient();
@@ -726,7 +726,7 @@ export function HabitDetailClient({
             {requests.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm font-medium text-[var(--color-text-secondary)]">
-                  Asked to join
+                  Requested
                 </p>
                 {requests.map((row) => (
                   <div
@@ -944,7 +944,7 @@ export function HabitDetailClient({
                   No accountability partners yet
                 </p>
                 <p className="text-xs text-[var(--color-text-tertiary)]">
-                  Add friends first, then invite them to watch this habit
+                  Add friends first, then invite them to follow this habit
                 </p>
               </div>
             )}

@@ -7,7 +7,8 @@ export type PartnerStatus = Database["public"]["Enums"]["habit_partner_status"];
  * One row of `get_partner_inbox` — something pending that is yours to answer.
  *
  * `direction` is the whole point: an invitation came from the habit's owner and
- * is asking you to watch, a request came from a friend asking to watch you.
+ * is asking you to follow it, a request came from a friend asking to follow
+ * yours.
  * The RPC only ever returns rows the caller is the one to answer, so there is
  * no "waiting on them" state here.
  */

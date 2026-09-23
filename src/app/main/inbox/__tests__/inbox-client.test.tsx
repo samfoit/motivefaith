@@ -66,15 +66,15 @@ describe("InboxClient partnership sections", () => {
     ]);
 
     expect(screen.getByText("Invitations")).toBeInTheDocument();
-    expect(screen.getByText("Requests to join")).toBeInTheDocument();
-    expect(screen.getByText(/wants you to watch/)).toBeInTheDocument();
-    expect(screen.getByText(/asked to watch/)).toBeInTheDocument();
+    expect(screen.getByText("Follow requests")).toBeInTheDocument();
+    expect(screen.getByText(/invited you to follow/)).toBeInTheDocument();
+    expect(screen.getByText(/asked to follow/)).toBeInTheDocument();
   });
 
   it("accepts an invitation by its share id", async () => {
     renderInbox([makeItem()]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await userEvent.click(screen.getByRole("button", { name: /Accept Alice Johnson/ }));
 
     expect(respond).toHaveBeenCalledWith({ shareId: "share-1", accept: true });
   });

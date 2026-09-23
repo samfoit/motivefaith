@@ -113,7 +113,7 @@ BEGIN
     'TEST 1 FAILED: invitation went to the wrong person';
   ASSERT p->>'type' = 'partner_request', 'TEST 1 FAILED: wrong type %', p->>'type';
   ASSERT p->>'url' = '/main/inbox', 'TEST 1 FAILED: wrong url %', p->>'url';
-  ASSERT p->>'title' LIKE '%invited you to watch Journal%',
+  ASSERT p->>'title' LIKE '%invited you to follow Journal%',
     'TEST 1 FAILED: wrong wording: %', p->>'title';
   RAISE NOTICE 'TEST 1 PASSED: an invitation notifies the invitee, and points at the inbox';
 END $$;
@@ -138,7 +138,7 @@ BEGIN
   ASSERT p->>'type' = 'partner_accepted', 'TEST 2 FAILED: wrong type %', p->>'type';
   ASSERT p->>'url' = '/main/habits/e2000000-0000-4000-8000-000000000002',
     'TEST 2 FAILED: should land on the owner''s own habit, got %', p->>'url';
-  ASSERT p->>'title' LIKE '%is now watching Journal%',
+  ASSERT p->>'title' LIKE '%is now following Journal%',
     'TEST 2 FAILED: wrong wording: %', p->>'title';
   RAISE NOTICE 'TEST 2 PASSED: acceptance notifies the inviter and opens their habit';
 END $$;
@@ -158,7 +158,7 @@ BEGIN
   p := public._last_push();
   ASSERT p->>'user_id' = 'f1000000-0000-4000-8000-000000000001',
     'TEST 3a FAILED: a request should notify the habit owner';
-  ASSERT p->>'title' LIKE '%asked to watch Morning Run%',
+  ASSERT p->>'title' LIKE '%asked to follow Morning Run%',
     'TEST 3a FAILED: wrong wording: %', p->>'title';
   RAISE NOTICE 'TEST 3a PASSED: a request notifies the owner';
 END $$;

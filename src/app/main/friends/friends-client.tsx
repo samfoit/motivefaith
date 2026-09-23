@@ -19,6 +19,10 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { useDelayedLoading } from "@/lib/hooks/useDelayedLoading";
+import {
+  FriendProfileSheet,
+  type SheetFriend,
+} from "@/components/social/FriendProfileSheet";
 import { FRIEND_POLL_MIN_MS, FRIEND_POLL_JITTER_MS } from "@/lib/constants/limits";
 import {
   useFriendsList,
@@ -58,6 +62,8 @@ export function FriendsClient({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredQuery = useDeferredValue(searchQuery);
+  // Tapping a friend used to do nothing at all. It now opens their habits.
+  const [sheetFriend, setSheetFriend] = useState<SheetFriend | null>(null);
   const { show: showToast, ToastElements } = useToast();
   const queryClient = useQueryClient();
 
@@ -297,6 +303,7 @@ export function FriendsClient({
                         friend={friend}
                         onRemove={() => handleRemove(friend.id)}
                         isRemoving={removeFriend.isPending}
+                        onOpen={() => setSheetFriend(friend.profile)}
                       />
                     </div>
                   ))}
@@ -372,6 +379,11 @@ export function FriendsClient({
         )}
       </div>
 
+      <FriendProfileSheet
+        friend={sheetFriend}
+        open={!!sheetFriend}
+        onOpenChange={(o) => { if (!o) setSheetFriend(null); }}
+      />
       {ToastElements}
     </>
   );
@@ -426,28 +438,39 @@ function FriendCard({
   friend,
   onRemove,
   isRemoving,
+  onOpen,
 }: {
   friend: FriendWithProfile;
   onRemove: () => void;
   isRemoving: boolean;
+  onOpen: () => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   return (
     <div className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm">
-      <Avatar
-        src={friend.profile.avatar_url}
-        name={friend.profile.display_name}
-        size="sm"
-      />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-          {friend.profile.display_name}
-        </p>
-        <p className="text-xs text-[var(--color-text-tertiary)]">
-          @{friend.profile.username}
-        </p>
-      </div>
+      {/* The row itself opens their habits; remove keeps its own hit area so a
+          mis-tap cannot unfriend anyone. */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex flex-1 min-w-0 items-center gap-3 text-left rounded-md transition-opacity active:opacity-70"
+        aria-label={`View ${friend.profile.display_name}'s habits`}
+      >
+        <Avatar
+          src={friend.profile.avatar_url}
+          name={friend.profile.display_name}
+          size="sm"
+        />
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-medium text-[var(--color-text-primary)] truncate">
+            {friend.profile.display_name}
+          </span>
+          <span className="block text-xs text-[var(--color-text-tertiary)]">
+            @{friend.profile.username}
+          </span>
+        </span>
+      </button>
       {!confirmRemove ? (
         <button
           onClick={() => setConfirmRemove(true)}

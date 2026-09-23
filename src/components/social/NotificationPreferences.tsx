@@ -236,7 +236,7 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
 
       <ToggleRow
         label="Partner Requests"
-        description="Invitations to watch a habit, and replies to yours"
+        description="Invitations to follow a habit, and replies to yours"
         checked={prefs.partner_alerts}
         onCheckedChange={(v) => update({ partner_alerts: v })}
       />

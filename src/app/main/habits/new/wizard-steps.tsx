@@ -401,7 +401,7 @@ export function StepSharing({
           Accountability
         </h2>
         <p className="text-sm text-[var(--color-text-secondary)]">
-          Choose who can find this habit, and who you want watching.
+          Choose who can find this habit, and who you want following it.
         </p>
       </div>
 

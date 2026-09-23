@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bell, X, HandHeart, Mail } from "lucide-react";
+import { AlertTriangle, Bell, X, UserPlus, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -66,7 +66,7 @@ export function InboxClient({
         variant: accept ? "success" : "info",
         title: accept
           ? item.direction === "invite"
-            ? `Now watching ${item.habitTitle}`
+            ? `Now following ${item.habitTitle}`
             : "Partner added"
           : "Declined",
       });
@@ -123,7 +123,7 @@ export function InboxClient({
         {invites.length > 0 && (
           <PartnerSection
             title="Invitations"
-            subtitle="Someone wants you watching their habit"
+            subtitle="Someone wants you following their habit"
             icon={Mail}
             items={invites}
             respondingId={respondingId}
@@ -131,7 +131,7 @@ export function InboxClient({
             acceptLabel="Accept"
             describe={(item) => (
               <>
-                wants you to watch{" "}
+                invited you to follow{" "}
                 <span className="font-medium">
                   {item.habitEmoji} {item.habitTitle}
                 </span>
@@ -142,16 +142,16 @@ export function InboxClient({
 
         {requests.length > 0 && (
           <PartnerSection
-            title="Requests to join"
-            subtitle="Friends asking to watch your habits"
-            icon={HandHeart}
+            title="Follow requests"
+            subtitle="Friends asking to follow your habits"
+            icon={UserPlus}
             items={requests}
             respondingId={respondingId}
             onRespond={handleRespond}
             acceptLabel="Accept"
             describe={(item) => (
               <>
-                asked to watch{" "}
+                asked to follow{" "}
                 <span className="font-medium">
                   {item.habitEmoji} {item.habitTitle}
                 </span>
@@ -187,7 +187,12 @@ export function InboxClient({
                     <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
                       {item.friendName}
                     </p>
-                    <p className="text-xs text-[var(--color-text-secondary)] truncate">
+                    {/* Same defect as the partnership rows had: the habit's
+                        name sits at the end, so a single truncated line cut
+                        exactly the word that identifies which habit was
+                        missed. These actions are small, so two lines is
+                        enough without restructuring the row. */}
+                    <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">
                       Hasn&apos;t completed{" "}
                       <span className="font-medium">
                         {item.emoji} {item.title}
@@ -284,36 +289,46 @@ function PartnerSection({
           return (
             <div
               key={item.shareId}
-              className="habit-tint flex items-center gap-3 rounded-lg border p-3"
+              className="habit-tint rounded-lg border p-3"
               style={{ ["--habit-color" as string]: item.habitColor }}
             >
-              <Avatar
-                src={item.person.avatar_url}
-                name={item.person.display_name}
-                size="sm"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
-                  {item.person.display_name}
-                </p>
-                <p className="text-xs text-[var(--color-text-secondary)] truncate">
-                  {describe(item)}
-                </p>
+              {/* The actions sit on their own row rather than beside the text.
+                  Inline, they took 106px of a 336px row at 360px, leaving 148px
+                  for a sentence that ends in the habit's name — so truncation
+                  ate the one word you need in order to decide ("invited you to
+                  follow ✅ Evenin…"). Given the full width the name survives,
+                  and Decline gets to be a labelled button instead of a bare X. */}
+              <div className="flex items-start gap-3">
+                <Avatar
+                  src={item.person.avatar_url}
+                  name={item.person.display_name}
+                  size="sm"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
+                    {item.person.display_name}
+                  </p>
+                  <p className="text-xs text-[var(--color-text-secondary)]">
+                    {describe(item)}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onRespond(item, false)}
+
+              <div className="mt-2.5 flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
                   disabled={isBusy}
-                  className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
                   aria-label={`Decline ${item.person.display_name}`}
+                  onClick={() => onRespond(item, false)}
                 >
-                  <X className="w-4 h-4" />
-                </button>
+                  Decline
+                </Button>
                 <Button
                   size="sm"
                   loading={isBusy}
                   disabled={isBusy}
+                  aria-label={`${acceptLabel} ${item.person.display_name}`}
                   onClick={() => onRespond(item, true)}
                 >
                   {acceptLabel}

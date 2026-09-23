@@ -2,11 +2,6 @@ import { notFound, redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import { JourneyClient } from "./journey-client";
-import {
-  toProfileHabit,
-  type ProfileHabit,
-  type ProfileHabitRpcRow,
-} from "@/lib/types/partners";
 
 export const revalidate = 30;
 import type {
@@ -91,12 +86,8 @@ export default async function JourneyPage({ params }: Props) {
   if (!friendship) notFound();
 
   // 2. Profiles + journey + their profile habits, in parallel
-  const [
-    { data: friendProfile },
-    { data: myProfile },
-    { data: journeyRows },
-    { data: profileHabitRows },
-  ] = await Promise.all([
+  const [{ data: friendProfile }, { data: myProfile }, { data: journeyRows }] =
+    await Promise.all([
     supabase
       .from("profiles")
       .select("id, display_name, avatar_url, username")
@@ -110,9 +101,6 @@ export default async function JourneyPage({ params }: Props) {
     untypedRpc<JourneyRpcRow[]>(supabase, "get_friend_journey", {
       p_user_id: user.id,
       p_friend_id: friendId,
-    }),
-    untypedRpc<ProfileHabitRpcRow[]>(supabase, "get_profile_habits", {
-      p_user_id: friendId,
     }),
   ]);
 
@@ -172,12 +160,6 @@ export default async function JourneyPage({ params }: Props) {
     completion_id: e.completion_id ?? null,
   }));
 
-  // Anything already partnered on is a chip in SharedHabits, with its stats.
-  // What is left is the discoverable set: public habits to ask about.
-  const discoverable: ProfileHabit[] = (profileHabitRows ?? [])
-    .map(toProfileHabit)
-    .filter((h) => h.partnerStatus !== "accepted");
-
   const journeyData: JourneyData = {
     friend,
     friendshipSince: friendship.created_at!,
@@ -186,11 +168,5 @@ export default async function JourneyPage({ params }: Props) {
     encouragements,
   };
 
-  return (
-    <JourneyClient
-      data={journeyData}
-      userId={user.id}
-      discoverable={discoverable}
-    />
-  );
+  return <JourneyClient data={journeyData} userId={user.id} />;
 }
