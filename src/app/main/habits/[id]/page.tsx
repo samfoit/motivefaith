@@ -32,7 +32,7 @@ export default async function HabitDetailPage({ params }: Props) {
     { data: groupShares },
     { data: friendships },
   ] = await Promise.all([
-    supabase.from("profiles").select("timezone").eq("id", user.id).single(),
+    supabase.from("profiles").select("timezone, username").eq("id", user.id).single(),
     supabase
       .from("habits")
       .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, visibility, created_at")
@@ -134,6 +134,7 @@ export default async function HabitDetailPage({ params }: Props) {
       availableFriends={availableFriends}
       sharedGroups={sharedGroups}
       timezone={timeZone}
+      username={profileTz?.username ?? null}
     />
   );
 }

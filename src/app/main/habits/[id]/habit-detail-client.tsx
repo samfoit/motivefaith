@@ -22,6 +22,7 @@ import {
   Users,
   X,
   Pencil,
+  Share2,
   Mic,
   Globe,
   Lock,
@@ -58,6 +59,10 @@ const StreakCelebration = dynamic(
 );
 const EditHabitSheet = dynamic(
   () => import("@/components/habits/EditHabitSheet").then((m) => m.EditHabitSheet),
+  { ssr: false },
+);
+const ShareCardSheet = dynamic(
+  () => import("@/components/social/ShareCardSheet").then((m) => m.ShareCardSheet),
   { ssr: false },
 );
 
@@ -113,6 +118,8 @@ interface HabitDetailClientProps {
   availableFriends?: Partner[];
   sharedGroups?: SharedGroup[];
   timezone: string;
+  /** The owner's own username, for the invite link on a shared card. */
+  username: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +183,7 @@ export function HabitDetailClient({
   availableFriends = [],
   sharedGroups = [],
   timezone,
+  username,
 }: HabitDetailClientProps) {
   const router = useRouter();
   const completeHabit = useCompleteHabit();
@@ -194,6 +202,7 @@ export function HabitDetailClient({
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const { partners, invited, requests } = useMemo(() => {
     return {
@@ -542,6 +551,16 @@ export function HabitDetailClient({
                 aria-label="Edit habit"
               >
                 <Pencil className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+              </button>
+              {/* Always offered, never prompted. A streak is the user's to
+                  post at two days or two hundred; the app does not get to
+                  decide which ones were worth celebrating. */}
+              <button
+                onClick={() => setShareOpen(true)}
+                className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors flex-shrink-0"
+                aria-label="Share this habit"
+              >
+                <Share2 className="w-4 h-4 text-[var(--color-text-tertiary)]" />
               </button>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[var(--color-text-tertiary)]">
@@ -1067,6 +1086,16 @@ export function HabitDetailClient({
         habit={habit}
         onSaved={handleHabitSaved}
         showToast={showToast}
+      />
+
+      {/* Share card */}
+      <ShareCardSheet
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        title={habit.title}
+        streak={habit.streak_current ?? 0}
+        unit={streakUnit}
+        username={username}
       />
 
       {/* Streak celebration */}
