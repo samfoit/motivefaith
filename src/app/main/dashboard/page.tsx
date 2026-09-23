@@ -27,21 +27,24 @@ import { DashboardClient } from "./dashboard-client";
  * worker refuses to cache.
  */
 export default function DashboardPage() {
+  // No `min-h-screen` here, deliberately: the layout's root is already
+  // `min-h-dvh` and paints the background. Inside `main` — which starts below
+  // a 56px TopBar and carries the bottom-nav clearance — a full-viewport
+  // minimum could only overflow, and did: a short day left ~150px of empty
+  // scroll under the nav on every phone.
   return (
-    <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
-        <DashboardClient
-          headerAction={
-            <Link
-              href="/main/habits/new"
-              aria-label="Create new habit"
-              className="flex items-center justify-center w-9 h-9 rounded-full bg-brand text-text-primary hover:bg-brand-hover transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-            </Link>
-          }
-        />
-      </div>
+    <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4 sm:pt-6 sm:space-y-6">
+      <DashboardClient
+        headerAction={
+          <Link
+            href="/main/habits/new"
+            aria-label="Create new habit"
+            className="flex items-center justify-center w-9 h-9 rounded-full bg-brand text-text-primary hover:bg-brand-hover transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+          </Link>
+        }
+      />
     </div>
   );
 }

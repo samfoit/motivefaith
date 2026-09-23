@@ -81,21 +81,20 @@ export function DashboardContentSkeleton() {
 /** The whole screen, greeting included — for the route-level `loading.tsx`. */
 export function DashboardSkeleton() {
   return (
-    <div className="min-h-screen">
-      <SkeletonScreen
-        label="Loading your habits"
-        className="max-w-2xl mx-auto px-4 pt-6 space-y-6"
-      >
-        {/* Greeting + new-habit button */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-2 flex-1">
-            <Skeleton variant="text" width="55%" height={32} />
-            <Skeleton variant="text" width="35%" height={16} />
-          </div>
-          <Skeleton variant="circle" width={36} height={36} />
+    <SkeletonScreen
+      label="Loading your habits"
+      className="max-w-2xl mx-auto px-4 pt-4 space-y-4 sm:pt-6 sm:space-y-6"
+    >
+      {/* Greeting + new-habit button — the same 3.25rem the live header
+          reserves, so the swap moves nothing below it. */}
+      <div className="flex items-center justify-between min-h-[3.25rem]">
+        <div className="space-y-2 flex-1">
+          <Skeleton variant="text" width="55%" height={32} />
+          <Skeleton variant="text" width="35%" height={16} />
         </div>
-        <DashboardContentSkeleton />
-      </SkeletonScreen>
-    </div>
+        <Skeleton variant="circle" width={36} height={36} />
+      </div>
+      <DashboardContentSkeleton />
+    </SkeletonScreen>
   );
 }
