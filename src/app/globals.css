@@ -168,6 +168,25 @@ body {
   .motive-skeleton-screen {
     animation: motive-skeleton-reveal 120ms ease-out var(--skeleton-delay) both;
   }
+
+  /* Held controls, such as the camera shutter. iOS reads a long press on a
+     button as an attempt to select it and raises the selection handles and
+     the copy/share callout over the top; both have to be waived explicitly,
+     because `user-select` alone does not stop the callout. Text the user is
+     actually meant to work with opts back in below. */
+  .motive-press-hold,
+  .motive-press-hold * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .motive-press-hold input,
+  .motive-press-hold textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
 /* Streak celebration particle keyframes (moved from inline <style> in StreakCelebration) */
