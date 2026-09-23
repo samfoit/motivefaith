@@ -2,19 +2,68 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock, Flame, Trophy } from "lucide-react";
+import { CheckCircle2, Clock, CloudRain, Flame, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { weekdayName } from "@/lib/utils/timezone";
 import { Sheet } from "@/components/ui/Sheet";
 import { Pill } from "@/components/ui/Badge";
-import type { JourneyHabit } from "@/lib/types/feed";
+import { Avatar } from "@/components/ui/Avatar";
+
+/**
+ * What a chip needs to render. `JourneyHabit` satisfies it as-is; the group
+ * timeline's habit rows satisfy it once the caller works out `isOwner` and
+ * names the owner, which a two-person page can leave to context but a group
+ * cannot.
+ */
+export type SharedHabitChip = {
+  id: string;
+  title: string;
+  emoji: string;
+  color: string;
+  streak_current: number;
+  /** Absent where the source query doesn't carry it — the stat is dropped. */
+  streak_best?: number;
+  isOwner: boolean;
+  completedToday: boolean;
+  rainCheckedToday?: boolean;
+  /** Where today's rain check was moved to, when it was moved at all. */
+  rainCheckMovedTo?: string | null;
+  /** Named per habit on a page with more than two people in it. */
+  ownerName?: string;
+  ownerAvatar?: string | null;
+};
 
 interface SharedHabitsProps {
-  habits: JourneyHabit[];
-  friendName: string;
+  habits: SharedHabitChip[];
+  /**
+   * Whose the un-owned habits are. A group has no single other party, so it
+   * passes `ownerName` on each habit instead.
+   */
+  friendName?: string;
 }
 
 /**
- * The shared habits between two friends, as one scrollable line of chips.
+ * Three states, not two: done, deliberately skipped, still open. A rain check
+ * reads as its own thing so a partner doesn't mistake it for a missed day.
+ */
+function dayStatusLabel(habit: {
+  completedToday: boolean;
+  rainCheckedToday?: boolean;
+  rainCheckMovedTo?: string | null;
+}): string {
+  if (habit.completedToday) return "Done today";
+  if (habit.rainCheckedToday) {
+    return habit.rainCheckMovedTo
+      ? `Moved to ${weekdayName(habit.rainCheckMovedTo)}`
+      : "Rain check today";
+  }
+  return "Not done today";
+}
+
+/**
+ * Shared habits as one scrollable line of chips — used by both the friend
+ * journey and the group timeline, which rendered its own stack of full-width
+ * cards until this replaced it.
  *
  * They used to be full-width cards — three of them pushed the first message
  * most of the way down the screen, on a page people open to read messages.
@@ -27,6 +76,10 @@ export function SharedHabits({ habits, friendName }: SharedHabitsProps) {
 
   if (habits.length === 0) return null;
 
+  /** "Yours", else the per-habit owner, else the one other person on the page. */
+  const ownerLabel = (habit: SharedHabitChip) =>
+    habit.isOwner ? "Yours" : habit.ownerName ?? friendName ?? "Shared";
+
   return (
     <>
       {/* Bleeds into the page gutter so the row can scroll edge to edge */}
@@ -37,7 +90,7 @@ export function SharedHabits({ habits, friendName }: SharedHabitsProps) {
               key={habit.id}
               type="button"
               onClick={() => setOpenId(habit.id)}
-              aria-label={`${habit.title} — ${habit.isOwner ? "your habit" : `${friendName}'s habit`}, ${habit.completedToday ? "done today" : "not done today"}`}
+              aria-label={`${habit.title} — ${habit.isOwner ? "your habit" : `${habit.ownerName ?? friendName}'s habit`}, ${dayStatusLabel(habit)}`}
               className={cn(
                 "habit-tint shrink-0 flex items-center gap-1.5 rounded-full border",
                 "pl-2.5 pr-3 py-1.5 transition-transform active:scale-95",
@@ -45,12 +98,27 @@ export function SharedHabits({ habits, friendName }: SharedHabitsProps) {
               )}
               style={{ ["--habit-color" as string]: habit.color }}
             >
+              {/* In a group, whose habit it is cannot be read from context
+                  the way it can on a two-person page. */}
+              {!habit.isOwner && habit.ownerName && (
+                <Avatar
+                  src={habit.ownerAvatar}
+                  name={habit.ownerName}
+                  size="xs"
+                  className="shrink-0"
+                />
+              )}
               <span className="text-sm leading-none">{habit.emoji}</span>
               <span className="text-xs font-medium text-text-primary truncate max-w-32">
                 {habit.title}
               </span>
               {habit.completedToday ? (
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-success" />
+              ) : habit.rainCheckedToday ? (
+                <CloudRain
+                  className="w-3.5 h-3.5 shrink-0"
+                  style={{ color: "var(--color-rain)" }}
+                />
               ) : (
                 <Clock className="w-3.5 h-3.5 shrink-0 text-text-tertiary" />
               )}
@@ -78,24 +146,31 @@ export function SharedHabits({ habits, friendName }: SharedHabitsProps) {
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <Pill size="sm" variant={selected.isOwner ? "productivity" : "social"}>
-                {selected.isOwner ? "Yours" : friendName}
+                {ownerLabel(selected)}
               </Pill>
               <Pill size="sm" variant={selected.completedToday ? "health" : "default"}>
-                {selected.completedToday ? "Done today" : "Not done today"}
+                {dayStatusLabel(selected)}
               </Pill>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div
+              className={cn(
+                "grid gap-3",
+                selected.streak_best === undefined ? "grid-cols-1" : "grid-cols-2",
+              )}
+            >
               <Stat
                 icon={<Flame className="w-4 h-4 text-streak" />}
                 label="Current streak"
                 value={selected.streak_current}
               />
-              <Stat
-                icon={<Trophy className="w-4 h-4 text-brand" />}
-                label="Best streak"
-                value={selected.streak_best}
-              />
+              {selected.streak_best !== undefined && (
+                <Stat
+                  icon={<Trophy className="w-4 h-4 text-brand" />}
+                  label="Best streak"
+                  value={selected.streak_best}
+                />
+              )}
             </div>
 
             {selected.isOwner && (

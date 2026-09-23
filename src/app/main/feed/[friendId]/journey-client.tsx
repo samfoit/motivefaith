@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 import { SharedHabits } from "@/components/social/SharedHabits";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { createClient } from "@/lib/supabase/client";
+import { sendOrQueue } from "@/lib/offline-write";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
@@ -240,28 +241,48 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
         setPendingEntries((prev) => prev.filter((e) => e.id !== existing.id));
       }
 
-      const { error } = await supabase
-        .from("encouragements")
-        .delete()
-        .eq("user_id", userId)
-        .eq("completion_id", completionId)
-        .eq("encouragement_type", "emoji")
-        .eq("content", "❤️");
-
-      if (error) {
+      try {
+        const result = await sendOrQueue(
+          {
+            id: crypto.randomUUID(),
+            kind: "encouragement.delete",
+            userId,
+            // Queue by id where we know it. An optimistic entry that was never
+            // sent has no server row to delete — its own queued create is
+            // still in the outbox and will be dropped there instead.
+            payload: { encouragementId: existing?.id ?? "" },
+          },
+          async () => {
+            const { error } = await supabase
+              .from("encouragements")
+              .delete()
+              .eq("user_id", userId)
+              .eq("completion_id", completionId)
+              .eq("encouragement_type", "emoji")
+              .eq("content", "❤️");
+            if (error) throw error;
+            return { queued: false as const };
+          },
+        );
+        if (!("queued" in result && result.queued)) debouncedRefresh();
+      } catch {
         // Restore on failure
         if (existing) {
           setPendingEntries((prev) => [...prev, existing]);
         }
         showToast({ variant: "error", title: "Failed to remove reaction" });
-      } else {
-        debouncedRefresh();
       }
       return;
     }
 
-    // Add heart
-    const optimisticId = `optimistic-heart-${Date.now()}`;
+    // Add heart.
+    //
+    // The id is minted here rather than by Postgres: `encouragements.id` is
+    // `uuid DEFAULT gen_random_uuid()` and the RLS policy constrains
+    // `user_id`, so the client may choose it. That makes a queued reaction
+    // idempotent on replay, and means the optimistic entry already carries its
+    // final id — no swap from a temporary one when the insert returns.
+    const optimisticId = crypto.randomUUID();
     setPendingEntries((prev) => [
       ...prev,
       {
@@ -276,19 +297,35 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       },
     ]);
 
-    const { data: inserted, error } = await supabase
-      .from("encouragements")
-      .insert({
-        user_id: userId,
-        recipient_id: friend.id,
-        encouragement_type: "emoji",
-        content: "❤️",
-        completion_id: completionId,
-      })
-      .select("id")
-      .single();
+    const heartRow = {
+      id: optimisticId,
+      user_id: userId,
+      recipient_id: friend.id,
+      encouragement_type: "emoji" as const,
+      content: "❤️",
+      completion_id: completionId,
+    };
 
-    if (error) {
+    try {
+      await sendOrQueue(
+        {
+          id: optimisticId,
+          kind: "encouragement.create",
+          userId,
+          payload: {
+            recipient_id: friend.id,
+            encouragement_type: "emoji",
+            content: "❤️",
+            completion_id: completionId,
+          },
+        },
+        async () => {
+          const { error } = await supabase.from("encouragements").insert(heartRow);
+          if (error) throw error;
+          return { queued: false as const };
+        },
+      );
+    } catch {
       setPendingEntries((prev) => prev.filter((e) => e.id !== optimisticId));
       showToast({
         variant: "error",
@@ -298,14 +335,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       return;
     }
 
-    if (inserted) {
-      setPendingEntries((prev) =>
-        prev.map((e) =>
-          e.id === optimisticId ? { ...e, id: inserted.id } : e,
-        ),
-      );
-    }
-
+    // No id swap: the optimistic entry was created with the row's real id, so
+    // there is no temporary one to replace once the insert lands.
     debouncedRefresh();
   }, [userId, friend.id, mergedEncouragements, showToast, debouncedRefresh]);
 

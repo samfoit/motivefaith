@@ -31,6 +31,49 @@ if (INJECTED_ASSETS.indexOf("__MOTIVE_") !== 0) {
 var APP_SHELL = SHELL_ROUTES.concat(CRITICAL_ASSETS);
 
 /**
+ * Authenticated documents that are safe to cache, because their HTML
+ * contains no user data at all.
+ *
+ * `/main/dashboard` renders only chrome plus an empty client component; its
+ * habits, streaks and greeting arrive separately from `/api/dashboard` and
+ * live in IndexedDB. So the document is byte-identical for every user, which
+ * makes it safe to store and replay — and that is what lets the dashboard
+ * paint offline instead of falling back to the dead-end offline page
+ * (DIAGNOSIS.md R1).
+ *
+ * `/main/habits/new` is the same shape: the wizard reads the user id from the
+ * local session rather than taking it from the markup, so the form can be
+ * opened offline and the habit queued.
+ *
+ * This is an allowlist, not a prefix test, and it must stay one. Every other
+ * /main/* route still renders the user's own data server-side, and caching
+ * one of those would leave it in Cache Storage to be read after logout or by
+ * the next person on a shared device. Add a route here only once its
+ * document carries no user data.
+ */
+var SHELL_DOCUMENTS = ["/main/dashboard", "/main/habits/new"];
+function isShellDocument(pathname) {
+  return SHELL_DOCUMENTS.indexOf(pathname) !== -1;
+}
+
+/** Only cache same-origin responses with safe content types. */
+function isCacheableResponse(response) {
+  if (!response.ok) return false;
+  if (response.type !== "basic") return false; // only same-origin
+  var ct = (response.headers.get("content-type") || "").toLowerCase();
+  return (
+    ct.startsWith("text/") ||
+    ct.startsWith("application/javascript") ||
+    ct.startsWith("application/json") ||
+    ct.startsWith("image/") ||
+    ct.startsWith("font/") ||
+    ct.startsWith("application/font") ||
+    ct.startsWith("application/octet-stream")
+  );
+}
+
+
+/**
  * Trim the cache to MAX_CACHE_ENTRIES, evicting oldest-first but never
  * touching the precached app shell — evicting the shell would silently
  * reintroduce the blank-first-paint this worker exists to prevent.
@@ -58,6 +101,37 @@ function trimCache(cacheName, maxEntries) {
 // Install — precache app shell
 // ---------------------------------------------------------------------------
 
+/**
+ * Precache the authenticated shell documents.
+ *
+ * Deliberately not part of APP_SHELL, because `cache.add()` follows redirects
+ * and stores the final response under the *requested* URL. A worker installed
+ * while signed out would follow proxy.ts's redirect to /auth/login and store
+ * the login page as /main/dashboard — which the next signed-in visitor would
+ * then be served offline. So fetch it, judge the response, and only keep it if
+ * it really is the shell.
+ *
+ * Without this, the shell is only cached on the *second* navigation: the first
+ * page load is what installs the worker, so no worker was controlling it and
+ * nothing saw the response. A user who opened the app once and then lost
+ * connectivity would still have got the offline page.
+ */
+function precacheShellDocuments(cache) {
+  return Promise.all(
+    SHELL_DOCUMENTS.map(function (path) {
+      return fetch(new Request(path, { cache: "reload", credentials: "same-origin" }))
+        .then(function (response) {
+          if (response.redirected) return; // signed out — not the shell
+          if (!isCacheableResponse(response)) return;
+          return cache.put(path, response);
+        })
+        .catch(function () {
+          /* offline or blocked at install — the runtime handler will cache it */
+        });
+    }),
+  );
+}
+
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
@@ -71,7 +145,9 @@ self.addEventListener("install", function (event) {
             /* non-fatal — the runtime handlers will fetch it on demand */
           });
         }),
-      );
+      ).then(function () {
+        return precacheShellDocuments(cache);
+      });
     }),
   );
   // Do NOT call self.skipWaiting() here — activation is deferred to the
@@ -125,7 +201,7 @@ self.addEventListener("fetch", function (event) {
   // Skip Supabase API calls (auth, realtime, etc.)
   if (url.hostname !== self.location.hostname) return;
 
-  /** Pages whose HTML embeds the signed-in user's own data. */
+  /** Pages behind the sign-in gate. */
   function isAuthenticatedPath(pathname) {
     return pathname.indexOf("/main/") === 0;
   }
@@ -158,38 +234,29 @@ self.addEventListener("fetch", function (event) {
     }
   }
 
-  /** Only cache same-origin responses with safe content types. */
-  function isCacheableResponse(response) {
-    if (!response.ok) return false;
-    if (response.type !== "basic") return false; // only same-origin
-    var ct = (response.headers.get("content-type") || "").toLowerCase();
-    return (
-      ct.startsWith("text/") ||
-      ct.startsWith("application/javascript") ||
-      ct.startsWith("application/json") ||
-      ct.startsWith("image/") ||
-      ct.startsWith("font/") ||
-      ct.startsWith("application/font") ||
-      ct.startsWith("application/octet-stream")
-    );
-  }
-
   if (event.request.mode === "navigate") {
-    // Authenticated pages are never written to the cache: their HTML embeds
-    // the user's own data, which must not survive logout or leak on a shared
-    // device. They stay network-first, falling back to the offline page.
+    // Authenticated pages are network-first, always: the network copy wins
+    // whenever there is one, so being online behaves exactly as it did before
+    // any of this was cached.
+    //
+    // What changed is the failure path. A page on the shell allowlist is
+    // written to the cache and served back when the network is gone, so the
+    // dashboard survives offline. Everything else under /main/ still embeds
+    // the user's data in its HTML, is still never written, and still falls
+    // back to the offline page.
     //
     // Public pages use stale-while-revalidate: a repeat visit paints from
     // cache with no network in the critical path, and the fresh copy replaces
     // it in the background for next time.
     var isAuthenticatedPage = isAuthenticatedPath(url.pathname);
+    var mayCacheDocument = !isAuthenticatedPage || isShellDocument(url.pathname);
 
     var fromNetwork = (event.preloadResponse || Promise.resolve())
       .then(function (preloaded) {
         return preloaded || fetch(event.request);
       })
       .then(function (response) {
-        if (!isAuthenticatedPage && isCacheableNavigation(response)) {
+        if (mayCacheDocument && isCacheableNavigation(response)) {
           var clone = response.clone();
           caches.open(CACHE_NAME).then(function (cache) {
             cache.put(event.request, clone);
@@ -201,10 +268,17 @@ self.addEventListener("fetch", function (event) {
     if (isAuthenticatedPage) {
       event.respondWith(
         fromNetwork.catch(function () {
-          // A dedicated offline page rather than the public landing page,
-          // which would be confusing for a signed-in user.
-          return caches.match("/offline").then(function (offlinePage) {
-            return offlinePage || new Response("Offline", { status: 503 });
+          // Offline. Serve the cached shell for this exact URL if there is
+          // one — the client then renders it from the persisted query cache.
+          // A redirected entry is refused for a navigation request, so an
+          // entry left by an older worker must not be served.
+          return caches.match(event.request).then(function (cached) {
+            if (cached && !cached.redirected) return cached;
+            // No shell for this route: a dedicated offline page rather than
+            // the public landing page, which would confuse a signed-in user.
+            return caches.match("/offline").then(function (offlinePage) {
+              return offlinePage || new Response("Offline", { status: 503 });
+            });
           });
         }),
       );
@@ -265,7 +339,12 @@ self.addEventListener("fetch", function (event) {
   // HTML was being undone one branch further down — the user's own feed,
   // profile and dashboard payloads were sitting in Cache Storage after
   // logout. Verified present in the cache before this guard was added.
-  var isAuthenticatedPayload = url.pathname.startsWith("/main/");
+  //
+  // `/api/*` is added for the same reason: `/api/dashboard` returns the user's
+  // habits as JSON, and `isCacheableResponse` accepts application/json, so it
+  // would otherwise be written to the cache and served to whoever asked next.
+  var isAuthenticatedPayload =
+    url.pathname.startsWith("/main/") || url.pathname.startsWith("/api/");
 
   event.respondWith(
     fetch(event.request)
@@ -326,7 +405,7 @@ self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
   // Whitelist allowed navigation targets to prevent push payload injection.
-  // Use URL constructor to normalise the path and resolve any traversal segments.
+  // Use URL constructor to normalize the path and resolve any traversal segments.
   var ALLOWED_PREFIXES = ["/main/", "/auth/"];
   var rawUrl =
     (event.notification.data && event.notification.data.url) ||
@@ -335,9 +414,9 @@ self.addEventListener("notificationclick", function (event) {
   if (typeof rawUrl === "string" && rawUrl.startsWith("/") && !rawUrl.startsWith("//")) {
     try {
       // Resolve against a dummy base so "../" segments are collapsed
-      var normalised = new URL(rawUrl, self.location.origin).pathname;
-      if (ALLOWED_PREFIXES.some(function (p) { return normalised.startsWith(p); })) {
-        url = normalised;
+      var normalized = new URL(rawUrl, self.location.origin).pathname;
+      if (ALLOWED_PREFIXES.some(function (p) { return normalized.startsWith(p); })) {
+        url = normalized;
       }
     } catch {
       // malformed URL — keep default
@@ -365,9 +444,36 @@ self.addEventListener("notificationclick", function (event) {
 // Background Sync — flush queued completions when back online
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether an open page is in a position to drain the queue itself.
+ *
+ * Background Sync exists for the case the page cannot cover: the app is
+ * closed. When a window IS open, `useOutboxDrain` there drains on the same
+ * connectivity events — so both fire at once and race for the same rows.
+ * The claim in `claimQueuedCompletions` keeps that race *safe*, but it still
+ * wastes a round trip and, if this worker loses, delays the sync until the
+ * next trigger. Deferring to the page is the simpler contract, and the page
+ * is the better drainer: it can report progress and refresh what is on screen.
+ */
+function aWindowIsOpen() {
+  return self.clients
+    .matchAll({ type: "window", includeUncontrolled: false })
+    .then(function (clients) {
+      return clients.length > 0;
+    })
+    .catch(function () {
+      return false; // can't tell — drain rather than risk not syncing at all
+    });
+}
+
 self.addEventListener("sync", function (event) {
   if (event.tag === "sync-completions") {
-    event.waitUntil(syncQueuedCompletions());
+    event.waitUntil(
+      aWindowIsOpen().then(function (open) {
+        if (open) return; // the page has it
+        return syncQueuedCompletions();
+      }),
+    );
   }
 });
 
@@ -392,92 +498,161 @@ function openOfflineDB() {
   });
 }
 
-function syncQueuedCompletions() {
-  return openOfflineDB().then(function (db) {
-    return new Promise(function (resolve, reject) {
-      var tx = db.transaction("pending-completions", "readonly");
-      var store = tx.objectStore("pending-completions");
-      var getAll = store.getAll();
+/**
+ * How long a claim is honoured. Must match CLAIM_TIMEOUT_MS in
+ * src/lib/offline-queue.ts.
+ */
+var CLAIM_TIMEOUT_MS = 30 * 1000;
 
-      getAll.onsuccess = function () {
-        var queue = getAll.result || [];
-        if (queue.length === 0) {
-          resolve();
-          return;
-        }
+/**
+ * Take ownership of the unclaimed rows, in a single readwrite transaction.
+ *
+ * The page drains this queue too (src/lib/outbox-drain.ts). Without a claim,
+ * both contexts read the same rows on the same connectivity event and POST
+ * them twice — observed as two identical completions 80ms apart, which
+ * inflates the user's streak. IndexedDB transactions are atomic across
+ * contexts, so exactly one drainer wins a given row.
+ */
+function claimQueuedCompletions(db) {
+  return new Promise(function (resolve, reject) {
+    var tx = db.transaction("pending-completions", "readwrite");
+    var store = tx.objectStore("pending-completions");
+    var getAll = store.getAll();
+    var claimed = [];
 
-        // Sanitise items before sending — strip evidence URLs that should
-        // not have been persisted in the offline queue (defence-in-depth).
-        var sanitised = queue.map(function (item) {
-          return {
-            id: item.id,
-            habitId: item.habitId,
-            type: item.type,
-            notes: item.notes || undefined,
-            // evidenceUrl is intentionally omitted — files uploaded separately
-          };
-        });
+    getAll.onsuccess = function () {
+      var now = Date.now();
+      var rows = getAll.result || [];
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var heldSince = row.claimedAt ? Date.parse(row.claimedAt) : 0;
+        if (heldSince && now - heldSince < CLAIM_TIMEOUT_MS) continue;
+        row.claimedAt = new Date(now).toISOString();
+        store.put(row);
+        claimed.push(row);
+      }
+    };
 
-        // Batch all queued completions into a single API call
-        fetch("/api/completions", {
-          method: "POST",
-          body: JSON.stringify(sanitised),
-          headers: {
-            "Content-Type": "application/json",
-            "Origin": self.location.origin,
-          },
-        })
-          .then(function (response) {
-            return response.json().then(function (body) {
-              return { ok: response.ok, body: body };
-            });
-          })
-          .then(function (result) {
-            // Determine which items succeeded
-            var successIds;
-            if (result.ok) {
-              // All succeeded — clear everything
-              successIds = queue.map(function (q) { return q.id; });
-            } else if (result.body && Array.isArray(result.body.succeeded)) {
-              // Partial success — only remove the ones that went through
-              successIds = result.body.succeeded;
-            } else {
-              // Total failure (401 auth expired, 5xx, etc.) — reject so
-              // Background Sync retries on the next connectivity event
-              // instead of silently losing queued completions.
-              reject(new Error("Sync failed: " + (result.body && result.body.error || "unknown")));
-              return;
-            }
+    tx.oncomplete = function () {
+      claimed.sort(function (a, b) {
+        return String(a.queuedAt).localeCompare(String(b.queuedAt));
+      });
+      resolve(claimed);
+    };
+    tx.onerror = function () { reject(tx.error); };
+    tx.onabort = function () { reject(tx.error); };
+  });
+}
 
-            if (successIds.length === 0) {
-              resolve();
-              return;
-            }
-
-            var deleteTx = db.transaction("pending-completions", "readwrite");
-            var deleteStore = deleteTx.objectStore("pending-completions");
-
-            if (successIds.length === queue.length) {
-              deleteStore.clear();
-            } else {
-              for (var i = 0; i < successIds.length; i++) {
-                deleteStore.delete(successIds[i]);
-              }
-            }
-
-            deleteTx.oncomplete = function () { resolve(); };
-            deleteTx.onerror = function () { resolve(); };
-          })
-          .catch(function () {
-            // Will retry on next sync event
-            resolve();
-          });
-      };
-
-      getAll.onerror = function () {
-        reject(getAll.error);
+/** Hand rows back after a transient failure so a later drain retries them. */
+function releaseQueuedCompletions(db, ids) {
+  if (!ids.length) return Promise.resolve();
+  return new Promise(function (resolve) {
+    var tx = db.transaction("pending-completions", "readwrite");
+    var store = tx.objectStore("pending-completions");
+    ids.forEach(function (id) {
+      var get = store.get(id);
+      get.onsuccess = function () {
+        var row = get.result;
+        if (!row) return;
+        delete row.claimedAt;
+        store.put(row);
       };
     });
+    tx.oncomplete = function () { resolve(); };
+    tx.onerror = function () { resolve(); };
+  });
+}
+
+function syncQueuedCompletions() {
+  return openOfflineDB().then(function (db) {
+    return claimQueuedCompletions(db).then(function (queue) {
+      if (queue.length === 0) return;
+
+      var claimedIds = queue.map(function (q) { return q.id; });
+
+      // Sanitise items before sending — strip evidence URLs that should
+      // not have been persisted in the offline queue (defense-in-depth).
+      var sanitised = queue.map(function (item) {
+        return {
+          id: item.id,
+          habitId: item.habitId,
+          type: item.type,
+          notes: item.notes || undefined,
+          rainCheckReason: item.rainCheckReason || undefined,
+          rainCheckMovedTo: item.rainCheckMovedTo || undefined,
+          // evidenceUrl is intentionally omitted — files uploaded separately
+        };
+      });
+
+      return fetch("/api/completions", {
+        method: "POST",
+        body: JSON.stringify(sanitised),
+        headers: {
+          "Content-Type": "application/json",
+          "Origin": self.location.origin,
+        },
+      })
+        .then(function (response) {
+          return response.json().then(
+            function (body) { return { ok: response.ok, body: body }; },
+            function () { return { ok: response.ok, body: null }; },
+          );
+        })
+        .then(function (result) {
+          var successIds;
+          if (result.ok) {
+            successIds = claimedIds;
+          } else if (result.body && Array.isArray(result.body.succeeded)) {
+            // Partial success — only remove the ones that went through.
+            successIds = result.body.succeeded;
+          } else {
+            // Total failure (401 auth expired, 5xx, etc.) — release the claim
+            // and reject, so Background Sync retries on the next connectivity
+            // event instead of silently losing queued completions.
+            return releaseQueuedCompletions(db, claimedIds).then(function () {
+              throw new Error(
+                "Sync failed: " + ((result.body && result.body.error) || "unknown"),
+              );
+            });
+          }
+
+          return deleteQueuedCompletions(db, successIds).then(function () {
+            // Anything claimed but not accepted goes back on the queue.
+            var accepted = {};
+            successIds.forEach(function (id) { accepted[id] = true; });
+            return releaseQueuedCompletions(
+              db,
+              claimedIds.filter(function (id) { return !accepted[id]; }),
+            );
+          });
+        })
+        .catch(function (err) {
+          // Network failure. Release so a later drain retries, then rethrow so
+          // Background Sync knows to schedule one.
+          return releaseQueuedCompletions(db, claimedIds).then(function () {
+            throw err;
+          });
+        });
+    });
+  });
+}
+
+/**
+ * Delete rows by id.
+ *
+ * Deliberately not `store.clear()`, even when every claimed row succeeded:
+ * the page can queue a new completion while this drain is in flight, and
+ * another drainer can hold rows of its own. Clearing would throw those away.
+ */
+function deleteQueuedCompletions(db, ids) {
+  if (!ids.length) return Promise.resolve();
+  return new Promise(function (resolve) {
+    var tx = db.transaction("pending-completions", "readwrite");
+    var store = tx.objectStore("pending-completions");
+    ids.forEach(function (id) { store.delete(id); });
+    tx.oncomplete = function () { resolve(); };
+    tx.onerror = function () { resolve(); };
   });
 }
 

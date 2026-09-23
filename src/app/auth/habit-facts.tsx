@@ -59,7 +59,7 @@ const HABIT_FACTS = [
 function useCyclingFact(intervalMs: number) {
   // The first fact is deterministic so the server and the client agree on it.
   //
-  // This used to randomise in the useState initialiser, which ran during SSR
+  // This used to randomise in the useState initializer, which ran during SSR
   // too, so the two picked different facts. React never warned — `FactCard` is
   // keyed by the fact text, so it silently remounted instead of reporting a
   // text mismatch — but the user saw it: measured on 5/5 loads, the server's

@@ -142,7 +142,7 @@ function BottomNavLive() {
  * do for `/main/*` (the CSP nonce forces dynamic rendering — DIAGNOSIS.md
  * Phase 5), so the fallback would never render. Measured, it is not free:
  * wrapping this cost ~14ms of TBT (47ms -> 61ms, reproduced across three
- * 5-run samples) for no behavioural change.
+ * 5-run samples) for no behavioral change.
  *
  * If that constraint ever lifts, the boundary is a three-line addition:
  *   <Suspense fallback={<NavBar pathname={null} hasUnread={false}

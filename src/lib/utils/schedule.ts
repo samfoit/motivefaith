@@ -1,5 +1,18 @@
 import type { Json } from "@/lib/supabase/types";
-import { getDayOfWeek } from "./timezone";
+import { isRainCheck } from "@/lib/constants/completion";
+import { addDays, getDayOfWeek, todayDateKey, toDateKey } from "./timezone";
+
+/**
+ * The slice of a `completions` row that scheduling and streak logic need.
+ * Everything past `completed_at` is optional so a caller that only has dates
+ * behaves exactly as it did before rain checks existed.
+ */
+export interface CompletionRow {
+  completed_at: string;
+  completion_type?: string | null;
+  /** Only set on a rain check that was moved rather than simply skipped. */
+  rain_check_moved_to?: string | null;
+}
 
 /**
  * Parsed representation of a habit's schedule JSONB column.
@@ -72,4 +85,79 @@ export function isHabitScheduledOn(
   const parsed = parseSchedule(habit.schedule);
   if (!parsed?.days || parsed.days.length === 0) return true;
   return parsed.days.includes(getDayOfWeek(day, timezone));
+}
+
+/**
+ * The day a rain check was moved *from*, if one of them promised to make this
+ * habit up on `dateKey`. Returns a YYYY-MM-DD key, or null when this day holds
+ * no makeup.
+ *
+ * This is what puts a habit on a day it isn't normally scheduled for: a
+ * Mon/Wed/Fri habit rain-checked on Wednesday and moved to Thursday appears on
+ * Thursday, and checking in there settles the Wednesday occurrence.
+ */
+export function makeupOriginOn(
+  completions: CompletionRow[],
+  dateKey: string,
+  timezone: string,
+): string | null {
+  for (const c of completions) {
+    if (!isRainCheck(c.completion_type)) continue;
+    if (c.rain_check_moved_to !== dateKey) continue;
+    return toDateKey(c.completed_at, timezone);
+  }
+  return null;
+}
+
+/**
+ * Is this habit expected on this day — either because the day is in its
+ * schedule, or because a rain check was moved onto it?
+ *
+ * `day` and `dayKey` must describe the same day; the pair is passed rather
+ * than derived because turning a date key back into a `Date` cannot recover
+ * the local weekday in every timezone.
+ */
+export function isHabitDueOn(
+  habit: { schedule: unknown; completions: CompletionRow[] },
+  day: Date,
+  dayKey: string,
+  timezone: string,
+): boolean {
+  return (
+    isHabitScheduledOn(habit, day, timezone) ||
+    makeupOriginOn(habit.completions, dayKey, timezone) !== null
+  );
+}
+
+/**
+ * The days a rain check taken today may be moved onto: days in the next
+ * `withinDays` that the habit is **not** already scheduled for.
+ *
+ * A day the habit is due anyway already has its own occurrence. Moving onto
+ * it would double-book the day, and worse, let work that was going to happen
+ * regardless settle the skip — a free pass on the streak. So a habit that is
+ * scheduled every day has nowhere to move to, and returns an empty list: it
+ * can only be skipped.
+ *
+ * Weekdays are stepped arithmetically from today's rather than re-derived
+ * from each date key, which cannot recover the local weekday in every zone.
+ */
+export function movableDayKeys(
+  habit: { schedule: unknown },
+  timezone: string,
+  withinDays: number,
+): string[] {
+  const scheduled = parseSchedule(habit.schedule)?.days;
+  // No schedule, or an empty day list, means daily — there is nowhere to move.
+  if (!scheduled || scheduled.length === 0) return [];
+
+  const todayKey = todayDateKey(timezone);
+  const todayDow = getDayOfWeek(new Date(), timezone);
+
+  const keys: string[] = [];
+  for (let i = 1; i <= withinDays; i++) {
+    if (scheduled.includes((todayDow + i) % 7)) continue;
+    keys.push(addDays(todayKey, i));
+  }
+  return keys;
 }

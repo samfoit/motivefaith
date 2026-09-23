@@ -92,7 +92,14 @@ export function ProfileClient({
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/auth/login");
+    // A full document navigation, not router.push(). `Providers` captures the
+    // persisted-cache `buster` (the user id) once, at mount — a soft
+    // navigation keeps the same React tree alive, so the signed-out app would
+    // carry on using the previous user's QueryClient and restore their habits
+    // from IndexedDB on the next mount. Reloading the document remounts
+    // `Providers`, which re-reads the now-absent session and buckets as
+    // "anon". The SIGNED_OUT listener there clears the stored data itself.
+    window.location.assign("/auth/login");
   };
 
   const handleSaveName = async () => {

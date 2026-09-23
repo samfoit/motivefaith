@@ -16,9 +16,14 @@ import {
 interface CalendarHeatmapProps {
   /** Map of YYYY-MM-DD date keys (in user's timezone) to completion count */
   data: Record<string, number>;
+  /**
+   * Date keys held by a rain check rather than a completion. Drawn as a ring
+   * instead of a fill: the day is accounted for, but nothing was done.
+   */
+  rainCheckDates?: Set<string>;
   /** Number of days to display (default 90) */
   days?: number;
-  /** Habit category color as hex (used for filled cells) */
+  /** The habit's color as hex (used for filled cells) */
   color?: string;
   /** User's IANA timezone — used to align date keys with the data map */
   timezone?: string;
@@ -77,6 +82,7 @@ function getOpacity(count: number, max: number): number {
 
 export function CalendarHeatmap({
   data,
+  rainCheckDates,
   days = 90,
   color = "var(--color-brand)",
   timezone,
@@ -115,6 +121,22 @@ export function CalendarHeatmap({
               const key = toDateKey(date, tz);
               const count = data[key] ?? 0;
               const isOutOfRange = key < rangeStartKey || key > today;
+              const isRainCheck =
+                !isOutOfRange && count === 0 && !!rainCheckDates?.has(key);
+
+              let style: React.CSSProperties | undefined;
+              if (!isOutOfRange && count > 0) {
+                style = {
+                  backgroundColor: color,
+                  opacity: getOpacity(count, maxCount),
+                };
+              } else if (isRainCheck) {
+                style = {
+                  boxShadow: "inset 0 0 0 1.5px var(--color-rain)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--color-rain) 18%, transparent)",
+                };
+              }
 
               return (
                 <div
@@ -123,22 +145,17 @@ export function CalendarHeatmap({
                     "h-3 w-3 rounded-xs transition-colors",
                     isOutOfRange
                       ? "bg-transparent"
-                      : count > 0
+                      : count > 0 || isRainCheck
                         ? ""
                         : "bg-bg-secondary",
                   )}
-                  style={
-                    !isOutOfRange && count > 0
-                      ? {
-                        backgroundColor: color,
-                        opacity: getOpacity(count, maxCount),
-                      }
-                      : undefined
-                  }
+                  style={style}
                   title={
                     isOutOfRange
                       ? undefined
-                      : `${key}: ${count} completion${count !== 1 ? "s" : ""}`
+                      : isRainCheck
+                        ? `${key}: rain check`
+                        : `${key}: ${count} completion${count !== 1 ? "s" : ""}`
                   }
                 />
               );

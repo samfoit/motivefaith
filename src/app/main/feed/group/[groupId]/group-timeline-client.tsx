@@ -9,7 +9,6 @@ import {
 } from "react";
 import {
   ArrowLeft,
-  ChevronDown,
   Heart,
   MoreHorizontal,
   Send,
@@ -27,7 +26,8 @@ import { Pill } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/ui/Toast";
-import { GroupChallengeCard } from "@/components/social/GroupChallengeCard";
+import { SharedHabits, type SharedHabitChip } from "@/components/social/SharedHabits";
+import { GroupChallenges } from "@/components/social/GroupChallenges";
 import type { ChallengeFormData } from "@/components/social/CreateChallengeSheet";
 
 const InviteLinkSheet = dynamic(
@@ -168,14 +168,25 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     }
   }, [group.id, userId, removeGroupMember, router, showToast]);
 
-  // Habits expand
-  const HABITS_PREVIEW_COUNT = 4;
-  const [habitsExpanded, setHabitsExpanded] = useState(false);
-  const visibleHabits = useMemo(
-    () => (habitsExpanded ? habits : habits.slice(0, HABITS_PREVIEW_COUNT)),
-    [habits, habitsExpanded],
+  // The chips scroll, so there is nothing to expand — every shared habit is
+  // reachable in the one row.
+  const habitChips: SharedHabitChip[] = useMemo(
+    () =>
+      habits.map((habit) => ({
+        id: habit.id,
+        title: habit.title,
+        emoji: habit.emoji,
+        color: habit.color,
+        streak_current: habit.streak_current,
+        isOwner: habit.owner_id === userId,
+        completedToday: habit.completedToday,
+        rainCheckedToday: habit.rainCheckedToday,
+        rainCheckMovedTo: habit.rainCheckMovedTo,
+        ownerName: habit.owner_name,
+        ownerAvatar: habit.owner_avatar,
+      })),
+    [habits, userId],
   );
-  const hasMoreHabits = habits.length > HABITS_PREVIEW_COUNT;
 
   // Debounced refresh
   const lastRefresh = useRef(0);
@@ -516,7 +527,6 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       emoji: formData.emoji,
       description: formData.description || undefined,
       color: formData.color,
-      category: formData.category,
       frequency: formData.frequency,
       schedule: { days: formData.scheduleDays },
       startDate: formData.startDate,
@@ -538,8 +548,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
         userId,
         title: challenge.title,
         emoji: challenge.emoji ?? "🎯",
-        color: challenge.color ?? "#6366F1",
-        category: challenge.category ?? "general",
+        color: challenge.color ?? null,
         frequency: challenge.frequency,
         schedule: (challenge.schedule ?? { days: [0, 1, 2, 3, 4, 5, 6] }) as { days: number[] },
       });
@@ -689,65 +698,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
                 {habits.length} habit{habits.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="space-y-2">
-              {visibleHabits.map((habit) => (
-                <div
-                  key={habit.id}
-                  className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm border-l-[3px]"
-                  style={{ borderLeftColor: habit.color }}
-                >
-                  <span className="text-xl leading-none">{habit.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-                      {habit.title}
-                    </p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <Avatar
-                        src={habit.owner_avatar}
-                        name={habit.owner_name}
-                        size="sm"
-                        className="!w-4 !h-4"
-                      />
-                      <span className="text-xs text-[var(--color-text-tertiary)]">
-                        {habit.owner_name}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {habit.completedToday ? (
-                      <Pill variant="default" size="sm">
-                        Done
-                      </Pill>
-                    ) : (
-                      <span className="text-xs text-[var(--color-text-tertiary)]">
-                        🔥 {habit.streak_current}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {hasMoreHabits && (
-              <button
-                type="button"
-                onClick={() => setHabitsExpanded((v) => !v)}
-                className={cn(
-                  "w-full mt-2 py-2 rounded-lg text-sm font-medium",
-                  "text-brand hover:bg-brand-light transition-colors",
-                  "flex items-center justify-center gap-1",
-                )}
-              >
-                <ChevronDown
-                  className={cn(
-                    "w-4 h-4 transition-transform duration-200",
-                    habitsExpanded && "rotate-180",
-                  )}
-                />
-                {habitsExpanded
-                  ? "Show less"
-                  : `Show all ${habits.length} habits`}
-              </button>
-            )}
+            <SharedHabits habits={habitChips} />
           </section>
         )}
 
@@ -773,17 +724,12 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
               )}
             </div>
             {challenges.length > 0 ? (
-              <div className="space-y-2">
-                {challenges.map((challenge) => (
-                  <GroupChallengeCard
-                    key={challenge.id}
-                    challenge={challenge}
-                    onJoin={handleJoinChallenge}
-                    onLeave={handleLeaveChallenge}
-                    isLoading={joiningChallengeId === challenge.id}
-                  />
-                ))}
-              </div>
+              <GroupChallenges
+                challenges={challenges}
+                onJoin={handleJoinChallenge}
+                onLeave={handleLeaveChallenge}
+                pendingId={joiningChallengeId}
+              />
             ) : (
               <p className="text-sm text-[var(--color-text-tertiary)] text-center py-4">
                 No active challenges yet
@@ -823,6 +769,8 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
                       habitTitle={c.habit_title}
                       habitColor={c.habit_color}
                       completionType={c.completion_type}
+                      rainCheckReason={c.rain_check_reason}
+                      rainCheckMovedTo={c.rain_check_moved_to}
                       evidenceUrl={c.evidence_url}
                       notes={c.notes}
                       completedAt={c.completed_at}

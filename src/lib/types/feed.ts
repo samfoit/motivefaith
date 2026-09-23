@@ -1,3 +1,4 @@
+import type { CompletionType } from "@/lib/constants/completion";
 // ---------------------------------------------------------------------------
 // Feed redesign types — Snapchat-style friend-grouped feed
 // ---------------------------------------------------------------------------
@@ -24,13 +25,21 @@ export type JourneyHabit = {
   isOwner: boolean;
   /** Whether this habit has been completed today by its owner */
   completedToday: boolean;
+  /** Skipped today on purpose — the streak is held, not broken. */
+  rainCheckedToday?: boolean;
+  /** Where today's rain check was moved to, when it was moved at all. */
+  rainCheckMovedTo?: string | null;
 };
 
 /** A completion in the journey timeline */
 export type JourneyCompletion = {
   id: string;
   habit_id: string;
-  completion_type: "photo" | "video" | "message" | "quick" | "voice";
+  completion_type: CompletionType;
+  /** Set only on a rain check — why they skipped. */
+  rain_check_reason?: string | null;
+  /** Set only on a rain check that was moved rather than skipped. */
+  rain_check_moved_to?: string | null;
   evidence_url: string | null;
   notes: string | null;
   completed_at: string;

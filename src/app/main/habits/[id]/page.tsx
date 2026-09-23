@@ -35,13 +35,13 @@ export default async function HabitDetailPage({ params }: Props) {
     supabase.from("profiles").select("timezone").eq("id", user.id).single(),
     supabase
       .from("habits")
-      .select("id, user_id, title, description, emoji, category, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, is_shared, created_at")
+      .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, is_shared, created_at")
       .eq("id", id)
       .eq("user_id", user.id)
       .single(),
     supabase
       .from("completions")
-      .select("id, habit_id, completion_type, evidence_url, notes, completed_at")
+      .select("id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to")
       .eq("habit_id", id)
       .gte("completed_at", ninetyDaysAgo.toISOString())
       .order("completed_at", { ascending: false })

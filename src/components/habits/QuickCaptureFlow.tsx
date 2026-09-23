@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
 import { Loader2, X } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
@@ -57,7 +58,7 @@ interface TodayHabit {
 // ---------------------------------------------------------------------------
 
 export function QuickCaptureFlow() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const { show, ToastElements } = useToast();
   const completeHabit = useCompleteHabit();
 
@@ -105,7 +106,7 @@ export function QuickCaptureFlow() {
   useEffect(() => {
     if (step !== "habit-select") return;
 
-    let cancelled = false;
+    let canceled = false;
 
     async function fetchIncompleteHabits() {
       setHabitsLoading(true);
@@ -123,19 +124,19 @@ export function QuickCaptureFlow() {
 
         if (rpcError) throw rpcError;
 
-        if (!cancelled) {
+        if (!canceled) {
           setHabits(
             (data ?? []).map((h) => ({
               ...h,
               emoji: h.emoji ?? "✅",
-              color: h.color ?? "#6366F1",
+              color: h.color ?? null,
               streak_current: h.streak_current ?? 0,
             })),
           );
           setHabitsLoading(false);
         }
       } catch {
-        if (!cancelled) {
+        if (!canceled) {
           setError("Failed to load habits");
           setHabitsLoading(false);
         }
@@ -144,7 +145,7 @@ export function QuickCaptureFlow() {
 
     fetchIncompleteHabits();
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [step]);
 
@@ -240,7 +241,10 @@ export function QuickCaptureFlow() {
         });
 
         show({ title: "Habit completed!", variant: "success" });
-        router.refresh();
+        // The dashboard reads from the query cache now, not from server props,
+        // so router.refresh() would be a wasted round trip — and one that
+        // fails outright offline.
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
         reset();
       } catch (err) {
         console.error("Quick capture upload failed:", err);
@@ -254,7 +258,7 @@ export function QuickCaptureFlow() {
       completeHabit,
       notes,
       reset,
-      router,
+      queryClient,
       setStep,
       show,
     ],

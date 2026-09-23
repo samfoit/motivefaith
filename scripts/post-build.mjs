@@ -43,6 +43,27 @@ function readJson(path) {
  * keys `pages['/_app']` and `pages['/main/dashboard']`, which are always
  * empty here — hence the "No critical assets found" every build printed.
  */
+/**
+ * The routes the service worker serves offline, read out of its source.
+ *
+ * `/offline` is always included: it is the fallback for every route that is
+ * not a shell, so it must be able to paint with no network.
+ */
+function shellRoutes() {
+  const routes = new Set(["offline"]);
+  try {
+    const src = readFileSync(SW_SRC, "utf8");
+    const list = src.match(/var SHELL_DOCUMENTS\s*=\s*\[([^\]]*)\]/);
+    for (const [, path] of (list?.[1] ?? "").matchAll(/"([^"]+)"/g)) {
+      routes.add(path.replace(/^\//, ""));
+    }
+  } catch {
+    // Fall back to the start_url alone rather than precaching nothing.
+    routes.add("main/dashboard");
+  }
+  return [...routes];
+}
+
 function collectCriticalAssets() {
   const assets = new Set();
 
@@ -57,11 +78,18 @@ function collectCriticalAssets() {
   // Per-route chunks for the shell-bearing routes. `/main/dashboard` is the
   // PWA start_url, so its chunks are what an installed-app launch needs.
   //
+  // The list comes from SHELL_DOCUMENTS in the service worker source rather
+  // than being repeated here. Those are exactly the documents the worker
+  // serves offline, and a document served without its chunks is worse than
+  // not serving it — the user gets "Failed to load chunk" instead of the
+  // offline page. Deriving the list means adding a route in one place cannot
+  // silently leave its JS unprecached.
+  //
   // Turbopack does not emit `app-build-manifest.json`, so fall back to the
   // per-route client-reference manifest, which names every client chunk the
   // route pulls in. Reading the paths out by regex is deliberate: the file is
   // executable JS that assigns onto `globalThis`, not JSON we can parse.
-  for (const route of ["main/dashboard", "offline"]) {
+  for (const route of shellRoutes()) {
     const refManifest = join(
       NEXT_DIR, "server", "app", route, "page_client-reference-manifest.js",
     );

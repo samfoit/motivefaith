@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils/cn";
 
-type Size = "sm" | "md" | "lg";
+type Size = "xs" | "sm" | "md" | "lg";
 
 export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   src?: string | null;
@@ -13,12 +13,16 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const SIZE_CLASSES: Record<Size, string> = {
+  // The font has to come down with the box: initials are two characters wide,
+  // and the circle clips, so an `sm` shrunk by a className override renders
+  // them cut in half rather than smaller.
+  xs: "w-5 h-5 text-[10px]",
   sm: "w-8 h-8 text-sm",
   md: "w-12 h-12 text-base",
   lg: "w-16 h-16 text-lg",
 };
 
-const SIZE_PX: Record<Size, number> = { sm: 32, md: 48, lg: 64 };
+const SIZE_PX: Record<Size, number> = { xs: 20, sm: 32, md: 48, lg: 64 };
 
 /** Only render images from trusted origins. */
 function isTrustedImageSrc(src: string): boolean {
@@ -108,11 +112,13 @@ export const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
             aria-hidden
             className={cn(
               "absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 rounded-full ring-2 ring-white",
-              size === "sm"
-                ? "w-2.5 h-2.5"
-                : size === "md"
-                  ? "w-3.5 h-3.5"
-                  : "w-4 h-4",
+              size === "xs"
+                ? "w-2 h-2"
+                : size === "sm"
+                  ? "w-2.5 h-2.5"
+                  : size === "md"
+                    ? "w-3.5 h-3.5"
+                    : "w-4 h-4",
               "bg-green-400",
             )}
           />

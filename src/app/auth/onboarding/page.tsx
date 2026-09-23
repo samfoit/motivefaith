@@ -10,15 +10,6 @@ import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils/cn";
 
-const CATEGORIES = [
-  { key: "spiritual", label: "Spiritual", emoji: "🙏", color: "#8b5cf6" },
-  { key: "learning", label: "Learning", emoji: "📚", color: "#3b82f6" },
-  { key: "fitness", label: "Fitness", emoji: "💪", color: "#ef4444" },
-  { key: "health", label: "Health", emoji: "🥗", color: "#22c55e" },
-  { key: "social", label: "Social", emoji: "👋", color: "#f59e0b" },
-  { key: "creative", label: "Creative", emoji: "🎨", color: "#ec4899" },
-] as const;
-
 const DEFAULT_AVATARS = ["😊", "😎", "🚀", "🌟", "🎯", "🔥", "💎", "🌈"];
 
 import { MAX_AVATAR_SIZE_BYTES } from "@/lib/constants/limits";
@@ -30,7 +21,7 @@ const ALLOWED_AVATAR_TYPES = [
   "image/gif",
 ];
 
-const STEP_COUNT = 3;
+const STEP_COUNT = 2;
 
 const slideVariants = {
   enter: (direction: number) => ({
@@ -59,10 +50,7 @@ export default function OnboardingPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
-  // Step 2: Categories
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-
-  // Step 3: Invite
+  // Step 2: Invite
   const [inviteEmail, setInviteEmail] = useState("");
 
   function goNext() {
@@ -73,12 +61,6 @@ export default function OnboardingPage() {
   function goBack() {
     setDirection(-1);
     setStep((s) => Math.max(s - 1, 0));
-  }
-
-  function toggleCategory(key: string) {
-    setSelectedCategories((prev) =>
-      prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
-    );
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -270,55 +252,6 @@ export default function OnboardingPage() {
 
             {step === 1 && (
               <motion.div
-                key="categories"
-                custom={direction}
-                variants={slideVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              >
-                <h2 className="font-display text-xl font-bold text-center mb-2">
-                  What do you want to track?
-                </h2>
-                <p className="text-sm text-center mb-6 text-text-secondary">
-                  Select categories that interest you
-                </p>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {CATEGORIES.map((cat) => {
-                    const selected = selectedCategories.includes(cat.key);
-                    return (
-                      <button
-                        key={cat.key}
-                        type="button"
-                        onClick={() => toggleCategory(cat.key)}
-                        className={cn(
-                          "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all duration-150",
-                          selected
-                            ? "border-current bg-opacity-10"
-                            : "border-transparent bg-bg-secondary hover:bg-surface-hover",
-                        )}
-                        style={
-                          selected
-                            ? {
-                                borderColor: cat.color,
-                                backgroundColor: `${cat.color}15`,
-                              }
-                            : undefined
-                        }
-                      >
-                        <span className="text-2xl">{cat.emoji}</span>
-                        <span className="text-sm font-medium">{cat.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-
-            {step === 2 && (
-              <motion.div
                 key="invite"
                 custom={direction}
                 variants={slideVariants}
@@ -359,16 +292,8 @@ export default function OnboardingPage() {
           )}
 
           {step < STEP_COUNT - 1 ? (
-            <Button
-              variant={
-                step === 1 && selectedCategories.length === 0
-                  ? "ghost"
-                  : "primary"
-              }
-              onClick={goNext}
-              className="flex-1"
-            >
-              {step === 1 && selectedCategories.length === 0 ? "Skip" : "Next"}
+            <Button onClick={goNext} className="flex-1">
+              Next
             </Button>
           ) : (
             <Button onClick={handleFinish} loading={loading} className="flex-1">

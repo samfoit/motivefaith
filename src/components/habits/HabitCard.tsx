@@ -1,12 +1,20 @@
 "use client";
 
 import React, { useRef, useCallback, useEffect, useId } from "react";
-import { Check, ChevronRight, Clock } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  Clock,
+  CloudRain,
+  CornerDownRight,
+  Flame,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
 import type { Tables } from "@/lib/supabase/types";
+import type { Habit } from "@/lib/types/habit";
 
 // --- Drawer geometry -------------------------------------------------------
 // The card slides right by exactly the width of the option row, so the icons
@@ -35,9 +43,10 @@ type CompletionSlice = {
   id: string;
   completed_at: string;
   completion_type: Tables<"completions">["completion_type"];
+  rain_check_moved_to?: Tables<"completions">["rain_check_moved_to"];
 };
 
-export type HabitWithCompletions = Tables<"habits"> & {
+export type HabitWithCompletions = Habit & {
   completions: CompletionSlice[];
   challenge?: { title: string; emoji: string } | null;
 };
@@ -45,6 +54,24 @@ export type HabitWithCompletions = Tables<"habits"> & {
 interface HabitCardProps {
   habit: HabitWithCompletions;
   completedToday: boolean;
+  /**
+   * Today was rain-checked: the streak is safe and the day is accounted for,
+   * but unlike a completion it does not close the habit off — the user can
+   * still change their mind and actually do it.
+   */
+  rainCheckedToday?: boolean;
+  /**
+   * The day today's rain check was moved to, as a weekday name ("Thursday").
+   * Set only alongside `rainCheckedToday`, and only when it was moved rather
+   * than plainly skipped.
+   */
+  rainCheckMovedTo?: string | null;
+  /**
+   * This card is a makeup: the habit is not normally scheduled today, it is
+   * here because an earlier rain check promised it. The weekday it moved from
+   * ("Wednesday"), for the pill.
+   */
+  movedFrom?: string | null;
   onQuickComplete: (habitId: string, origin?: { x: number; y: number }) => void;
   onPress?: (habitId: string) => void;
   /** Fired when a check-in icon is picked from the drawer. */
@@ -59,6 +86,9 @@ interface HabitCardProps {
 export const HabitCard = React.memo(function HabitCard({
   habit,
   completedToday,
+  rainCheckedToday = false,
+  rainCheckMovedTo = null,
+  movedFrom = null,
   onQuickComplete,
   onPress,
   onCheckIn,
@@ -86,6 +116,10 @@ export const HabitCard = React.memo(function HabitCard({
     })()
     : null;
 
+  const challengeNameIsTitle =
+    habit.challenge?.title.trim().toLowerCase() ===
+    habit.title.trim().toLowerCase();
+
   const handleCircleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (completedToday) return;
@@ -102,7 +136,8 @@ export const HabitCard = React.memo(function HabitCard({
   const isOpen = useHabitDrawerStore((s) => s.openHabitId === habit.id);
   const openDrawer = useHabitDrawerStore((s) => s.open);
   const closeDrawer = useHabitDrawerStore((s) => s.close);
-  // Nothing left to check in once the habit is done for the day.
+  // Nothing left to check in once the habit is done for the day. A rain check
+  // is not "done" — it can still be upgraded to a real check-in.
   const drawerEnabled = !completedToday && !!onCheckIn;
 
   const trackRef = useRef<HTMLDivElement>(null);
@@ -310,9 +345,9 @@ export const HabitCard = React.memo(function HabitCard({
       <div
         ref={surfaceRef}
         className={cn(
-          // The habit's colour tints the whole card (see .habit-tint), which
+          // The habit's color tints the whole card (see .habit-tint), which
           // also gives the drawer an opaque surface to hide behind.
-          "hc-surface habit-tint relative flex items-center gap-2 rounded-lg border py-4 pl-2 pr-4 shadow-sm",
+          "hc-surface habit-tint relative flex items-center gap-2 rounded-lg border py-3 pl-2 pr-4 shadow-sm",
           "cursor-pointer select-none",
           "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
           "active:brightness-[0.98]",
@@ -366,35 +401,88 @@ export const HabitCard = React.memo(function HabitCard({
         {/* Emoji + Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xl leading-none">{habit.emoji}</span>
+            <span className="text-xl leading-none shrink-0">{habit.emoji}</span>
             <h3
               className={cn(
-                "font-medium truncate",
-                completedToday
+                "font-semibold truncate min-w-0",
+                completedToday || rainCheckedToday
                   ? "text-text-secondary"
                   : "text-text-primary",
               )}
-              style={{ fontSize: "var(--text-lg)" }}
+              style={{ fontSize: "var(--text-base)" }}
             >
               {habit.title}
             </h3>
+
+            {/* The streak sits with the title rather than down in the meta
+                row: it is the one thing on this card worth keeping, so it
+                reads at a glance instead of queueing behind the timestamps.
+                A long title gives way to it — the pill is short and fixed.
+
+                The flame says "streak" on its own, so the pill is just the
+                number — the same shorthand the streak row in DayView uses.
+                Only the label spells out the unit, since a screen reader
+                gets no flame. */}
+            {(habit.streak_current ?? 0) > 0 && (
+              <span
+                className="shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+                style={{
+                  color: "var(--color-streak)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--color-streak) 14%, transparent)",
+                }}
+                aria-label={`${habit.streak_current}-${habit.frequency === "weekly" ? "week" : "day"} streak`}
+              >
+                <Flame className="w-3 h-3" aria-hidden />
+                {habit.streak_current}
+              </span>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {scheduledTime && (
               <span className="text-xs text-text-tertiary flex items-center gap-0.5">
                 <Clock className="w-3 h-3" />
                 {scheduledTime}
               </span>
             )}
-            {habit.challenge && (
+            {/* A habit created from a challenge usually takes the
+                challenge's name, and then the tag is just the title again.
+                It still earns its place when the two differ — it is the only
+                sign the habit came from a group. */}
+            {habit.challenge && !challengeNameIsTitle && (
               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-light text-brand">
                 {habit.challenge.emoji} {habit.challenge.title}
               </span>
             )}
-            {(habit.streak_current ?? 0) > 0 && (
-              <span className="text-xs font-mono text-streak flex items-center gap-0.5">
-                {habit.streak_current}-{habit.frequency === "weekly" ? "week" : "day"} streak
+            {rainCheckedToday && !completedToday && (
+              <span
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+                style={{
+                  color: "var(--color-rain)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--color-rain) 14%, transparent)",
+                }}
+              >
+                <CloudRain className="w-2.5 h-2.5" />
+                {rainCheckMovedTo
+                  ? `Moved to ${rainCheckMovedTo}`
+                  : "Rain check"}
+              </span>
+            )}
+            {/* A makeup earns a pill even once it is done: it explains why a
+                Mon/Wed/Fri habit is sitting on a Thursday. */}
+            {movedFrom && (
+              <span
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+                style={{
+                  color: "var(--color-rain)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--color-rain) 14%, transparent)",
+                }}
+              >
+                <CornerDownRight className="w-2.5 h-2.5" />
+                Moved from {movedFrom}
               </span>
             )}
             {lastCompletionLabel && (
@@ -416,19 +504,33 @@ export const HabitCard = React.memo(function HabitCard({
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand",
             completedToday
               ? "bg-success text-white"
-              : "border-2 border-gray-300 hover:border-success hover:bg-success/10 active:scale-90",
+              : rainCheckedToday
+                ? "border-2 active:scale-90"
+                : "border-2 border-gray-300 hover:border-success hover:bg-success/10 active:scale-90",
           )}
+          style={
+            !completedToday && rainCheckedToday
+              ? {
+                borderColor: "var(--color-rain)",
+                color: "var(--color-rain)",
+              }
+              : undefined
+          }
           aria-label={
             completedToday
               ? `${habit.title} completed`
-              : `Complete ${habit.title}`
+              : rainCheckedToday
+                ? `${habit.title} rain-checked today — check in anyway`
+                : `Complete ${habit.title}`
           }
         >
-          {completedToday && (
+          {completedToday ? (
             <div className="animate-[landing-pop_0.3s_var(--ease-bounce)_both]">
               <Check className="w-5 h-5" strokeWidth={3} />
             </div>
-          )}
+          ) : rainCheckedToday ? (
+            <CloudRain className="w-[18px] h-[18px]" strokeWidth={2.25} />
+          ) : null}
         </button>
       </div>
     </div>

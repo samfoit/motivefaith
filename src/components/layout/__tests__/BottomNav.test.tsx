@@ -25,6 +25,12 @@ vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     auth: {
       getSession: async () => ({ data: { session: null } }),
+      // useAuthUserId subscribes to auth changes so the user id stays live
+      // without polling. The unsubscribe handle has to be real, or teardown
+      // throws.
+      onAuthStateChange: () => ({
+        data: { subscription: { unsubscribe: () => {} } },
+      }),
     },
   }),
 }));

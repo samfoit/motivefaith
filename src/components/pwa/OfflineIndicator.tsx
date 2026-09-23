@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { getPendingCount } from "@/lib/offline-queue";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { getPendingCount, getOutboxCount } from "@/lib/offline-queue";
+import { subscribeToPending } from "@/lib/outbox-drain";
 
 function subscribe(callback: () => void) {
   window.addEventListener("online", callback);
@@ -24,11 +25,19 @@ export function OfflineIndicator() {
   const online = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const [pending, setPending] = useState(0);
 
+  const refresh = useCallback(() => {
+    // Completions and other queued writes both count as "pending" to the user.
+    Promise.all([getPendingCount(), getOutboxCount()])
+      .then(([completions, writes]) => setPending(completions + writes))
+      .catch(() => setPending(0));
+  }, []);
+
   useEffect(() => {
-    if (!online) {
-      getPendingCount().then(setPending);
-    }
-  }, [online]);
+    if (!online) refresh();
+    // Re-read whenever something queues or drains, so the count is live
+    // rather than a snapshot taken when the banner first appeared.
+    return subscribeToPending(refresh);
+  }, [online, refresh]);
 
   if (online) return null;
 

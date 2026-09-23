@@ -5,6 +5,10 @@
   --color-bg-primary: var(--color-bg-primary);
   --color-bg-secondary: var(--color-bg-secondary);
   --color-bg-elevated: var(--color-bg-elevated);
+  /* Alias: ~60 components spell this `bg-elevated` rather than
+     `bg-bg-elevated`. Without it those utilities don't exist and the
+     elements render with no background at all — see Sheet, Card. */
+  --color-elevated: var(--color-bg-elevated);
   --color-text-primary: var(--color-text-primary);
   --color-text-secondary: var(--color-text-secondary);
   --color-text-tertiary: var(--color-text-tertiary);
@@ -15,6 +19,7 @@
   --color-success: var(--color-success);
   --color-streak: var(--color-streak);
   --color-miss: var(--color-miss);
+  --color-rain: var(--color-rain);
   --color-encourage: var(--color-encourage);
   --font-sans: var(--font-sans);
   --font-display: var(--font-display);
@@ -287,40 +292,70 @@ body {
   animation-play-state: running;
 }
 
-/* ── Habit card colour ───────────────────────────────────────────────────
-   The habit's colour used to run down the left edge as a 3px strip, which
+/* ── Habit card color ───────────────────────────────────────────────────
+   The habit's color used to run down the left edge as a 3px strip, which
    put it directly against the drawer's chevron — two marks in the same few
    pixels, one of them tappable. It tints the whole card instead, the way
-   Keep tints a note: the same identity and customisation, nothing competing
-   with the handle. Dark mode needs a heavier mix to read at all.
+   Keep tints a note: the same identity and customization, nothing competing
+   with the handle.
 
-   The fallback keeps the mix fully opaque for a habit with no colour — the
-   drawer sits directly behind this surface, so any alpha would show it. */
+   The two surfaces do different jobs.
+
+   The border is the color, exactly as picked — no mix, no correction. It is
+   the only place the chosen hex appears at full strength, so it is what tells
+   someone the swatch they tapped is the swatch they got. Muting it here is
+   what made people feel they never quite saw their own color.
+
+   The fill is atmosphere, and it is kept to a whisper so four cards stacked
+   read as one list rather than four swatches. `--habit-tint-fill` is the
+   dial; it is the only thing to change to take the wash up or down.
+
+   The fill alone is normalized, and it has to be: at 5% a near-black pick
+   would darken the card instead of tinting it, and saturated hues mixed in
+   sRGB over a dark ground turn to mud. So the fill keeps the hue, caps the
+   chroma, and pulls the lightness into a band the surface can carry. Chroma
+   is capped but never floored — a floor would hand gray a hue it never had.
+
+   No color is the default and the common case, so the uncolored card is
+   the baseline the rest is judged against: an untinted surface with a plain
+   neutral hairline. The fill falls back to the card's own background rather
+   than to transparent — the drawer sits directly behind this surface, so any
+   alpha would show it — while the border falls back to the same hairline
+   every other surface in the app uses. */
 
 .habit-tint {
+  /* The dial — the wash only. The border is never mixed. */
+  --habit-tint-fill: 5%;
+
+  --habit-tint-color: var(--habit-color, var(--color-bg-elevated));
+
   background-color: color-mix(
-    in srgb,
-    var(--habit-color, var(--color-bg-elevated)) 9%,
+    in oklab,
+    var(--habit-tint-color) var(--habit-tint-fill),
     var(--color-bg-elevated)
   );
-  border-color: color-mix(
-    in srgb,
-    var(--habit-color, var(--color-bg-elevated)) 22%,
-    var(--color-bg-elevated)
-  );
+  border-color: var(--habit-color, var(--color-surface-hover));
 }
 
 [data-theme="dark"] .habit-tint {
-  background-color: color-mix(
-    in srgb,
-    var(--habit-color, var(--color-bg-elevated)) 10%,
-    var(--color-bg-elevated)
-  );
-  border-color: color-mix(
-    in srgb,
-    var(--habit-color, var(--color-bg-elevated)) 28%,
-    var(--color-bg-elevated)
-  );
+  /* A dark ground swallows a mix that reads fine on white. */
+  --habit-tint-fill: 6%;
+}
+
+@supports (color: oklch(from white l c h)) {
+  .habit-tint {
+    --habit-tint-color: oklch(
+      from var(--habit-color, var(--color-bg-elevated))
+      clamp(0.45, l, 0.72) min(c, 0.17) h
+    );
+  }
+
+  [data-theme="dark"] .habit-tint {
+    --habit-tint-color: oklch(
+      from var(--habit-color, var(--color-bg-elevated))
+      clamp(0.58, l, 0.84) min(c, 0.17) h
+    );
+  }
 }
 
 /* ── Habit card check-in drawer ──────────────────────────────────────────

@@ -3,7 +3,7 @@
  *
  * Tracks submission timestamps in sessionStorage so limits survive
  * page refreshes within the same tab session. This is a first layer
- * of defence — Supabase Auth also enforces server-side rate limits.
+ * of defense — Supabase Auth also enforces server-side rate limits.
  */
 
 const STORAGE_PREFIX = "motive-rl:";
@@ -25,7 +25,7 @@ function setTimestamps(key: string, timestamps: number[]): void {
   } catch (err) {
     // sessionStorage may be unavailable (private browsing, storage full).
     // Fall through — the limiter degrades to a no-op, Supabase server
-    // rate limits remain the primary defence.
+    // rate limits remain the primary defense.
     console.warn("Failed to write rate-limit timestamps:", err);
   }
 }

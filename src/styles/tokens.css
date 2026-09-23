@@ -13,13 +13,8 @@
   --color-success: #22c55e; /* Completion green */
   --color-streak: #f59e0b; /* Streak flame amber */
   --color-miss: #ef4444; /* Missed habit red (used sparingly) */
-  --color-encourage: #8b5cf6; /* Encouragement purple */ /* —— Category Palette (habit color coding like TickTick) —— */
-  --cat-spiritual: #8b5cf6;
-  --cat-learning: #3b82f6;
-  --cat-fitness: #ef4444;
-  --cat-health: #22c55e;
-  --cat-social: #f59e0b;
-  --cat-creative: #ec4899; /* —— Typography (Notion’s generous scale) —— */
+  --color-rain: #3b82f6; /* Rain check blue — a deliberate skip, never an alarm */
+  --color-encourage: #8b5cf6; /* Encouragement purple */ /* —— Typography (Notion’s generous scale) —— */
   --font-sans: "Inter", -apple-system, sans-serif;
   --font-display: "DM Sans", var(--font-sans); /* Headings */
   --font-mono: "JetBrains Mono", monospace; /* Stats/data */
@@ -63,6 +58,7 @@
   --color-text-primary: #ececec;
   --color-text-secondary: #9ca3af;
   --color-text-tertiary: #6b7280;
+  --color-rain: #60a5fa;
   --color-brand-light: #1e1b4b;
   --color-skeleton: #2c2c32;
   --color-skeleton-highlight: #3a3a42;

@@ -1,13 +1,18 @@
-import { Camera, Check, MessageSquare, Mic } from "lucide-react";
+import { Camera, Check, CloudRain, MessageSquare, Mic } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 /**
  * The ways a habit can be checked in.
  *
  * "quick" completes straight away; the others open the completion sheet on
- * the matching step (camera, recorder, note).
+ * the matching step (camera, recorder, note, rain-check reason).
  */
-export type CheckInAction = "quick" | "content" | "voice" | "message";
+export type CheckInAction =
+  | "quick"
+  | "content"
+  | "voice"
+  | "message"
+  | "rain_check";
 
 export interface CheckInOption {
   action: CheckInAction;
@@ -47,5 +52,11 @@ export const CHECK_IN_OPTIONS: readonly CheckInOption[] = [
     label: "Written note",
     icon: MessageSquare,
     color: "var(--color-streak)",
+  },
+  {
+    action: "rain_check",
+    label: "Rain check",
+    icon: CloudRain,
+    color: "var(--color-rain)",
   },
 ] as const;

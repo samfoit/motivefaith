@@ -26,7 +26,6 @@ function makeHabit(overrides: Partial<HabitWithCompletions> = {}): HabitWithComp
     frequency: "daily",
     schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
     time_window: null,
-    category: "fitness",
     is_shared: false,
     streak_current: 5,
     streak_best: 12,
@@ -58,7 +57,7 @@ describe("HabitCard", () => {
 
     expect(screen.getByText("Morning Run")).toBeInTheDocument();
     expect(screen.getByText("🏃")).toBeInTheDocument();
-    expect(screen.getByText(/5-day streak/)).toBeInTheDocument();
+    expect(screen.getByLabelText("5-day streak")).toBeInTheDocument();
   });
 
   it("shows complete button with correct aria label", () => {
@@ -103,7 +102,7 @@ describe("HabitCard", () => {
     const btn = screen.getByRole("button", { name: "Complete Morning Run" });
     await user.click(btn);
 
-    // The second argument is the centre of the button, used as the origin for
+    // The second argument is the center of the button, used as the origin for
     // the completion flyout animation. jsdom reports a zero-sized rect, so
     // assert the shape rather than the coordinates.
     expect(onQuickComplete).toHaveBeenCalledTimes(1);
@@ -129,6 +128,39 @@ describe("HabitCard", () => {
     await user.click(btn);
 
     expect(onQuickComplete).not.toHaveBeenCalled();
+  });
+
+  it("hides the challenge tag when it only repeats the habit title", () => {
+    render(
+      <HabitCard
+        habit={makeHabit({
+          title: "7-Day Early Bird",
+          challenge: { title: "7-Day Early Bird", emoji: "🌅" },
+        })}
+        completedToday={false}
+        onQuickComplete={vi.fn()}
+      />,
+    );
+
+    // The title itself still renders; the tag beside it does not.
+    expect(screen.getByRole("heading", { name: "7-Day Early Bird" }))
+      .toBeInTheDocument();
+    expect(screen.queryByText(/🌅/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the challenge tag when it names a different challenge", () => {
+    render(
+      <HabitCard
+        habit={makeHabit({
+          title: "Morning Run",
+          challenge: { title: "7-Day Early Bird", emoji: "🌅" },
+        })}
+        completedToday={false}
+        onQuickComplete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/7-Day Early Bird/)).toBeInTheDocument();
   });
 
   it("does not show streak when streak is 0", () => {
@@ -280,5 +312,85 @@ describe("HabitCard", () => {
     expect(
       screen.queryByRole("button", { name: /Quick check-in/ }),
     ).not.toBeInTheDocument();
+  });
+
+  describe("rain check", () => {
+    it("offers a rain check from the drawer", async () => {
+      const user = userEvent.setup();
+      const onCheckIn = vi.fn();
+
+      render(
+        <HabitCard
+          habit={makeHabit()}
+          completedToday={false}
+          onQuickComplete={vi.fn()}
+          onCheckIn={onCheckIn}
+        />,
+      );
+
+      await user.click(
+        screen.getByRole("button", {
+          name: "Show check-in options for Morning Run",
+        }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Rain check for Morning Run" }),
+      );
+
+      expect(onCheckIn).toHaveBeenCalledWith(
+        "habit-1",
+        "rain_check",
+        { x: expect.any(Number), y: expect.any(Number) },
+      );
+    });
+
+    it("shows the rain-check state but keeps the habit actionable", async () => {
+      const user = userEvent.setup();
+      const onCheckIn = vi.fn();
+
+      render(
+        <HabitCard
+          habit={makeHabit()}
+          completedToday={false}
+          rainCheckedToday
+          onQuickComplete={vi.fn()}
+          onCheckIn={onCheckIn}
+        />,
+      );
+
+      expect(screen.getByText("Rain check")).toBeInTheDocument();
+
+      // Unlike a completion, a rain check does not close the day off: the
+      // drawer is still there and the circle still invites a real check-in.
+      const circle = screen.getByRole("button", {
+        name: "Morning Run rain-checked today — check in anyway",
+      });
+      expect(circle).not.toBeDisabled();
+
+      await user.click(
+        screen.getByRole("button", {
+          name: "Show check-in options for Morning Run",
+        }),
+      );
+      expect(
+        screen.getByRole("button", { name: "Quick check-in for Morning Run" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the drawer once the habit is genuinely completed", () => {
+      render(
+        <HabitCard
+          habit={makeHabit()}
+          completedToday
+          rainCheckedToday
+          onQuickComplete={vi.fn()}
+          onCheckIn={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.queryByRole("button", { name: /Rain check for/ }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

@@ -7,6 +7,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import {
   ArrowLeft,
   Camera,
+  CloudRain,
   Video,
   MessageSquare,
   Zap,
@@ -26,7 +27,7 @@ import {
 import { formatDistanceToNow, format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
-import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
+import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
@@ -37,6 +38,12 @@ import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/lib/supabase/types";
+import type { Habit } from "@/lib/types/habit";
+import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import {
+  rainCheckReasonLabel,
+  type RainCheckReason,
+} from "@/lib/constants/rain-check";
 
 const CompletionForm = dynamic(
   () => import("@/components/habits/CompletionForm").then((m) => m.CompletionForm),
@@ -55,7 +62,7 @@ const EditHabitSheet = dynamic(
 // Types
 // ---------------------------------------------------------------------------
 
-type Habit = Tables<"habits">;
+
 
 type Completion = {
   id: string;
@@ -64,6 +71,8 @@ type Completion = {
   evidence_url: string | null;
   notes: string | null;
   completed_at: string;
+  rain_check_reason?: Tables<"completions">["rain_check_reason"];
+  rain_check_moved_to?: Tables<"completions">["rain_check_moved_to"];
 };
 
 type Share = {
@@ -108,6 +117,7 @@ const COMPLETION_ICONS: Record<string, React.ElementType> = {
   video: Video,
   message: MessageSquare,
   voice: Mic,
+  rain_check: CloudRain,
 };
 
 const COMPLETION_LABELS: Record<string, string> = {
@@ -116,6 +126,7 @@ const COMPLETION_LABELS: Record<string, string> = {
   video: "Video proof",
   message: "Reflection",
   voice: "Voice message",
+  rain_check: "Rain check",
 };
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -186,7 +197,7 @@ export function HabitDetailClient({
     if (!oldest) { setLoadingMore(false); return; }
     const { data } = await supabase
       .from("completions")
-      .select("id, habit_id, completion_type, evidence_url, notes, completed_at")
+      .select("id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to")
       .eq("habit_id", habit.id)
       .lt("completed_at", oldest)
       .order("completed_at", { ascending: false })
@@ -204,18 +215,61 @@ export function HabitDetailClient({
   const heatmapData = useMemo(() => {
     const map: Record<string, number> = {};
     completions.forEach((c) => {
+      if (isRainCheck(c.completion_type)) return;
       const key = toDateKey(c.completed_at, timezone);
       map[key] = (map[key] ?? 0) + 1;
     });
     return map;
   }, [completions, timezone]);
 
+  // Days held by a rain check rather than done — drawn apart in the chain.
+  //
+  // Only rain checks that still hold count. A rain check that was moved to a
+  // day which then passed undone stopped excusing anything: it leaves a gap in
+  // the heatmap and returns to the completion-rate denominator, because that
+  // is what actually happened to the streak.
+  const rainCheckDates = useMemo(() => {
+    const today = todayDateKey(timezone);
+    const realDates = new Set(
+      completions
+        .filter((c) => !isRainCheck(c.completion_type))
+        .map((c) => toDateKey(c.completed_at, timezone)),
+    );
+    const set = new Set<string>();
+    completions.forEach((c) => {
+      if (!isRainCheck(c.completion_type)) return;
+      const movedTo = c.rain_check_moved_to ?? null;
+      const holds =
+        movedTo === null || movedTo >= today || realDates.has(movedTo);
+      if (holds) set.add(toDateKey(c.completed_at, timezone));
+    });
+    return set;
+  }, [completions, timezone]);
+
+  // The day today's rain check promised to make this habit up on, if any.
+  const rainCheckMovedToToday = useMemo(() => {
+    const today = todayDateKey(timezone);
+    for (const c of completions) {
+      if (!isRainCheck(c.completion_type)) continue;
+      if (toDateKey(c.completed_at, timezone) !== today) continue;
+      if (c.rain_check_moved_to) return c.rain_check_moved_to;
+    }
+    return null;
+  }, [completions, timezone]);
+
   const completedToday = useMemo(() => {
     const today = todayDateKey(timezone);
     return completions.some(
-      (c) => toDateKey(c.completed_at, timezone) === today,
+      (c) =>
+        !isRainCheck(c.completion_type) &&
+        toDateKey(c.completed_at, timezone) === today,
     );
   }, [completions, timezone]);
+
+  const rainCheckedToday = useMemo(
+    () => rainCheckDates.has(todayDateKey(timezone)),
+    [rainCheckDates, timezone],
+  );
 
   const [mountTime] = useState(() => Date.now());
   const completionRate = useMemo(() => {
@@ -228,8 +282,11 @@ export function HabitDetailClient({
       1,
       Math.ceil((mountTime - createdMs) / (1000 * 60 * 60 * 24)),
     );
-    return Math.min(100, Math.round((totalComp / daysSinceCreation) * 100));
-  }, [habit.total_completions, habit.created_at, mountTime]);
+    // Rain-checked days were excused, not failed, so they leave the
+    // denominator entirely rather than counting against the rate.
+    const eligibleDays = Math.max(1, daysSinceCreation - rainCheckDates.size);
+    return Math.min(100, Math.round((totalComp / eligibleDays) * 100));
+  }, [habit.total_completions, habit.created_at, mountTime, rainCheckDates]);
 
   // --- Handlers ---
 
@@ -252,12 +309,18 @@ export function HabitDetailClient({
     type,
     evidenceUrl,
     notes,
+    rainCheckReason,
+    rainCheckMovedTo,
   }: {
-    type: "photo" | "video" | "message" | "quick" | "voice";
+    type: CompletionType;
     evidenceUrl?: string;
     notes?: string;
+    rainCheckReason?: RainCheckReason;
+    rainCheckMovedTo?: string;
   }) => {
     const prevStreak = habit.streak_current ?? 0;
+    // A rain check holds the streak and is never counted as a completion.
+    const rainCheck = isRainCheck(type);
 
     // Optimistic update
     const tempCompletion: Completion = {
@@ -267,22 +330,38 @@ export function HabitDetailClient({
       evidence_url: evidenceUrl ?? null,
       notes: notes ?? null,
       completed_at: new Date().toISOString(),
+      rain_check_reason: rainCheckReason ?? null,
+      rain_check_moved_to: rainCheckMovedTo ?? null,
     };
     setCompletions((prev) => [tempCompletion, ...prev]);
-    setHabit((h) => ({
-      ...h,
-      streak_current: (h.streak_current ?? 0) + 1,
-      total_completions: (h.total_completions ?? 0) + 1,
-    }));
+    if (!rainCheck) {
+      setHabit((h) => ({
+        ...h,
+        streak_current: (h.streak_current ?? 0) + 1,
+        total_completions: (h.total_completions ?? 0) + 1,
+      }));
+    }
 
     try {
-      await completeHabit.mutateAsync({ habitId: habit.id, type, evidenceUrl, notes });
-      checkMilestone(prevStreak + 1);
+      await completeHabit.mutateAsync({
+        habitId: habit.id,
+        type,
+        evidenceUrl,
+        notes,
+        rainCheckReason,
+        rainCheckMovedTo,
+      });
+      if (!rainCheck) checkMilestone(prevStreak + 1);
       router.refresh();
     } catch {
       setCompletions(initialCompletions);
       setHabit(initialHabit);
-      showToast({ variant: "error", title: "Failed to log completion" });
+      showToast({
+        variant: "error",
+        title: rainCheck
+          ? "Failed to take rain check"
+          : "Failed to log completion",
+      });
     }
   };
 
@@ -474,6 +553,26 @@ export function HabitDetailClient({
           </div>
         )}
 
+        {/* A rain check settles the day without closing it off — the button
+            above stays, so the habit can still be done for real. */}
+        {rainCheckedToday && !completedToday && (
+          <div
+            className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+            style={{
+              color: "var(--color-rain)",
+              backgroundColor:
+                "color-mix(in srgb, var(--color-rain) 12%, transparent)",
+            }}
+          >
+            <CloudRain className="w-4 h-4" />
+            <span>
+              {rainCheckMovedToToday
+                ? `Moved to ${weekdayName(rainCheckMovedToToday)} — check in then to keep your streak`
+                : "Rain check today — your streak is safe"}
+            </span>
+          </div>
+        )}
+
         {habit.is_paused && (
           <div className="mb-6 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
             <Pause className="w-4 h-4" />
@@ -509,14 +608,13 @@ export function HabitDetailClient({
                 Last 90 days
               </h3>
               <div className="rounded-lg bg-elevated p-4 shadow-sm">
-                <CalendarHeatmap data={heatmapData} color={habit.color ?? undefined} timezone={timezone} />
+                <CalendarHeatmap data={heatmapData} rainCheckDates={rainCheckDates} color={habit.color ?? undefined} timezone={timezone} />
               </div>
             </div>
 
             {/* Details */}
             <div className="rounded-lg bg-elevated p-4 shadow-sm space-y-3">
               <DetailRow label="Frequency" value={FREQUENCY_LABELS[habit.frequency] ?? habit.frequency} />
-              <DetailRow label="Category" value={habit.category ?? "general"} />
               <DetailRow
                 label="Created"
                 value={habit.created_at ? format(new Date(habit.created_at), "MMM d, yyyy") : "—"}
@@ -716,7 +814,7 @@ export function HabitDetailClient({
                     Edit habit
                   </p>
                   <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
-                    Change name, icon, schedule, or category
+                    Change name, icon, schedule, or color
                   </p>
                 </div>
                 <Button
@@ -811,6 +909,8 @@ export function HabitDetailClient({
         habitId={habit.id}
         habitTitle={habit.title}
         habitEmoji={habit.emoji ?? "✅"}
+        habitSchedule={habit.schedule}
+        timezone={timezone}
         onComplete={handleCompletion}
       />
 
@@ -876,16 +976,18 @@ function CompletionRow({ completion }: { completion: Completion }) {
   const cType = completion.completion_type ?? "quick";
   const Icon = COMPLETION_ICONS[cType] ?? Zap;
   const label = COMPLETION_LABELS[cType] ?? "Completion";
+  // A skip is not an achievement — it gets the rain hue, not success green.
+  const accent = isRainCheck(cType) ? "var(--color-rain)" : "var(--color-success)";
 
   return (
     <div className="flex items-start gap-3 rounded-lg bg-elevated p-4 shadow-sm">
       <div
         className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
         style={{
-          backgroundColor: "color-mix(in srgb, var(--color-success) 15%, transparent)",
+          backgroundColor: `color-mix(in srgb, ${accent} 15%, transparent)`,
         }}
       >
-        <Icon className="w-4 h-4 text-success" />
+        <Icon className="w-4 h-4" style={{ color: accent }} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5">
@@ -923,6 +1025,20 @@ function CompletionRow({ completion }: { completion: Completion }) {
           <p className="mt-1 text-sm text-[var(--color-text-secondary)] line-clamp-3 italic">
             &ldquo;{completion.notes}&rdquo;
           </p>
+        )}
+        {isRainCheck(completion.completion_type) && (
+          <div className="mt-1 space-y-1">
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              {completion.rain_check_moved_to
+                ? `Moved to ${weekdayName(completion.rain_check_moved_to)} · ${rainCheckReasonLabel(completion.rain_check_reason)}`
+                : rainCheckReasonLabel(completion.rain_check_reason)}
+            </p>
+            {completion.notes && (
+              <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 italic">
+                &ldquo;{completion.notes}&rdquo;
+              </p>
+            )}
+          </div>
         )}
         {completion.completion_type === "voice" && completion.evidence_url && (
           <div className="mt-2">

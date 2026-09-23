@@ -23,7 +23,6 @@ export function useCreateChallenge() {
       emoji,
       description,
       color,
-      category,
       frequency,
       schedule,
       startDate,
@@ -35,8 +34,7 @@ export function useCreateChallenge() {
       title: string;
       emoji?: string;
       description?: string;
-      color?: string;
-      category?: string;
+      color?: string | null;
       frequency: HabitFrequency;
       schedule: { days: number[] };
       startDate: string;
@@ -51,8 +49,7 @@ export function useCreateChallenge() {
           title,
           emoji: emoji || "🎯",
           description: description || null,
-          color: color || "#6366F1",
-          category: category || "general",
+          color: color ?? null,
           frequency,
           schedule,
           start_date: startDate,
@@ -71,9 +68,8 @@ export function useCreateChallenge() {
             user_id: createdBy,
             title,
             emoji: emoji || "🎯",
-            color: color || "#6366F1",
-            category: category || "general",
-            frequency,
+            color: color ?? null,
+              frequency,
             schedule,
             is_shared: true,
           })
@@ -112,7 +108,6 @@ export function useJoinChallenge() {
       title,
       emoji,
       color,
-      category,
       frequency,
       schedule,
     }: {
@@ -120,8 +115,7 @@ export function useJoinChallenge() {
       userId: string;
       title: string;
       emoji: string;
-      color: string;
-      category: string;
+      color: string | null;
       frequency: HabitFrequency;
       schedule: { days: number[] };
     }) => {
@@ -133,7 +127,6 @@ export function useJoinChallenge() {
           title,
           emoji,
           color,
-          category,
           frequency,
           schedule,
           is_shared: true,

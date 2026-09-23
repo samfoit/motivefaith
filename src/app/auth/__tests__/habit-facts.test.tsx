@@ -5,7 +5,7 @@ import { MobileFactBanner } from "../habit-facts";
 /**
  * The first fact has to be deterministic.
  *
- * It used to be chosen with `Math.random()` in a `useState` initialiser, which
+ * It used to be chosen with `Math.random()` in a `useState` initializer, which
  * also ran during SSR — so the server and the client picked different facts.
  * React never warned, because the card is keyed by the fact text and silently
  * remounted, but the user saw the server's fact swap for a different one about

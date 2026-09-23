@@ -12,11 +12,12 @@ import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
 import {
   HABIT_EMOJIS,
-  CATEGORIES,
   FREQUENCIES,
   DAYS,
   type HabitFrequency,
 } from "@/lib/constants/habit";
+import { DEFAULT_HABIT_COLOR } from "@/lib/constants/colors";
+import { ColorPicker } from "@/components/habits/ColorPicker";
 
 // ---------------------------------------------------------------------------
 // Form state type (shared with wizard-client)
@@ -31,8 +32,7 @@ export interface HabitForm {
   timeWindowEnabled: boolean;
   timeWindowStart: string;
   timeWindowEnd: string;
-  category: string;
-  color: string;
+  color: string | null;
   isShared: boolean;
   selectedFriends: string[];
   selectedGroups: string[];
@@ -47,8 +47,7 @@ export const DEFAULT_FORM: HabitForm = {
   timeWindowEnabled: false,
   timeWindowStart: "09:00",
   timeWindowEnd: "12:00",
-  category: "general",
-  color: "#6366F1",
+  color: DEFAULT_HABIT_COLOR,
   isShared: false,
   selectedFriends: [],
   selectedGroups: [],
@@ -63,22 +62,22 @@ type UpdateFn = <K extends keyof HabitForm>(key: K, val: HabitForm[K]) => void;
 export function PreviewCard({ form }: { form: HabitForm }) {
   return (
     <div
-      // Mirrors the dashboard card, tint and all, so the colour picker shows
+      // Mirrors the dashboard card, tint and all, so the color picker shows
       // what the habit will actually look like.
-      className="habit-tint flex items-center gap-3 rounded-lg border p-4 shadow-sm"
-      style={{ ["--habit-color" as string]: form.color } as React.CSSProperties}
+      className="habit-tint flex items-center gap-3 rounded-lg border px-4 py-3 shadow-sm"
+      style={{ ["--habit-color" as string]: form.color ?? undefined } as React.CSSProperties}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-xl leading-none">{form.emoji}</span>
           <h3
-            className="font-medium text-[var(--color-text-primary)] truncate"
-            style={{ fontSize: "var(--text-lg)" }}
+            className="font-semibold text-[var(--color-text-primary)] truncate"
+            style={{ fontSize: "var(--text-base)" }}
           >
             {form.title || "Habit name"}
           </h3>
         </div>
-        <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+        <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
           New habit — ready to start
         </p>
       </div>
@@ -317,21 +316,16 @@ export function StepSchedule({
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: Category & Color
+// Step 3: Color
 // ---------------------------------------------------------------------------
 
-export function StepCategory({
+export function StepColor({
   form,
   update,
 }: {
   form: HabitForm;
   update: UpdateFn;
 }) {
-  const selectCategory = (cat: (typeof CATEGORIES)[number]) => {
-    update("category", cat.id);
-    update("color", cat.color);
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -339,65 +333,14 @@ export function StepCategory({
           className="font-display font-semibold text-[var(--color-text-primary)] mb-1"
           style={{ fontSize: "var(--text-lg)" }}
         >
-          Pick a category
+          Pick a color
         </h2>
         <p className="text-sm text-[var(--color-text-secondary)]">
-          This helps organize your habits and sets the accent color.
+          Just so it stands out on your list.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => selectCategory(cat)}
-            className={cn(
-              "flex items-center gap-3 p-4 rounded-lg transition-all text-left",
-              form.category === cat.id
-                ? "ring-2 bg-elevated shadow-sm"
-                : "bg-[var(--color-bg-secondary)] hover:bg-[var(--color-surface-hover)]",
-            )}
-            style={{
-              outline:
-                form.category === cat.id ? `2px solid ${cat.color}` : undefined,
-              outlineOffset: form.category === cat.id ? "-2px" : undefined,
-            }}
-          >
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: `${cat.color}15` }}
-            >
-              <cat.Icon className="w-5 h-5" style={{ color: cat.color }} />
-            </div>
-            <span className="text-sm font-medium text-[var(--color-text-primary)]">
-              {cat.label}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Custom color override */}
-      <div className="flex items-center gap-3">
-        <label
-          htmlFor="color-picker"
-          className="text-sm text-[var(--color-text-secondary)]"
-        >
-          Custom color
-        </label>
-        <div className="relative">
-          <input
-            id="color-picker"
-            type="color"
-            value={form.color}
-            onChange={(e) => update("color", e.target.value)}
-            className="w-8 h-8 rounded-lg border-none cursor-pointer appearance-none bg-transparent [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch-wrapper]:p-0"
-          />
-        </div>
-        <span className="text-xs font-mono text-[var(--color-text-tertiary)]">
-          {form.color}
-        </span>
-      </div>
+      <ColorPicker value={form.color} onChange={(c) => update("color", c)} />
 
       {/* Preview */}
       <div>
@@ -584,8 +527,6 @@ export function StepReview({ form }: { form: HabitForm }) {
   const freqLabel =
     FREQUENCIES.find((f) => f.value === form.frequency)?.label ??
     form.frequency;
-  const catLabel =
-    CATEGORIES.find((c) => c.id === form.category)?.label ?? "General";
   const dayLabels = form.scheduleDays
     .sort((a, b) => a - b)
     .map((d) => DAYS.find((day) => day.value === d)?.full ?? "")
@@ -620,7 +561,6 @@ export function StepReview({ form }: { form: HabitForm }) {
             value={`${form.timeWindowStart} – ${form.timeWindowEnd}`}
           />
         )}
-        <SummaryRow label="Category" value={catLabel} />
         <SummaryRow
           label="Sharing"
           value={

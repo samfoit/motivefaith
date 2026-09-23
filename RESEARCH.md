@@ -17,7 +17,7 @@ not from memory.
 | PWA / service worker | **none** | No `next-pwa`, no `@serwist/next`, no `workbox`. Hand-rolled `public/sw.js` + `scripts/post-build.js` string-replacement injector. `src/app/sw.ts` is a 13-line doc comment, not the SW source. |
 
 Docs fetched were served as **version 16.3.5** of the Next.js documentation.
-Where 16.3.x describes behaviour newer than 16.1.6, that is called out below.
+Where 16.3.x describes behavior newer than 16.1.6, that is called out below.
 
 ## Techniques I intend to use
 
@@ -48,7 +48,7 @@ Sources: NN/g, *Skeleton Screens 101* — <https://www.nngroup.com/articles/skel
 
 | Remembered technique | Actual status in Next 16.1.6 | Source |
 | --- | --- | --- |
-| `experimental.ppr: true` + `export const experimental_ppr = true` | **Removed in v16.0.0.** Partial Prerendering is no longer a flag of its own — it is the default *behaviour* of **Cache Components** (`cacheComponents: true`). A codemod exists to strip `experimental_ppr`. | <https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config> (Version History), <https://nextjs.org/docs/app/getting-started/caching> |
+| `experimental.ppr: true` + `export const experimental_ppr = true` | **Removed in v16.0.0.** Partial Prerendering is no longer a flag of its own — it is the default *behavior* of **Cache Components** (`cacheComponents: true`). A codemod exists to strip `experimental_ppr`. | <https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config> (Version History), <https://nextjs.org/docs/app/getting-started/caching> |
 | `cacheComponents: true` to get a static shell | Initially deferred as out of scope, then **prototyped end to end and rejected on evidence**. It builds after removing 7 route configs, the root layout's `headers()` read, two `usePathname()` reads and a `Math.random()` — and every route does prerender (`◐ Partial Prerender`). But it is **incompatible with this app's nonce-based CSP**: with no nonce, Next's own inline RSC scripts are blocked and the app never hydrates. `experimental.sri`, the documented hash-based alternative, emits zero `integrity` attributes under Turbopack and does nothing for inline scripts. Only `'unsafe-inline'` makes it run. Measured payoff was ~0 locally anyway (shell flush 42 ms vs 43 ms). Full working in DIAGNOSIS.md Phase 5. | <https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents>, <https://nextjs.org/docs/app/guides/content-security-policy> |
 | `export const instant = true` to validate instant navigation | Exists in 16 but **"only works when `cacheComponents` is enabled"**, and is experimental (`level` only supports `'warning'`, dev-only). Not usable here. | <https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/instant> |
 | `next/dynamic` with `ssr: false` to skip the slow bits | Works only *inside* Client Components — **"`ssr: false` is not allowed with `next/dynamic` in Server Components"**. Also explicitly forbidden by this task's constraints, and it would make the blank-screen symptom worse, not better. **Rejected.** | <https://nextjs.org/docs/app/guides/lazy-loading#skipping-ssr> |

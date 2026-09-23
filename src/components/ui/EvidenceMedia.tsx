@@ -43,17 +43,17 @@ export function EvidenceMedia({
   useEffect(() => {
     if (isLegacy) return;
 
-    let cancelled = false;
+    let canceled = false;
     resolveEvidenceUrl(path)
       .then((signedUrl) => {
-        if (!cancelled) setResolved({ path, url: signedUrl });
+        if (!canceled) setResolved({ path, url: signedUrl });
       })
       .catch((err) => {
         console.error("Failed to resolve evidence URL:", err);
-        if (!cancelled) setResolved({ path, url: null });
+        if (!canceled) setResolved({ path, url: null });
       });
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [path, isLegacy]);
 

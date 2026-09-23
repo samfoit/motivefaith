@@ -21,12 +21,13 @@ type RpcGroupHabit = {
   title: string;
   emoji: string;
   color: string;
-  category: string;
   streak_current: number;
   owner_id: string;
   owner_name: string;
   owner_avatar: string | null;
   completed_today: boolean;
+  rain_checked_today: boolean;
+  rain_check_moved_to: string | null;
 };
 
 type RpcGroupCompletion = {
@@ -34,6 +35,8 @@ type RpcGroupCompletion = {
   habit_id: string;
   user_id: string;
   completion_type: string;
+  rain_check_reason: string | null;
+  rain_check_moved_to: string | null;
   evidence_url: string | null;
   notes: string | null;
   completed_at: string;
@@ -152,12 +155,13 @@ export default async function GroupTimelinePage({ params }: Props) {
     title: h.title,
     emoji: h.emoji,
     color: h.color,
-    category: h.category,
     streak_current: h.streak_current,
     owner_id: h.owner_id,
     owner_name: h.owner_name,
     owner_avatar: h.owner_avatar,
     completedToday: h.completed_today,
+    rainCheckedToday: h.rain_checked_today ?? false,
+    rainCheckMovedTo: h.rain_check_moved_to ?? null,
   }));
 
   const completions: GroupTimelineCompletion[] = (
@@ -166,6 +170,8 @@ export default async function GroupTimelinePage({ params }: Props) {
     id: c.id,
     habit_id: c.habit_id,
     completion_type: (c.completion_type ?? "quick") as GroupTimelineCompletion["completion_type"],
+    rain_check_reason: c.rain_check_reason,
+    rain_check_moved_to: c.rain_check_moved_to,
     evidence_url: c.evidence_url,
     notes: c.notes,
     completed_at: c.completed_at,

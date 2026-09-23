@@ -70,7 +70,11 @@ export default function MainLayout({
       {/* Persistent chrome: no data dependency, so it is always in the first
           flush of the response and paints with the document. */}
       <TopBar />
-      <main className="pb-24">
+      {/* Clearance for the fixed bottom nav: its own 4rem plus the home-bar
+          inset it pads itself by, and 1rem of breathing room. A flat `pb-24`
+          was both short of that on a notched phone and 16px of dead scroll
+          on every other one. */}
+      <main className="pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <Suspense fallback={null}>
           <AuthGate>{children}</AuthGate>
         </Suspense>
