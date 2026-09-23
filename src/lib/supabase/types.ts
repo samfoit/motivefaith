@@ -646,25 +646,34 @@ export type Database = {
           created_at: string | null
           habit_id: string
           id: string
+          initiated_by: string | null
           notify_complete: boolean | null
           notify_miss: boolean | null
+          responded_at: string | null
           shared_with: string
+          status: Database["public"]["Enums"]["habit_partner_status"]
         }
         Insert: {
           created_at?: string | null
           habit_id: string
           id?: string
+          initiated_by?: string | null
           notify_complete?: boolean | null
           notify_miss?: boolean | null
+          responded_at?: string | null
           shared_with: string
+          status?: Database["public"]["Enums"]["habit_partner_status"]
         }
         Update: {
           created_at?: string | null
           habit_id?: string
           id?: string
+          initiated_by?: string | null
           notify_complete?: boolean | null
           notify_miss?: boolean | null
+          responded_at?: string | null
           shared_with?: string
+          status?: Database["public"]["Enums"]["habit_partner_status"]
         }
         Relationships: [
           {
@@ -693,7 +702,7 @@ export type Database = {
           frequency: Database["public"]["Enums"]["habit_frequency"]
           id: string
           is_paused: boolean | null
-          is_shared: boolean | null
+          visibility: Database["public"]["Enums"]["habit_visibility"]
           schedule: Json | null
           streak_best: number | null
           streak_current: number | null
@@ -711,7 +720,7 @@ export type Database = {
           frequency?: Database["public"]["Enums"]["habit_frequency"]
           id?: string
           is_paused?: boolean | null
-          is_shared?: boolean | null
+          visibility?: Database["public"]["Enums"]["habit_visibility"]
           schedule?: Json | null
           streak_best?: number | null
           streak_current?: number | null
@@ -729,7 +738,7 @@ export type Database = {
           frequency?: Database["public"]["Enums"]["habit_frequency"]
           id?: string
           is_paused?: boolean | null
-          is_shared?: boolean | null
+          visibility?: Database["public"]["Enums"]["habit_visibility"]
           schedule?: Json | null
           streak_best?: number | null
           streak_current?: number | null
@@ -946,6 +955,8 @@ export type Database = {
         | "rain_check"
       encouragement_type: "nudge" | "message" | "emoji" | "voice"
       friendship_status: "pending" | "accepted" | "blocked"
+      habit_partner_status: "pending" | "accepted" | "declined"
+      habit_visibility: "public" | "private"
       group_role: "admin" | "member"
       rain_check_reason: "sick" | "travel" | "rest" | "busy" | "other"
       habit_frequency:

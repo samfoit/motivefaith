@@ -26,7 +26,7 @@ function makeHabit(overrides: Partial<HabitWithCompletions> = {}): HabitWithComp
     frequency: "daily",
     schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
     time_window: null,
-    is_shared: false,
+    visibility: "private" as const,
     streak_current: 5,
     streak_best: 12,
     total_completions: 30,
@@ -44,6 +44,26 @@ function makeHabit(overrides: Partial<HabitWithCompletions> = {}): HabitWithComp
 describe("HabitCard", () => {
   beforeEach(() => {
     useHabitDrawerStore.setState({ openHabitId: null });
+  });
+
+  it("flags a public habit, and leaves a private one unmarked", () => {
+    const { rerender } = render(
+      <HabitCard
+        habit={makeHabit()}
+        completedToday={false}
+        onQuickComplete={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("Public")).not.toBeInTheDocument();
+
+    rerender(
+      <HabitCard
+        habit={makeHabit({ visibility: "public" })}
+        completedToday={false}
+        onQuickComplete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Public")).toBeInTheDocument();
   });
 
   it("renders habit title, emoji, and streak", () => {

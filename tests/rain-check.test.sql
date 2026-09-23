@@ -180,14 +180,15 @@ BEGIN
     RETURN;
   END IF;
 
-  -- A shared habit whose time window has already closed today.
+  -- A habit with an accepted partner, whose time window has already closed
+  -- today. Since 029 it is the accepted share — not a boolean on the habit —
+  -- that makes it eligible for a miss alert.
   UPDATE public.habits
-    SET is_shared = true,
-        time_window = jsonb_build_object('start', '00:00', 'end', '00:05')
+    SET time_window = jsonb_build_object('start', '00:00', 'end', '00:05')
     WHERE id = 'bbbb0004-0000-0000-0000-000000000000';
 
-  INSERT INTO public.habit_shares (habit_id, shared_with)
-  VALUES ('bbbb0004-0000-0000-0000-000000000000', '55555555-5555-5555-5555-555555555555');
+  INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by)
+  VALUES ('bbbb0004-0000-0000-0000-000000000000', '55555555-5555-5555-5555-555555555555', 'accepted', '44444444-4444-4444-4444-444444444444');
 
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claims',
@@ -216,8 +217,10 @@ RESET role;
 -- ---------------------------------------------------------------------------
 
 UPDATE public.habits
-  SET streak_current = 5, streak_best = 5, is_shared = false, time_window = NULL
+  SET streak_current = 5, streak_best = 5, time_window = NULL
   WHERE id = 'bbbb0004-0000-0000-0000-000000000000';
+
+DELETE FROM public.habit_shares WHERE habit_id = 'bbbb0004-0000-0000-0000-000000000000';
 
 DELETE FROM public.completions WHERE habit_id = 'bbbb0004-0000-0000-0000-000000000000';
 

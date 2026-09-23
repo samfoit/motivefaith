@@ -18,6 +18,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
+import { untypedRpc } from "@/lib/supabase/rpc";
 import {
   queueWrite,
   claimOutbox,
@@ -117,15 +118,19 @@ async function replayHabitCreate(
     return isPermanent(error) ? "permanent" : "transient";
   }
 
-  // Shares are best-effort and independently idempotent; a failure here should
-  // not put the habit itself back on the queue.
+  // Invitations are best-effort and independently idempotent; a failure here
+  // should not put the habit itself back on the queue. invite_habit_partner
+  // upserts on (habit_id, shared_with), so replaying it is safe — and it will
+  // not knock an invitation the friend has already accepted back to pending.
   if (payload.friendIds?.length) {
-    await supabase
-      .from("habit_shares")
-      .upsert(
-        payload.friendIds.map((sharedWith) => ({ habit_id: id, shared_with: sharedWith })),
-        { onConflict: "habit_id,shared_with", ignoreDuplicates: true },
-      );
+    await Promise.all(
+      payload.friendIds.map((sharedWith) =>
+        untypedRpc(supabase, "invite_habit_partner", {
+          p_habit_id: id,
+          p_user_id: sharedWith,
+        }),
+      ),
+    );
   }
   if (payload.groupIds?.length) {
     await supabase

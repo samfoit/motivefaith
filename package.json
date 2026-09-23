@@ -13,7 +13,9 @@
     "test:coverage": "vitest run --coverage",
     "test:rls": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/rls-policies.test.sql",
     "test:rain-check": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/rain-check.test.sql",
-    "test:sql": "npm run test:rls && npm run test:rain-check",
+    "test:habit-visibility": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/habit-visibility.test.sql",
+    "test:partner-notifications": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/partner-notifications.test.sql",
+    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications",
     "analyze": "ANALYZE=true next build"
   },
   "dependencies": {

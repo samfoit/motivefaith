@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { motion } from "motion/react";
-import { Clock, Users, Check } from "lucide-react";
+import { Clock, Users, UserPlus, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Input } from "@/components/ui/Input";
 import { TextArea } from "@/components/ui/TextArea";
@@ -18,6 +18,8 @@ import {
 } from "@/lib/constants/habit";
 import { DEFAULT_HABIT_COLOR } from "@/lib/constants/colors";
 import { ColorPicker } from "@/components/habits/ColorPicker";
+import { VisibilityPicker } from "@/components/habits/VisibilityPicker";
+import type { HabitVisibility } from "@/lib/types/partners";
 
 // ---------------------------------------------------------------------------
 // Form state type (shared with wizard-client)
@@ -33,7 +35,7 @@ export interface HabitForm {
   timeWindowStart: string;
   timeWindowEnd: string;
   color: string | null;
-  isShared: boolean;
+  visibility: HabitVisibility;
   selectedFriends: string[];
   selectedGroups: string[];
 }
@@ -48,7 +50,7 @@ export const DEFAULT_FORM: HabitForm = {
   timeWindowStart: "09:00",
   timeWindowEnd: "12:00",
   color: DEFAULT_HABIT_COLOR,
-  isShared: false,
+  visibility: "private",
   selectedFriends: [],
   selectedGroups: [],
 };
@@ -369,35 +371,25 @@ export function StepSharing({
   const { data: friends, isLoading } = useFriendsList(userId);
   const { data: groups, isLoading: groupsLoading } = useGroupsList(userId);
 
-  const toggleSharing = () => {
-    if (form.isShared) {
-      update("isShared", false);
-      update("selectedFriends", []);
-      update("selectedGroups", []);
-    } else {
-      update("isShared", true);
-    }
-  };
-
   const toggleFriend = (friendId: string) => {
-    const next = form.selectedFriends.includes(friendId)
-      ? form.selectedFriends.filter((id) => id !== friendId)
-      : [...form.selectedFriends, friendId];
-    update("selectedFriends", next);
-    if (next.length > 0 && !form.isShared) {
-      update("isShared", true);
-    }
+    update(
+      "selectedFriends",
+      form.selectedFriends.includes(friendId)
+        ? form.selectedFriends.filter((id) => id !== friendId)
+        : [...form.selectedFriends, friendId],
+    );
   };
 
   const toggleGroup = (groupId: string) => {
-    const next = form.selectedGroups.includes(groupId)
-      ? form.selectedGroups.filter((id) => id !== groupId)
-      : [...form.selectedGroups, groupId];
-    update("selectedGroups", next);
-    if (next.length > 0 && !form.isShared) {
-      update("isShared", true);
-    }
+    update(
+      "selectedGroups",
+      form.selectedGroups.includes(groupId)
+        ? form.selectedGroups.filter((id) => id !== groupId)
+        : [...form.selectedGroups, groupId],
+    );
   };
+
+  const inviteCount = form.selectedFriends.length;
 
   return (
     <div className="space-y-6">
@@ -409,111 +401,84 @@ export function StepSharing({
           Accountability
         </h2>
         <p className="text-sm text-[var(--color-text-secondary)]">
-          Share this habit with friends or groups to stay motivated.
+          Choose who can find this habit, and who you want watching.
         </p>
       </div>
 
-      {/* Share toggle */}
-      <button
-        type="button"
-        onClick={toggleSharing}
-        className={cn(
-          "w-full flex items-center gap-4 p-4 rounded-lg transition-all text-left",
-          form.isShared
-            ? "bg-brand-light ring-2 ring-brand"
-            : "bg-[var(--color-bg-secondary)] hover:bg-[var(--color-surface-hover)]",
-        )}
-      >
-        <div
-          className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
-            form.isShared
-              ? "bg-brand text-white"
-              : "bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)]",
-          )}
-        >
-          <Users className="w-5 h-5" />
-        </div>
-        <div className="flex-1">
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-[var(--color-text-primary)]">
+          Who can find it
+        </p>
+        <VisibilityPicker
+          value={form.visibility}
+          onChange={(v) => update("visibility", v)}
+        />
+      </div>
+
+      {/* Partners are invited whatever the visibility — private only means
+          nobody can stumble across the habit, not that it is unshareable. */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <UserPlus className="w-4 h-4 text-[var(--color-text-secondary)]" />
           <p className="text-sm font-medium text-[var(--color-text-primary)]">
-            Share with friends & groups
-          </p>
-          <p className="text-xs text-[var(--color-text-secondary)]">
-            Others can see your progress and send encouragement
+            Invite accountability partners
           </p>
         </div>
-        <div
-          className={cn(
-            "w-10 h-6 rounded-full transition-colors relative",
-            form.isShared ? "bg-brand" : "bg-gray-300",
-          )}
-        >
-          <motion.div
-            className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm"
-            animate={{ left: form.isShared ? 18 : 2 }}
-            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        <p className="text-xs text-[var(--color-text-secondary)]">
+          They get an invitation to accept or decline. Nobody sees your progress
+          until they say yes.
+        </p>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : !friends?.length ? (
+          <div className="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+            <p className="text-sm text-[var(--color-text-secondary)] text-center">
+              No friends yet. Add friends from the Friends tab to invite
+              partners.
+            </p>
+          </div>
+        ) : (
+          <FriendPicker
+            friends={friends.map((f) => f.profile)}
+            selectedIds={form.selectedFriends}
+            onToggle={toggleFriend}
+            mode="multi"
+            searchPlaceholder="Search friends\u2026"
+          />
+        )}
+      </div>
+
+      {/* Group sharing is a push into a room you are both already in, so it
+          needs no invitation. */}
+      {!groupsLoading && groups && groups.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-[var(--color-text-secondary)]" />
+            <p className="text-sm font-medium text-[var(--color-text-primary)]">
+              Share with groups
+            </p>
+          </div>
+          <GroupPicker
+            groups={groups.map((g) => ({
+              id: g.id,
+              name: g.name,
+              avatar_url: g.avatar_url,
+              memberCount: g.memberCount,
+            }))}
+            selectedIds={form.selectedGroups}
+            onToggle={toggleGroup}
+            searchPlaceholder="Search groups\u2026"
           />
         </div>
-      </button>
-
-      {/* Friend picker */}
-      {form.isShared && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-[var(--color-text-primary)]">
-              Select accountability partners
-            </p>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <div className="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : !friends?.length ? (
-              <div className="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-                <p className="text-sm text-[var(--color-text-secondary)] text-center">
-                  No friends yet. Add friends from the Friends tab to share
-                  habits.
-                </p>
-              </div>
-            ) : (
-              <FriendPicker
-                friends={friends.map((f) => f.profile)}
-                selectedIds={form.selectedFriends}
-                onToggle={toggleFriend}
-                mode="multi"
-                searchPlaceholder="Search friends\u2026"
-              />
-            )}
-          </div>
-
-          {/* Group picker */}
-          {!groupsLoading && groups && groups.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                Share with groups
-              </p>
-              <GroupPicker
-                groups={groups.map((g) => ({
-                  id: g.id,
-                  name: g.name,
-                  avatar_url: g.avatar_url,
-                  memberCount: g.memberCount,
-                }))}
-                selectedIds={form.selectedGroups}
-                onToggle={toggleGroup}
-                searchPlaceholder="Search groups\u2026"
-              />
-            </div>
-          )}
-        </motion.div>
       )}
 
       <p className="text-xs text-[var(--color-text-tertiary)]">
-        You can always change sharing settings later. This step is optional.
+        {inviteCount > 0
+          ? `${inviteCount} invitation${inviteCount === 1 ? "" : "s"} will go out when you create the habit.`
+          : "You can change any of this later. This step is optional."}
       </p>
     </div>
   );
@@ -562,12 +527,20 @@ export function StepReview({ form }: { form: HabitForm }) {
           />
         )}
         <SummaryRow
-          label="Sharing"
+          label="Visibility"
+          value={
+            form.visibility === "public"
+              ? "Public — friends can find it"
+              : "Private — invite only"
+          }
+        />
+        <SummaryRow
+          label="Partners"
           value={
             form.selectedFriends.length > 0 || form.selectedGroups.length > 0
               ? [
                   form.selectedFriends.length > 0
-                    ? `${form.selectedFriends.length} friend${form.selectedFriends.length === 1 ? "" : "s"}`
+                    ? `${form.selectedFriends.length} invite${form.selectedFriends.length === 1 ? "" : "s"}`
                     : null,
                   form.selectedGroups.length > 0
                     ? `${form.selectedGroups.length} group${form.selectedGroups.length === 1 ? "" : "s"}`
@@ -575,9 +548,7 @@ export function StepReview({ form }: { form: HabitForm }) {
                 ]
                   .filter(Boolean)
                   .join(", ")
-              : form.isShared
-                ? "Shared (no partners yet)"
-                : "Private"
+              : "None yet"
           }
         />
         {form.description && (

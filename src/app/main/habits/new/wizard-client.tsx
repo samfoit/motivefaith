@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { untypedRpc } from "@/lib/supabase/rpc";
 import { DASHBOARD_KEY_PREFIX, dashboardKey } from "@/lib/hooks/useDashboard";
 import { applyHabitCreate } from "@/lib/data/dashboard-mutations";
 import type { DashboardData } from "@/lib/data/dashboard";
@@ -33,7 +34,7 @@ const SuccessScreen = dynamic(
   { ssr: false },
 );
 
-const STEP_LABELS = ["Name", "Schedule", "Color", "Sharing", "Review"];
+const STEP_LABELS = ["Name", "Schedule", "Color", "Partners", "Review"];
 
 // ---------------------------------------------------------------------------
 // Animation variants
@@ -126,7 +127,7 @@ export function WizardClient() {
         time_window: form.timeWindowEnabled
           ? { start: form.timeWindowStart, end: form.timeWindowEnd }
           : null,
-        is_shared: form.isShared,
+        visibility: form.visibility,
       };
 
       const result = await sendOrQueue(
@@ -144,19 +145,21 @@ export function WizardClient() {
           const { error } = await supabase.from("habits").insert(habitRow);
           if (error) throw error;
 
-          // Insert habit_shares for selected friends
+          // Invite the chosen friends. Each lands as a pending invitation
+          // they can accept or decline — nobody is subscribed to a habit they
+          // did not agree to watch.
           if (form.selectedFriends.length > 0) {
-            const { error: shareError } = await supabase
-              .from("habit_shares")
-              .insert(
-                form.selectedFriends.map((friendId) => ({
-                  habit_id: habitId,
-                  shared_with: friendId,
-                })),
-              );
+            const results = await Promise.all(
+              form.selectedFriends.map((friendId) =>
+                untypedRpc(supabase, "invite_habit_partner", {
+                  p_habit_id: habitId,
+                  p_user_id: friendId,
+                }),
+              ),
+            );
 
-            if (shareError) {
-              showToast({ variant: "error", title: "Habit created, but sharing with friends failed" });
+            if (results.some((r) => r.error)) {
+              showToast({ variant: "error", title: "Habit created, but some invites failed" });
             }
           }
 

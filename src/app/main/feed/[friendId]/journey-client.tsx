@@ -10,6 +10,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Pill } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { SharedHabits } from "@/components/social/SharedHabits";
+import { DiscoverableHabits } from "@/components/social/DiscoverableHabits";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { createClient } from "@/lib/supabase/client";
 import { sendOrQueue } from "@/lib/offline-write";
@@ -17,6 +18,7 @@ import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
 import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
+import type { ProfileHabit } from "@/lib/types/partners";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -25,9 +27,15 @@ import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
 interface JourneyClientProps {
   data: JourneyData;
   userId: string;
+  /** Their public habits you are not partnered on yet. */
+  discoverable?: ProfileHabit[];
 }
 
-export function JourneyClient({ data, userId }: JourneyClientProps) {
+export function JourneyClient({
+  data,
+  userId,
+  discoverable = [],
+}: JourneyClientProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { show: showToast, ToastElements } = useToast();
@@ -373,6 +381,13 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
 
         {/* Shared habits — one line of chips, details in a sheet */}
         <SharedHabits habits={habits} friendName={friendFirstName} />
+
+        {/* Habits of theirs you could ask to watch */}
+        <DiscoverableHabits
+          habits={discoverable}
+          friendName={friendFirstName}
+          onChanged={() => router.refresh()}
+        />
 
         {/* Timeline */}
         <section>

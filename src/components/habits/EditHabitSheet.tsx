@@ -16,6 +16,8 @@ import {
   type HabitFrequency,
 } from "@/lib/constants/habit";
 import { ColorPicker } from "@/components/habits/ColorPicker";
+import { VisibilityPicker } from "@/components/habits/VisibilityPicker";
+import type { HabitVisibility } from "@/lib/types/partners";
 import { getScheduledDays, parseTimeWindow as parseTimeWindowJson } from "@/lib/utils/schedule";
 import type { Habit } from "@/lib/types/habit";
 import type { ToastVariant } from "@/components/ui/Toast";
@@ -44,6 +46,7 @@ interface EditForm {
   timeWindowStart: string;
   timeWindowEnd: string;
   color: string | null;
+  visibility: HabitVisibility;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +81,7 @@ function buildFormFromHabit(habit: Habit): EditForm {
     timeWindowStart: tw.start,
     timeWindowEnd: tw.end,
     color: habit.color ?? null,
+    visibility: habit.visibility,
   };
 }
 
@@ -117,6 +121,7 @@ export function EditHabitSheet({
       form.description !== initial.description ||
       form.frequency !== initial.frequency ||
       form.color !== initial.color ||
+      form.visibility !== initial.visibility ||
       form.timeWindowEnabled !== initial.timeWindowEnabled ||
       form.timeWindowStart !== initial.timeWindowStart ||
       form.timeWindowEnd !== initial.timeWindowEnd ||
@@ -141,6 +146,7 @@ export function EditHabitSheet({
         ? { start: form.timeWindowStart, end: form.timeWindowEnd }
         : null,
       color: form.color,
+      visibility: form.visibility,
     };
 
     const supabase = createClient();
@@ -347,6 +353,20 @@ export function EditHabitSheet({
             value={form.color}
             onChange={(c) => update("color", c)}
             label=""
+          />
+        </section>
+
+        {/* ---- Visibility ---- */}
+        {/* Changing this does not touch existing partners: they accepted a
+            partnership, not a visibility setting, and going private should not
+            silently throw them out. */}
+        <section className="space-y-4">
+          <h3 className="text-sm font-medium text-text-secondary">
+            Who can find it
+          </h3>
+          <VisibilityPicker
+            value={form.visibility}
+            onChange={(v) => update("visibility", v)}
           />
         </section>
 

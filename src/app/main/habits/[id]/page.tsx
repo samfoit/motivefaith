@@ -35,7 +35,7 @@ export default async function HabitDetailPage({ params }: Props) {
     supabase.from("profiles").select("timezone").eq("id", user.id).single(),
     supabase
       .from("habits")
-      .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, is_shared, created_at")
+      .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, visibility, created_at")
       .eq("id", id)
       .eq("user_id", user.id)
       .single(),
@@ -48,7 +48,7 @@ export default async function HabitDetailPage({ params }: Props) {
       .limit(50),
     supabase
       .from("habit_shares")
-      .select("id, shared_with, notify_complete, notify_miss, created_at")
+      .select("id, shared_with, notify_complete, notify_miss, created_at, status, initiated_by")
       .eq("habit_id", id),
     supabase
       .from("group_habit_shares")
@@ -71,16 +71,24 @@ export default async function HabitDetailPage({ params }: Props) {
 
   const effectiveStreak = computeEffectiveStreak(habit, validatedCompletions, timeZone);
 
-  // Resolve dependent lookups in parallel
-  const partnerIds = (shares ?? []).map((s) => s.shared_with).filter((sid): sid is string => sid != null);
+  // Resolve dependent lookups in parallel.
+  //
+  // A declined row is deliberately not "live": it holds no access and the
+  // owner may invite that person again, so they stay in availableFriends.
+  const liveShares = (shares ?? []).filter(
+    (s) => s.status === "accepted" || s.status === "pending",
+  );
+  const shareUserIds = liveShares
+    .map((s) => s.shared_with)
+    .filter((sid): sid is string => sid != null);
   const groupIds = (groupShares ?? []).map((s) => s.group_id);
   const friendIds = (friendships ?? [])
     .map((f) => (f.register_id === user.id ? f.addressee_id : f.register_id))
-    .filter((fid) => !partnerIds.includes(fid));
+    .filter((fid) => !shareUserIds.includes(fid));
 
-  const [partners, sharedGroupsRaw, availableFriends] = await Promise.all([
-    partnerIds.length > 0
-      ? supabase.from("profiles").select("id, display_name, avatar_url, username").in("id", partnerIds).then(({ data }) => data ?? [])
+  const [shareProfiles, sharedGroupsRaw, availableFriends] = await Promise.all([
+    shareUserIds.length > 0
+      ? supabase.from("profiles").select("id, display_name, avatar_url, username").in("id", shareUserIds).then(({ data }) => data ?? [])
       : Promise.resolve([] as { id: string; display_name: string; avatar_url: string | null; username: string }[]),
     groupIds.length > 0
       ? supabase.from("groups").select("id, name, avatar_url").in("id", groupIds).then(({ data }) => data ?? [])
@@ -89,6 +97,26 @@ export default async function HabitDetailPage({ params }: Props) {
       ? supabase.from("profiles").select("id, display_name, avatar_url, username").in("id", friendIds).then(({ data }) => data ?? [])
       : Promise.resolve([] as { id: string; display_name: string; avatar_url: string | null; username: string }[]),
   ]);
+
+  // One row per live partnership, carrying which way round it was started.
+  // The owner is `user.id` here — the habit query filters on it — so a row
+  // they initiated is an invitation, and anything else is a request.
+  const partnerRows = liveShares
+    .map((share) => {
+      const profile = shareProfiles.find((p) => p.id === share.shared_with);
+      if (!profile) return null;
+      return {
+        shareId: share.id,
+        status: share.status as "accepted" | "pending",
+        direction: (share.initiated_by === user.id ? "invite" : "request") as
+          | "invite"
+          | "request",
+        notify_complete: share.notify_complete,
+        notify_miss: share.notify_miss,
+        profile,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
 
   const sharedGroups = sharedGroupsRaw
     .map((g) => {
@@ -102,8 +130,7 @@ export default async function HabitDetailPage({ params }: Props) {
     <HabitDetailClient
       habit={{ ...habit, streak_current: effectiveStreak }}
       completions={validatedCompletions}
-      shares={shares ?? []}
-      partners={partners}
+      partnerRows={partnerRows}
       availableFriends={availableFriends}
       sharedGroups={sharedGroups}
       timezone={timeZone}

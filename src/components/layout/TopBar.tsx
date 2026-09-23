@@ -5,12 +5,18 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { useMissedHabitCount } from "@/lib/hooks/useMissedHabits";
+import { usePartnerInbox, PARTNER_INBOX_KEY } from "@/lib/hooks/usePartnerInbox";
 import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 
 export function TopBar() {
   const userId = useAuthUserId();
   const queryClient = useQueryClient();
-  const { data: unreadCount = 0 } = useMissedHabitCount(userId);
+  const { data: missedCount = 0 } = useMissedHabitCount(userId);
+  // Unanswered invitations and requests belong on the same badge: both are
+  // things the inbox is holding for you. A missed-habit nudge clears itself at
+  // midnight; a partnership question does not, so it is worth the dot.
+  const { data: partnerItems = [] } = usePartnerInbox(userId);
+  const unreadCount = missedCount + partnerItems.length;
 
   // Invalidate missed-habits count on tab focus / visibility change
   // instead of maintaining a separate realtime channel.
@@ -18,6 +24,7 @@ export function TopBar() {
   // this covers the case where the user returns to the app.
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["missed-habits-count"] });
+    queryClient.invalidateQueries({ queryKey: PARTNER_INBOX_KEY });
   }, [queryClient]);
 
   useEffect(() => {

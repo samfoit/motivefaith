@@ -71,7 +71,6 @@ export function useCreateChallenge() {
             color: color ?? null,
               frequency,
             schedule,
-            is_shared: true,
           })
           .select("id")
           .single();
@@ -129,7 +128,6 @@ export function useJoinChallenge() {
           color,
           frequency,
           schedule,
-          is_shared: true,
         })
         .select("id")
         .single();

@@ -202,117 +202,118 @@ WHERE id = 'e5555555-5555-5555-5555-555555555555';
 
 
 -- =============================================
--- 3. HABITS (14 total)
+-- 3. HABITS (16 total)
 -- =============================================
 -- Covers: all 5 frequencies, 7 categories, shared/private,
---   paused/active, with/without time_window, with/without description
+--   public/private, paused/active, with/without time_window,
+--   with/without description
 
 INSERT INTO habits (
   id, user_id, title, description, emoji, color,
   frequency, schedule, time_window, category,
-  is_shared, is_paused, created_at
+  visibility, is_paused, created_at
 ) VALUES
   -- ── ALICE (4 habits) ──
   ('00000000-0000-0000-0000-000000000101', 'a1111111-1111-1111-1111-111111111111',
    'Morning Run', '5K run before work to start the day with energy',
    '🏃', '#ef4444', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   '{"start":"06:00","end":"10:00"}', 'fitness', true, false,
+   '{"start":"06:00","end":"10:00"}', 'fitness', 'public', false,
    now() - interval '30 days'),
 
   ('00000000-0000-0000-0000-000000000102', 'a1111111-1111-1111-1111-111111111111',
    'Meditation', '10-20 minute mindfulness session',
    '🧘', '#8b5cf6', 'weeksdays', '{"days":[1,2,3,4,5]}',
-   '{"start":"07:00","end":"09:00"}', 'mindfulness', true, false,
+   '{"start":"07:00","end":"09:00"}', 'mindfulness', 'public', false,
    now() - interval '30 days'),
 
   ('00000000-0000-0000-0000-000000000103', 'a1111111-1111-1111-1111-111111111111',
    'Read a Book', 'Read at least 30 pages on weekends',
    '📚', '#3b82f6', 'weekends', '{"days":[0,6]}',
-   NULL, 'learning', false, false,
+   NULL, 'learning', 'private', false,
    now() - interval '30 days'),
 
   ('00000000-0000-0000-0000-000000000104', 'a1111111-1111-1111-1111-111111111111',
    'Sketch', NULL,
    '✏️', '#ec4899', 'specific_days', '{"days":[1,3,5]}',
-   NULL, 'creative', false, false,
+   NULL, 'creative', 'private', false,
    now() - interval '20 days'),
 
   -- ── BOB (3 habits) ──
   ('00000000-0000-0000-0000-000000000201', 'b2222222-2222-2222-2222-222222222222',
    'Drink Water', 'Drink 8 glasses throughout the day',
    '💧', '#22c55e', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'health', true, false,
+   NULL, 'health', 'public', false,
    now() - interval '30 days'),
 
   ('00000000-0000-0000-0000-000000000202', 'b2222222-2222-2222-2222-222222222222',
    'Call Family', 'Weekly call with parents',
    '📞', '#f59e0b', 'weekly', '{"days":[0]}',
-   NULL, 'social', false, false,
+   NULL, 'social', 'private', false,
    now() - interval '30 days'),
 
   ('00000000-0000-0000-0000-000000000203', 'b2222222-2222-2222-2222-222222222222',
    'Study Spanish', 'Duolingo or flashcards for 15 min',
    '🇪🇸', '#3b82f6', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'learning', false, true,  -- PAUSED
+   NULL, 'learning', 'private', true,  -- PAUSED
    now() - interval '45 days'),
 
   -- ── CHARLIE (1 habit) ──
   ('00000000-0000-0000-0000-000000000301', 'c3333333-3333-3333-3333-333333333333',
    'Push-ups', 'Do 3 sets of 10 push-ups',
    '💪', '#ef4444', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'fitness', false, false,
+   NULL, 'fitness', 'private', false,
    now() - interval '1 day'),
 
   -- ── DIANA (2 habits) ──
   ('00000000-0000-0000-0000-000000000401', 'd4444444-4444-4444-4444-444444444444',
    'Deep Breathing', '5 minutes of box breathing',
    '🌬️', '#8b5cf6', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'mindfulness', false, true,  -- PAUSED
+   NULL, 'mindfulness', 'private', true,  -- PAUSED
    now() - interval '45 days'),
 
   ('00000000-0000-0000-0000-000000000402', 'd4444444-4444-4444-4444-444444444444',
    'Vitamins', 'Take daily vitamins and supplements',
    '💊', '#22c55e', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   '{"start":"08:00","end":"12:00"}', 'health', true, false,
+   '{"start":"08:00","end":"12:00"}', 'health', 'public', false,
    now() - interval '30 days'),
 
   -- ── EVE (3 habits) ──
   ('00000000-0000-0000-0000-000000000501', 'e5555555-5555-5555-5555-555555555555',
    'Coffee Chat', 'Have a meaningful conversation today',
    '☕', '#f59e0b', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'social', true, false,
+   NULL, 'social', 'public', false,
    now() - interval '15 days'),
 
   ('00000000-0000-0000-0000-000000000502', 'e5555555-5555-5555-5555-555555555555',
    'Yoga', '30-minute yoga flow',
    '🧘‍♀️', '#ef4444', 'weeksdays', '{"days":[1,2,3,4,5]}',
-   '{"start":"06:00","end":"08:00"}', 'fitness', true, false,
+   '{"start":"06:00","end":"08:00"}', 'fitness', 'public', false,
    now() - interval '15 days'),
 
   ('00000000-0000-0000-0000-000000000503', 'e5555555-5555-5555-5555-555555555555',
    'Paint', NULL,
    '🎨', '#ec4899', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'creative', false, false,
+   NULL, 'creative', 'private', false,
    now() - interval '20 days'),
 
   -- ── FRANK (1 habit) ──
   ('00000000-0000-0000-0000-000000000601', 'f6666666-6666-6666-6666-666666666666',
    'Walk', NULL,
    '🚶', '#6366F1', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'general', false, false,
+   NULL, 'general', 'private', false,
    now() - interval '2 days'),
 
   -- ── Challenge habits (created when joining "7-Day Early Bird") ──
   ('00000000-0000-0000-0000-0000000c0101', 'a1111111-1111-1111-1111-111111111111',
    '7-Day Early Bird', 'Wake up before 7 AM and do something productive for 7 consecutive days.',
    '🌅', '#f59e0b', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'health', false, false,
+   NULL, 'health', 'private', false,
    now() - interval '3 days'),
 
   ('00000000-0000-0000-0000-0000000c0201', 'b2222222-2222-2222-2222-222222222222',
    '7-Day Early Bird', 'Wake up before 7 AM and do something productive for 7 consecutive days.',
    '🌅', '#f59e0b', 'daily', '{"days":[0,1,2,3,4,5,6]}',
-   NULL, 'health', false, false,
+   NULL, 'health', 'private', false,
    now() - interval '2 days');
 
 
@@ -637,25 +638,29 @@ ALTER TABLE completions ENABLE TRIGGER on_completion_insert;
 -- =============================================
 -- Covers: both notifications on, completion only, miss only, both off
 
-INSERT INTO habit_shares (habit_id, shared_with, notify_complete, notify_miss) VALUES
+-- status is explicit throughout: it defaults to 'pending', and a pending row
+-- grants nothing, so a seed that left it out would look like a broken app.
+-- The last two rows are deliberately unsettled, so the partner inbox has
+-- something in it on a fresh database.
+INSERT INTO habit_shares (habit_id, shared_with, notify_complete, notify_miss, status, initiated_by, responded_at) VALUES
   -- Alice's Morning Run → Bob (all notifications)
-  ('00000000-0000-0000-0000-000000000101', 'b2222222-2222-2222-2222-222222222222', true, true),
+  ('00000000-0000-0000-0000-000000000101', 'b2222222-2222-2222-2222-222222222222', true, true, 'accepted', 'a1111111-1111-1111-1111-111111111111', now() - interval '20 days'),
   -- Alice's Morning Run → Eve (completion only)
-  ('00000000-0000-0000-0000-000000000101', 'e5555555-5555-5555-5555-555555555555', true, false),
+  ('00000000-0000-0000-0000-000000000101', 'e5555555-5555-5555-5555-555555555555', true, false, 'accepted', 'a1111111-1111-1111-1111-111111111111', now() - interval '18 days'),
   -- Alice's Meditation → Bob (miss only)
-  ('00000000-0000-0000-0000-000000000102', 'b2222222-2222-2222-2222-222222222222', false, true),
+  ('00000000-0000-0000-0000-000000000102', 'b2222222-2222-2222-2222-222222222222', false, true, 'accepted', 'a1111111-1111-1111-1111-111111111111', now() - interval '18 days'),
   -- Bob's Drink Water → Alice (all notifications)
-  ('00000000-0000-0000-0000-000000000201', 'a1111111-1111-1111-1111-111111111111', true, true),
+  ('00000000-0000-0000-0000-000000000201', 'a1111111-1111-1111-1111-111111111111', true, true, 'accepted', 'b2222222-2222-2222-2222-222222222222', now() - interval '15 days'),
   -- Bob's Drink Water → Diana (both off)
-  ('00000000-0000-0000-0000-000000000201', 'd4444444-4444-4444-4444-444444444444', false, false),
+  ('00000000-0000-0000-0000-000000000201', 'd4444444-4444-4444-4444-444444444444', false, false, 'accepted', 'b2222222-2222-2222-2222-222222222222', now() - interval '12 days'),
   -- Diana's Vitamins → Bob (all notifications)
-  ('00000000-0000-0000-0000-000000000402', 'b2222222-2222-2222-2222-222222222222', true, true),
+  ('00000000-0000-0000-0000-000000000402', 'b2222222-2222-2222-2222-222222222222', true, true, 'accepted', 'd4444444-4444-4444-4444-444444444444', now() - interval '10 days'),
   -- Eve's Coffee Chat → Alice (all notifications)
-  ('00000000-0000-0000-0000-000000000501', 'a1111111-1111-1111-1111-111111111111', true, true),
-  -- Eve's Coffee Chat → Bob (completion only)
-  ('00000000-0000-0000-0000-000000000501', 'b2222222-2222-2222-2222-222222222222', true, false),
-  -- Eve's Yoga → Alice (miss only)
-  ('00000000-0000-0000-0000-000000000502', 'a1111111-1111-1111-1111-111111111111', false, true);
+  ('00000000-0000-0000-0000-000000000501', 'a1111111-1111-1111-1111-111111111111', true, true, 'accepted', 'e5555555-5555-5555-5555-555555555555', now() - interval '8 days'),
+  -- Eve's Coffee Chat → Bob: an INVITE Eve sent and Bob has not answered
+  ('00000000-0000-0000-0000-000000000501', 'b2222222-2222-2222-2222-222222222222', true, false, 'pending', 'e5555555-5555-5555-5555-555555555555', NULL),
+  -- Eve's Yoga → Alice: a REQUEST Alice made on a public habit, unanswered
+  ('00000000-0000-0000-0000-000000000502', 'a1111111-1111-1111-1111-111111111111', false, true, 'pending', 'a1111111-1111-1111-1111-111111111111', NULL);
 
 
 -- =============================================
