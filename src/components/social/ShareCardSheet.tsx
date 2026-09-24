@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils/cn";
 import { invitePath } from "@/lib/constants/pending-invite";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/utils/media-types";
+import { useMyUsername } from "@/lib/hooks/useMyUsername";
 import {
   renderStreakCard,
   type CardFormat,
@@ -22,8 +23,12 @@ interface ShareCardSheetProps {
   streak: number;
   /** "day" for daily habits, "week" for weekly ones. */
   unit: string;
-  /** The sharer's own username — the card's foot links back to their invite. */
-  username: string | null;
+  /**
+   * The sharer's own username, when the caller already has it. Left out, the
+   * sheet fetches it — which is what lets it be dropped on the dashboard,
+   * whose document carries no user data by design.
+   */
+  username?: string | null;
 }
 
 const FORMATS: { value: CardFormat; label: string }[] = [
@@ -47,8 +52,9 @@ export function ShareCardSheet({
   title,
   streak,
   unit,
-  username,
+  username: usernameProp,
 }: ShareCardSheetProps) {
+  const { data: username } = useMyUsername(usernameProp);
   const [format, setFormat] = useState<CardFormat>("square");
   const [theme, setTheme] = useState<CardTheme>("dark");
   const [photoLayout, setPhotoLayout] =
