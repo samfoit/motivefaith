@@ -1,16 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Loader2, Share2 } from "lucide-react";
+import { Download, ImagePlus, Loader2, Share2, X } from "lucide-react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils/cn";
 import { invitePath } from "@/lib/constants/pending-invite";
+import { ALLOWED_IMAGE_TYPES } from "@/lib/utils/media-types";
 import {
   renderStreakCard,
   type CardFormat,
   type CardTheme,
+  type CardLayout,
 } from "@/lib/utils/share-card";
 
 interface ShareCardSheetProps {
@@ -20,7 +22,7 @@ interface ShareCardSheetProps {
   streak: number;
   /** "day" for daily habits, "week" for weekly ones. */
   unit: string;
-  /** The sharer's own username — the card's footer links back to their invite. */
+  /** The sharer's own username — the card's foot links back to their invite. */
   username: string | null;
 }
 
@@ -34,6 +36,11 @@ const THEMES: { value: CardTheme; label: string }[] = [
   { value: "dark", label: "Dark" },
 ];
 
+const PHOTO_LAYOUTS: { value: Exclude<CardLayout, "default">; label: string }[] = [
+  { value: "bleed", label: "Full" },
+  { value: "inset", label: "Framed" },
+];
+
 export function ShareCardSheet({
   open,
   onOpenChange,
@@ -43,23 +50,28 @@ export function ShareCardSheet({
   username,
 }: ShareCardSheetProps) {
   const [format, setFormat] = useState<CardFormat>("square");
-  const [theme, setTheme] = useState<CardTheme>("light");
+  const [theme, setTheme] = useState<CardTheme>("dark");
+  const [photoLayout, setPhotoLayout] =
+    useState<Exclude<CardLayout, "default">>("bleed");
+  const [photo, setPhoto] = useState<HTMLImageElement | null>(null);
+  const [photoName, setPhotoName] = useState<string | null>(null);
   const { show, ToastElements } = useToast();
 
-  // Held so share and save send the exact bytes that were previewed, rather
-  // than redrawing and hoping for the same result.
+  const fileRef = useRef<HTMLInputElement>(null);
   const blobRef = useRef<Blob | null>(null);
   const urlRef = useRef<string | null>(null);
+  const photoUrlRef = useRef<string | null>(null);
 
   const inviteUrl = username
     ? `${typeof window !== "undefined" ? window.location.host : "motivefaith.app"}${invitePath(username)}`
     : "motivefaith.app";
 
+  const layout: CardLayout = photo ? photoLayout : "default";
+
   // Everything the drawing depends on, as one value. What is on screen is
   // either the card for this key or it is stale, which makes "rendering"
-  // something to derive rather than a second piece of state to keep in step —
-  // and keeps the effect from setting state synchronously as it starts.
-  const key = [format, theme, title, streak, unit, inviteUrl].join("\u0000");
+  // something to derive rather than a second piece of state to keep in step.
+  const key = [format, theme, layout, photoName ?? "", title, streak, unit, inviteUrl].join("\u0000");
   const [rendered, setRendered] = useState<{ key: string; url: string } | null>(null);
   const rendering = rendered?.key !== key;
   const preview = rendered?.url ?? null;
@@ -68,7 +80,7 @@ export function ShareCardSheet({
     if (!open) return;
     let cancelled = false;
 
-    renderStreakCard({ title, streak, unit, inviteUrl, format, theme })
+    renderStreakCard({ title, streak, unit, inviteUrl, format, theme, layout, photo })
       .then((blob) => {
         if (cancelled) return;
         blobRef.current = blob;
@@ -83,14 +95,47 @@ export function ShareCardSheet({
     return () => {
       cancelled = true;
     };
-  }, [open, key, title, streak, unit, inviteUrl, format, theme, show]);
+  }, [open, key, title, streak, unit, inviteUrl, format, theme, layout, photo, show]);
 
-  // The object URL outlives the render that made it, so it is released when the
-  // sheet goes away rather than in the effect that created it.
   useEffect(() => {
     return () => {
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
     };
+  }, []);
+
+  const handlePickPhoto = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      show({ variant: "error", title: "That file isn't an image we can use" });
+      return;
+    }
+
+    // An object URL rather than a data URL: the photo never leaves the device,
+    // and nothing has to base64 a few megabytes to draw it.
+    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    const objectUrl = URL.createObjectURL(file);
+    photoUrlRef.current = objectUrl;
+
+    const img = new Image();
+    img.onload = () => {
+      setPhoto(img);
+      setPhotoName(`${file.name}:${file.size}`);
+    };
+    img.onerror = () => {
+      show({ variant: "error", title: "Could not open that image" });
+    };
+    img.src = objectUrl;
+  }, [show]);
+
+  const handleRemovePhoto = useCallback(() => {
+    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    photoUrlRef.current = null;
+    setPhoto(null);
+    setPhotoName(null);
   }, []);
 
   const fileName = `motivefaith-${streak}-${unit}-streak.png`;
@@ -104,7 +149,10 @@ export function ShareCardSheet({
     // Some targets take an image with accompanying text, some refuse the
     // combination outright. Ask about the richer payload first and fall back
     // rather than letting a refusal read as a failure.
-    const withText = { files: [file], text: `${title} — ${streak} ${unit}${streak === 1 ? "" : "s"}. ${inviteUrl}` };
+    const withText = {
+      files: [file],
+      text: `${streak} ${unit}${streak === 1 ? "" : "s"} of ${title}. ${inviteUrl}`,
+    };
     const filesOnly = { files: [file] };
     const payload = navigator.canShare?.(withText)
       ? withText
@@ -152,7 +200,7 @@ export function ShareCardSheet({
           Share your streak
         </h2>
 
-        {/* Preview — the whole card, so what is posted is never a surprise. */}
+        {/* The card as it will be sent. Nothing is shared that was not seen. */}
         <div className="flex justify-center">
           <div
             className={cn(
@@ -176,17 +224,50 @@ export function ShareCardSheet({
           </div>
         </div>
 
-        <Segmented
-          label="Format"
-          options={FORMATS}
-          value={format}
-          onChange={setFormat}
-        />
-        <Segmented
-          label="Theme"
-          options={THEMES}
-          value={theme}
-          onChange={setTheme}
+        <Segmented label="Format" options={FORMATS} value={format} onChange={setFormat} />
+        <Segmented label="Theme" options={THEMES} value={theme} onChange={setTheme} />
+
+        {/* A photo is an upgrade, never a requirement — the card above is
+            finished before anyone touches this. */}
+        {photo ? (
+          <>
+            <Segmented
+              label="Photo"
+              options={PHOTO_LAYOUTS}
+              value={photoLayout}
+              onChange={setPhotoLayout}
+            />
+            <button
+              type="button"
+              onClick={handleRemovePhoto}
+              className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Remove photo</span>
+            </button>
+          </>
+        ) : (
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => fileRef.current?.click()}
+          >
+            {/* Button wraps its children in one block-level span, so the
+                icon stacked above the label. An explicit row keeps them side
+                by side. */}
+            <span className="inline-flex items-center gap-1.5">
+              <ImagePlus className="w-4 h-4" />
+              Add a photo
+            </span>
+          </Button>
+        )}
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept={[...ALLOWED_IMAGE_TYPES].join(",")}
+          className="hidden"
+          onChange={handlePickPhoto}
         />
 
         <div className="space-y-2 pt-1">
@@ -197,8 +278,10 @@ export function ShareCardSheet({
               onClick={handleShare}
               disabled={!preview || rendering}
             >
-              <Share2 className="w-4 h-4" />
-              <span>Share</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Share2 className="w-4 h-4" />
+                Share
+              </span>
             </Button>
           )}
           <Button
@@ -208,8 +291,10 @@ export function ShareCardSheet({
             onClick={handleSave}
             disabled={!preview || rendering}
           >
-            <Download className="w-4 h-4" />
-            <span>Save image</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Download className="w-4 h-4" />
+              Save image
+            </span>
           </Button>
         </div>
 
