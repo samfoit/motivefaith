@@ -570,6 +570,18 @@ export function HabitDetailClient({
               >
                 <Pencil className="w-4 h-4 text-[var(--color-text-tertiary)]" />
               </button>
+              {/* Sits with edit rather than as a band under the stats: it is
+                  an occasional action, and a full-width button spent more of
+                  the screen on it than it earns. The milestone toast carries
+                  the discoverability instead — it offers sharing at the one
+                  moment the streak has just moved. */}
+              <button
+                onClick={() => setShareOpen(true)}
+                className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors flex-shrink-0"
+                aria-label="Share your streak"
+              >
+                <Share2 className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+              </button>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[var(--color-text-tertiary)]">
               {habit.visibility === "public" ? (
@@ -620,19 +632,6 @@ export function HabitDetailClient({
           />
         </div>
 
-        {/* Always offered, never prompted. A streak is the user's to post at
-            two days or two hundred, so this sits under the numbers it is about
-            rather than waiting for the app to decide a milestone was worth
-            celebrating. It was a 16px tertiary icon next to the edit pencil
-            before, which is not an entry point anyone finds. */}
-        <button
-          type="button"
-          onClick={() => setShareOpen(true)}
-          className="w-full mb-6 flex items-center justify-center gap-2 rounded-lg border border-[var(--color-bg-secondary)] bg-elevated py-2.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"
-        >
-          <Share2 className="w-4 h-4" />
-          <span>Share your streak</span>
-        </button>
 
         {/* Complete button */}
         {!completedToday && !habit.is_paused && (
