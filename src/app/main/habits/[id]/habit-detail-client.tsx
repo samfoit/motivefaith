@@ -204,6 +204,18 @@ export function HabitDetailClient({
   const [editOpen, setEditOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
+  // Photo evidence from this habit, newest first, offered inside the share
+  // sheet. Only `photo` completions qualify: a video's evidence would need a
+  // frame pulled out of it before anything could draw it.
+  const evidencePaths = useMemo(
+    () =>
+      completions
+        .filter((c) => c.completion_type === "photo" && c.evidence_url)
+        .slice(0, 6)
+        .map((c) => c.evidence_url as string),
+    [completions],
+  );
+
   const { partners, invited, requests } = useMemo(() => {
     return {
       partners: partnerRows.filter((r) => r.status === "accepted"),
@@ -1106,6 +1118,7 @@ export function HabitDetailClient({
         streak={habit.streak_current ?? 0}
         unit={streakUnit}
         username={username}
+        evidencePaths={evidencePaths}
       />
 
       {/* Streak celebration */}

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils/cn";
 import { invitePath } from "@/lib/constants/pending-invite";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/utils/media-types";
 import { useMyUsername } from "@/lib/hooks/useMyUsername";
+import { resolveEvidenceUrls } from "@/lib/utils/evidence";
 import {
   renderStreakCard,
   type CardFormat,
@@ -29,6 +30,13 @@ interface ShareCardSheetProps {
    * whose document carries no user data by design.
    */
   username?: string | null;
+  /**
+   * Storage paths of photo evidence on this habit, newest first. Offered as
+   * one-tap choices so that "add a photo" does not mean "go and think of
+   * one" — the pictures people already took of the practice are the most
+   * likely thing they would have picked anyway.
+   */
+  evidencePaths?: string[];
 }
 
 const FORMATS: { value: CardFormat; label: string }[] = [
@@ -53,6 +61,7 @@ export function ShareCardSheet({
   streak,
   unit,
   username: usernameProp,
+  evidencePaths,
 }: ShareCardSheetProps) {
   const { data: username } = useMyUsername(usernameProp);
   const [format, setFormat] = useState<CardFormat>("square");
@@ -109,6 +118,53 @@ export function ShareCardSheet({
       if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
     };
   }, []);
+
+  // Signed URLs are short-lived and cost a request, so they are resolved when
+  // the sheet opens rather than with the page behind it.
+  const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
+  const evidenceKey = (evidencePaths ?? []).join("\u0000");
+  useEffect(() => {
+    if (!open || !evidencePaths?.length) return;
+    let cancelled = false;
+    resolveEvidenceUrls(evidencePaths.slice(0, 6))
+      .then((map) => {
+        if (cancelled) return;
+        setEvidenceUrls(
+          evidencePaths.map((path) => map.get(path)).filter(Boolean) as string[],
+        );
+      })
+      .catch(() => {
+        // No thumbnails is a smaller loss than a broken sheet; the file
+        // picker below still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, evidenceKey]);
+
+  /**
+   * Load a picked image so it can be drawn.
+   *
+   * `crossOrigin` is load-bearing for the evidence photos: the signed URLs are
+   * a different origin, and without it the canvas taints and `toBlob` throws a
+   * SecurityError at the moment the user taps share. Supabase Storage answers
+   * with `Access-Control-Allow-Origin: *`, which is what makes this work —
+   * verified end to end against a real signed URL rather than assumed.
+   */
+  const adoptImage = useCallback(
+    (src: string, name: string, onFail: () => void) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        setPhoto(img);
+        setPhotoName(name);
+      };
+      img.onerror = onFail;
+      img.src = src;
+    },
+    [],
+  );
 
   const handlePickPhoto = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -253,19 +309,45 @@ export function ShareCardSheet({
             </button>
           </>
         ) : (
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={() => fileRef.current?.click()}
-          >
-            {/* Button wraps its children in one block-level span, so the
-                icon stacked above the label. An explicit row keeps them side
-                by side. */}
-            <span className="inline-flex items-center gap-1.5">
-              <ImagePlus className="w-4 h-4" />
-              Add a photo
-            </span>
-          </Button>
+          <div className="space-y-2">
+            {/* Their own evidence photos first. Someone who does not know what
+                to post is the reason the default card exists at all; offering
+                the pictures they already took of this very habit is the same
+                idea one step further. */}
+            {evidenceUrls.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {evidenceUrls.map((url, i) => (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() =>
+                      adoptImage(url, `evidence:${i}`, () =>
+                        show({ variant: "error", title: "Could not open that photo" }),
+                      )
+                    }
+                    className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-[var(--color-bg-secondary)] transition-opacity active:opacity-70"
+                    aria-label={`Use photo ${i + 1} from this habit`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => fileRef.current?.click()}
+            >
+              {/* Button wraps its children in one block-level span, so the
+                  icon stacked above the label. An explicit row keeps them
+                  side by side. */}
+              <span className="inline-flex items-center gap-1.5">
+                <ImagePlus className="w-4 h-4" />
+                {evidenceUrls.length > 0 ? "Choose another photo" : "Add a photo"}
+              </span>
+            </Button>
+          </div>
         )}
 
         <input
