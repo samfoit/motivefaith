@@ -61,8 +61,14 @@ export function GroupPicker({
         />
       )}
 
-      {/* List */}
-      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+      {/* List — `overflow-y-auto` clips on both axes (CSS computes the other
+          axis to `auto` when one is not `visible`), and a Tailwind ring is a
+          box-shadow painted outside the border box, so the 2px selection ring
+          was being sliced flat against the left and right edges. The padding
+          gives it room; the negative margin puts the rows back in line with
+          the cards above. Same trick the wizard's step container already uses,
+          for the same reason. */}
+      <div className="space-y-1.5 max-h-64 overflow-y-auto p-0.5 -m-0.5">
         {filtered.length === 0 ? (
           <p className="text-sm text-[var(--color-text-tertiary)] text-center py-4">
             No matches for &ldquo;{query}&rdquo;
