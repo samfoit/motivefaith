@@ -58,6 +58,7 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^27.0.1",
     "playwright": "^1.58.2",
+    "supabase": "^2.118.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.4"
