@@ -29,6 +29,12 @@ function fakeSupabase(responses: Record<string, { error: { code: string } | null
 
   const client = {
     calls,
+    // Partner invitations go through an RPC rather than a table write — the
+    // habit_shares state machine is not the client's to drive directly.
+    rpc(name: string, args: unknown) {
+      calls.push({ table: name, op: "rpc", args });
+      return Promise.resolve(reply(name, "rpc"));
+    },
     from(table: string) {
       const chain = {
         insert(args: unknown) {
@@ -111,7 +117,7 @@ describe("replayOutbox", () => {
     });
   }
 
-  it("applies a queued habit create, with its shares", async () => {
+  it("applies a queued habit create, and invites its friends", async () => {
     const mods = await getModules();
     await queueHabitCreate(mods, "habit-1");
     const supabase = fakeSupabase({});
@@ -122,7 +128,7 @@ describe("replayOutbox", () => {
     expect(await mods.getOutboxCount()).toBe(0);
     expect(supabase.calls.map((c) => `${c.table}.${c.op}`)).toEqual([
       "habits.insert",
-      "habit_shares.upsert",
+      "invite_habit_partner.rpc",
     ]);
   });
 

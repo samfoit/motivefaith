@@ -34,7 +34,7 @@ async function fetchHabits(supabase: SupabaseServerClient, userId: string) {
     .from("habits")
     // Inline literal, not a constant: postgrest-js infers the row type from
     // this string, and a `const` widens it to `string` and erases the types.
-    .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, is_shared, created_at")
+    .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, visibility, created_at")
     .eq("user_id", userId)
     .eq("is_paused", false)
     .order("created_at");

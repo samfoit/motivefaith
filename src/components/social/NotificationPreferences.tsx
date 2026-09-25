@@ -19,6 +19,7 @@ interface NotificationPrefs {
   miss_alerts: boolean;
   habit_reminders: boolean;
   encouragement_alerts: boolean;
+  partner_alerts: boolean;
   enabled: boolean;
 }
 
@@ -29,6 +30,7 @@ const DEFAULT_PREFS: NotificationPrefs = {
   miss_alerts: true,
   habit_reminders: true,
   encouragement_alerts: true,
+  partner_alerts: true,
   enabled: true,
 };
 
@@ -42,6 +44,9 @@ function parsePrefs(raw: Json | null): NotificationPrefs {
     miss_alerts: obj.miss_alerts !== false,
     habit_reminders: obj.habit_reminders !== false,
     encouragement_alerts: obj.encouragement_alerts !== false,
+    // Absent for anyone whose prefs predate the key, which reads as on —
+    // matching how the database gates it.
+    partner_alerts: obj.partner_alerts !== false,
     enabled: obj.enabled !== false,
   };
 }
@@ -210,14 +215,14 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
 
       <ToggleRow
         label="Friend Completions"
-        description="When friends complete shared habits"
+        description="When someone you partner with checks in"
         checked={prefs.completion_alerts}
         onCheckedChange={(v) => update({ completion_alerts: v })}
       />
 
       <ToggleRow
         label="Missed Habits"
-        description="When friends miss shared habits"
+        description="When someone you partner with misses a day"
         checked={prefs.miss_alerts}
         onCheckedChange={(v) => update({ miss_alerts: v })}
       />
@@ -227,6 +232,13 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
         description="When friends send you messages"
         checked={prefs.encouragement_alerts}
         onCheckedChange={(v) => update({ encouragement_alerts: v })}
+      />
+
+      <ToggleRow
+        label="Partner Requests"
+        description="Invitations to follow a habit, and replies to yours"
+        checked={prefs.partner_alerts}
+        onCheckedChange={(v) => update({ partner_alerts: v })}
       />
 
       <div className="border-t border-surface-hover pt-3 mt-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -10,6 +10,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Pill } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { SharedHabits } from "@/components/social/SharedHabits";
+import { FriendProfileSheet } from "@/components/social/FriendProfileSheet";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { createClient } from "@/lib/supabase/client";
 import { sendOrQueue } from "@/lib/offline-write";
@@ -28,6 +29,8 @@ interface JourneyClientProps {
 }
 
 export function JourneyClient({ data, userId }: JourneyClientProps) {
+  // Their habits live behind a tap on their name, not inline above the thread.
+  const [profileOpen, setProfileOpen] = useState(false);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { show: showToast, ToastElements } = useToast();
@@ -353,22 +356,32 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
           >
             <ArrowLeft className="w-5 h-5 text-text-secondary" />
           </button>
-          <Avatar
-            src={friend.avatar_url}
-            name={friend.display_name}
-            size="sm"
-          />
-          <div className="min-w-0">
-            <h1 className="font-display font-bold text-text-primary text-base truncate">
-              {friend.display_name}
-            </h1>
-            <Pill size="sm" variant="default">
-              Friends{" "}
-              {formatDistanceToNow(new Date(friendshipSince), {
-                addSuffix: false,
-              })}
-            </Pill>
-          </div>
+          <button
+            type="button"
+            onClick={() => setProfileOpen(true)}
+            className="flex min-w-0 items-center gap-3 text-left rounded-lg transition-opacity active:opacity-70"
+            aria-label={`View ${friend.display_name}'s habits`}
+          >
+            <Avatar
+              src={friend.avatar_url}
+              name={friend.display_name}
+              size="sm"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1">
+                <span className="font-display font-bold text-text-primary text-base truncate">
+                  {friend.display_name}
+                </span>
+                <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
+              </span>
+              <Pill size="sm" variant="default">
+                Friends{" "}
+                {formatDistanceToNow(new Date(friendshipSince), {
+                  addSuffix: false,
+                })}
+              </Pill>
+            </span>
+          </button>
         </div>
 
         {/* Shared habits — one line of chips, details in a sheet */}
@@ -430,6 +443,12 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
         </form>
       </div>
 
+      <FriendProfileSheet
+        friend={friend}
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        onChanged={() => router.refresh()}
+      />
       {ToastElements}
     </div>
   );

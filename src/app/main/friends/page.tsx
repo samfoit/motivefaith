@@ -57,8 +57,9 @@ const FRIENDSHIP_SELECT =
 async function FriendsData({ userId }: { userId: string }) {
   const supabase = await createServerSupabase();
 
-  // Parallel fetch: friends list + pending requests (mirrors client-side hooks)
-  const [friendsResult, requestsResult] = await Promise.all([
+  // Parallel fetch: friends list + pending requests (mirrors client-side hooks),
+  // plus the viewer's own name — the invite link is built from their username.
+  const [friendsResult, requestsResult, { data: me }] = await Promise.all([
     supabase
       .from("friendships")
       .select(FRIENDSHIP_SELECT)
@@ -69,6 +70,11 @@ async function FriendsData({ userId }: { userId: string }) {
       .select(FRIENDSHIP_SELECT)
       .eq("status", "pending")
       .or(`register_id.eq.${userId},addressee_id.eq.${userId}`),
+    supabase
+      .from("profiles")
+      .select("username, display_name")
+      .eq("id", userId)
+      .single(),
   ]);
 
   const friends = transformFriendships(friendsResult.data, userId);
@@ -81,6 +87,8 @@ async function FriendsData({ userId }: { userId: string }) {
   return (
     <FriendsClient
       userId={userId}
+      username={me?.username ?? null}
+      displayName={me?.display_name ?? null}
       initialFriends={friends}
       initialRequests={requests}
     />

@@ -22,7 +22,10 @@ import {
   Users,
   X,
   Pencil,
+  Share2,
   Mic,
+  Globe,
+  Lock,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -37,6 +40,7 @@ import { CalendarHeatmap } from "@/components/habits/CalendarHeatmap";
 import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
+import { untypedRpc } from "@/lib/supabase/rpc";
 import type { Tables } from "@/lib/supabase/types";
 import type { Habit } from "@/lib/types/habit";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
@@ -57,6 +61,10 @@ const EditHabitSheet = dynamic(
   () => import("@/components/habits/EditHabitSheet").then((m) => m.EditHabitSheet),
   { ssr: false },
 );
+const ShareCardSheet = dynamic(
+  () => import("@/components/social/ShareCardSheet").then((m) => m.ShareCardSheet),
+  { ssr: false },
+);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,19 +83,25 @@ type Completion = {
   rain_check_moved_to?: Tables<"completions">["rain_check_moved_to"];
 };
 
-type Share = {
-  id: string;
-  shared_with: string | null;
-  notify_complete: boolean | null;
-  notify_miss: boolean | null;
-  created_at: string | null;
-};
-
 type Partner = {
   id: string;
   display_name: string;
   avatar_url: string | null;
   username: string;
+};
+
+/**
+ * One live partnership. `direction` says who started it, which is what decides
+ * whose move it is while `status` is still pending: an invitation is waiting on
+ * them, a request is waiting on you.
+ */
+type PartnerRow = {
+  shareId: string;
+  status: "accepted" | "pending";
+  direction: "invite" | "request";
+  notify_complete: boolean | null;
+  notify_miss: boolean | null;
+  profile: Partner;
 };
 
 type SharedGroup = {
@@ -100,11 +114,12 @@ type SharedGroup = {
 interface HabitDetailClientProps {
   habit: Habit;
   completions: Completion[];
-  shares: Share[];
-  partners: Partner[];
+  partnerRows: PartnerRow[];
   availableFriends?: Partner[];
   sharedGroups?: SharedGroup[];
   timezone: string;
+  /** The owner's own username, for the invite link on a shared card. */
+  username: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,11 +179,11 @@ const TAB_TRIGGER_CLASS = cn(
 export function HabitDetailClient({
   habit: initialHabit,
   completions: initialCompletions,
-  shares,
-  partners,
+  partnerRows,
   availableFriends = [],
   sharedGroups = [],
   timezone,
+  username,
 }: HabitDetailClientProps) {
   const router = useRouter();
   const completeHabit = useCompleteHabit();
@@ -185,7 +200,33 @@ export function HabitDetailClient({
   const [addingFriendId, setAddingFriendId] = useState<string | null>(null);
   const [removingShareId, setRemovingShareId] = useState<string | null>(null);
   const [showAddFriend, setShowAddFriend] = useState(false);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+
+  // Photo evidence from this habit, newest first, offered inside the share
+  // sheet. Only `photo` completions qualify: a video's evidence would need a
+  // frame pulled out of it before anything could draw it.
+  const evidencePaths = useMemo(
+    () =>
+      completions
+        .filter((c) => c.completion_type === "photo" && c.evidence_url)
+        .slice(0, 6)
+        .map((c) => c.evidence_url as string),
+    [completions],
+  );
+
+  const { partners, invited, requests } = useMemo(() => {
+    return {
+      partners: partnerRows.filter((r) => r.status === "accepted"),
+      invited: partnerRows.filter(
+        (r) => r.status === "pending" && r.direction === "invite",
+      ),
+      requests: partnerRows.filter(
+        (r) => r.status === "pending" && r.direction === "request",
+      ),
+    };
+  }, [partnerRows]);
 
   const dismissConfetti = useCallback(() => setShowConfetti(false), []);
 
@@ -300,6 +341,12 @@ export function HabitDetailClient({
         variant: "success",
         title: `${MILESTONE_MESSAGES[newStreak]} 🔥`,
         description: `${habit.title} — ${newStreak}-${streakUnit} streak`,
+        duration: 8000,
+        action: {
+          label: "Share",
+          altText: `Share your ${newStreak}-${streakUnit} streak`,
+          onClick: () => setShareOpen(true),
+        },
       });
     },
     [showToast, habit.title, streakUnit],
@@ -407,35 +454,65 @@ export function HabitDetailClient({
   const handleAddFriend = async (friendId: string) => {
     setAddingFriendId(friendId);
     const supabase = createClient();
-    const { error } = await supabase.from("habit_shares").insert({
-      habit_id: habit.id,
-      shared_with: friendId,
+    // An invitation, not a share: the row lands as pending and grants nothing
+    // until they accept. Writing habit_shares directly is no longer permitted —
+    // the RPC owns the state machine.
+    const { error } = await untypedRpc(supabase, "invite_habit_partner", {
+      p_habit_id: habit.id,
+      p_user_id: friendId,
     });
 
     if (error) {
-      showToast({ variant: "error", title: "Failed to share habit" });
+      showToast({ variant: "error", title: "Failed to send invite" });
     } else {
-      showToast({ variant: "success", title: "Habit shared!" });
+      showToast({ variant: "success", title: "Invite sent" });
       router.refresh();
     }
     setAddingFriendId(null);
   };
 
-  const handleRemovePartner = async (shareId: string) => {
+  /** Revoke a partnership, or withdraw an invitation that was never answered. */
+  const handleRemovePartner = async (shareId: string, wasPending: boolean) => {
     setRemovingShareId(shareId);
     const supabase = createClient();
-    const { error } = await supabase
-      .from("habit_shares")
-      .delete()
-      .eq("id", shareId);
+    const { error } = await untypedRpc(supabase, "cancel_habit_partner", {
+      p_share_id: shareId,
+    });
 
     if (error) {
-      showToast({ variant: "error", title: "Failed to remove partner" });
+      showToast({
+        variant: "error",
+        title: wasPending ? "Failed to withdraw invite" : "Failed to remove partner",
+      });
     } else {
-      showToast({ variant: "info", title: "Partner removed" });
+      showToast({
+        variant: "info",
+        title: wasPending ? "Invite withdrawn" : "Partner removed",
+      });
       router.refresh();
     }
     setRemovingShareId(null);
+  };
+
+  /** Answer someone who asked to follow this habit. */
+  const handleRespond = async (shareId: string, accept: boolean) => {
+    setRespondingId(shareId);
+    const supabase = createClient();
+    const { error } = await untypedRpc(supabase, "respond_habit_partner", {
+      p_share_id: shareId,
+      p_accept: accept,
+    });
+
+    if (error) {
+      showToast({ variant: "error", title: "Failed to answer request" });
+    } else {
+      showToast({
+        variant: accept ? "success" : "info",
+        title: accept ? "Partner added" : "Request declined",
+      });
+      router.refresh();
+    }
+    setRespondingId(null);
   };
 
   const handleRemoveGroupShare = useCallback(
@@ -494,11 +571,24 @@ export function HabitDetailClient({
                 <Pencil className="w-4 h-4 text-[var(--color-text-tertiary)]" />
               </button>
             </div>
-            {habit.description && (
-              <p className="text-sm text-[var(--color-text-secondary)] mt-0.5 truncate">
-                {habit.description}
-              </p>
-            )}
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[var(--color-text-tertiary)]">
+              {habit.visibility === "public" ? (
+                <Globe className="w-3 h-3 flex-shrink-0" />
+              ) : (
+                <Lock className="w-3 h-3 flex-shrink-0" />
+              )}
+              <span className="flex-shrink-0">
+                {habit.visibility === "public"
+                  ? "Friends can find this"
+                  : "Invite only"}
+              </span>
+              {habit.description && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="truncate">{habit.description}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -529,6 +619,20 @@ export function HabitDetailClient({
             color="var(--color-encourage)"
           />
         </div>
+
+        {/* Always offered, never prompted. A streak is the user's to post at
+            two days or two hundred, so this sits under the numbers it is about
+            rather than waiting for the app to decide a milestone was worth
+            celebrating. It was a 16px tertiary icon next to the edit pencil
+            before, which is not an entry point anyone finds. */}
+        <button
+          type="button"
+          onClick={() => setShareOpen(true)}
+          className="w-full mb-6 flex items-center justify-center gap-2 rounded-lg border border-[var(--color-bg-secondary)] bg-elevated py-2.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"
+        >
+          <Share2 className="w-4 h-4" />
+          <span>Share your streak</span>
+        </button>
 
         {/* Complete button */}
         {!completedToday && !habit.is_paused && (
@@ -659,59 +763,142 @@ export function HabitDetailClient({
 
           {/* --- Friends Tab --- */}
           <Tabs.Content value="friends" className="space-y-4">
-            {/* Current partners */}
-            {partners.length > 0 && (
+            {/* Requests first — they are the only thing here waiting on you. */}
+            {requests.length > 0 && (
               <div className="space-y-2">
-                {partners.map((partner) => {
-                  const share = shares.find(
-                    (s) => s.shared_with === partner.id,
-                  );
-                  return (
-                    <div
-                      key={partner.id}
-                      className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm"
-                    >
-                      <Avatar
-                        src={partner.avatar_url}
-                        name={partner.display_name}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-                          {partner.display_name}
-                        </p>
-                        <p className="text-xs text-[var(--color-text-tertiary)]">
-                          @{partner.username}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1.5 text-xs text-[var(--color-text-tertiary)]">
-                          {share?.notify_complete && (
-                            <span title="Notified on completion">✅</span>
-                          )}
-                          {share?.notify_miss && (
-                            <span title="Notified on miss">⏰</span>
-                          )}
-                        </div>
-                        {share && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePartner(share.id)}
-                            disabled={removingShareId === share.id}
-                            className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
-                            aria-label={`Remove ${partner.display_name}`}
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
+                <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+                  Requested
+                </p>
+                {requests.map((row) => (
+                  <div
+                    key={row.shareId}
+                    className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm ring-1 ring-brand/30"
+                  >
+                    <Avatar
+                      src={row.profile.avatar_url}
+                      name={row.profile.display_name}
+                      size="sm"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                        {row.profile.display_name}
+                      </p>
+                      <p className="text-xs text-[var(--color-text-tertiary)]">
+                        @{row.profile.username}
+                      </p>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleRespond(row.shareId, false)}
+                        disabled={respondingId === row.shareId}
+                        className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
+                        aria-label={`Decline ${row.profile.display_name}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <Button
+                        size="sm"
+                        loading={respondingId === row.shareId}
+                        disabled={respondingId === row.shareId}
+                        onClick={() => handleRespond(row.shareId, true)}
+                      >
+                        Accept
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Add friend picker */}
+            {/* Accepted partners */}
+            {partners.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+                  Partners
+                </p>
+                {partners.map((row) => (
+                  <div
+                    key={row.shareId}
+                    className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm"
+                  >
+                    <Avatar
+                      src={row.profile.avatar_url}
+                      name={row.profile.display_name}
+                      size="sm"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                        {row.profile.display_name}
+                      </p>
+                      <p className="text-xs text-[var(--color-text-tertiary)]">
+                        @{row.profile.username}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1.5 text-xs text-[var(--color-text-tertiary)]">
+                        {row.notify_complete && (
+                          <span title="Notified on completion">✅</span>
+                        )}
+                        {row.notify_miss && (
+                          <span title="Notified on miss">⏰</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePartner(row.shareId, false)}
+                        disabled={removingShareId === row.shareId}
+                        className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
+                        aria-label={`Remove ${row.profile.display_name}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Sent, unanswered. Shown muted: there is nothing to do but wait
+                or take it back. */}
+            {invited.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+                  Invited
+                </p>
+                {invited.map((row) => (
+                  <div
+                    key={row.shareId}
+                    className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm opacity-75"
+                  >
+                    <Avatar
+                      src={row.profile.avatar_url}
+                      name={row.profile.display_name}
+                      size="sm"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+                        {row.profile.display_name}
+                      </p>
+                      <p className="text-xs text-[var(--color-text-tertiary)]">
+                        Waiting for them to accept
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePartner(row.shareId, true)}
+                      disabled={removingShareId === row.shareId}
+                      className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
+                      aria-label={`Withdraw invite to ${row.profile.display_name}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Invite picker */}
             {availableFriends.length > 0 && !showAddFriend && (
               <Button
                 variant="secondary"
@@ -719,7 +906,7 @@ export function HabitDetailClient({
                 onClick={() => setShowAddFriend(true)}
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Add accountability partner</span>
+                <span>Invite accountability partner</span>
               </Button>
             )}
 
@@ -727,7 +914,7 @@ export function HabitDetailClient({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">
-                    Choose a friend
+                    Choose a friend to invite
                   </p>
                   <button
                     type="button"
@@ -744,7 +931,7 @@ export function HabitDetailClient({
                   onAdd={handleAddFriend}
                   loadingId={addingFriendId}
                   mode="single"
-                  searchPlaceholder="Search friends to add…"
+                  searchPlaceholder="Search friends to invite…"
                 />
               </div>
             )}
@@ -791,14 +978,14 @@ export function HabitDetailClient({
             )}
 
             {/* Empty state */}
-            {partners.length === 0 && availableFriends.length === 0 && sharedGroups.length === 0 && (
+            {partnerRows.length === 0 && availableFriends.length === 0 && sharedGroups.length === 0 && (
               <div className="text-center py-12">
                 <div className="text-4xl mb-3">👥</div>
                 <p className="text-sm text-[var(--color-text-secondary)] mb-1">
                   No accountability partners yet
                 </p>
                 <p className="text-xs text-[var(--color-text-tertiary)]">
-                  Add friends first, then share this habit with them
+                  Add friends first, then invite them to follow this habit
                 </p>
               </div>
             )}
@@ -921,6 +1108,17 @@ export function HabitDetailClient({
         habit={habit}
         onSaved={handleHabitSaved}
         showToast={showToast}
+      />
+
+      {/* Share card */}
+      <ShareCardSheet
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        title={habit.title}
+        streak={habit.streak_current ?? 0}
+        unit={streakUnit}
+        username={username}
+        evidencePaths={evidencePaths}
       />
 
       {/* Streak celebration */}

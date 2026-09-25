@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { destinationAfterAuth } from "@/lib/constants/pending-invite";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
@@ -140,7 +141,7 @@ export default function CompleteProfilePage() {
       return;
     }
 
-    router.push("/main/dashboard");
+    router.push(destinationAfterAuth());
     router.refresh();
   }
 

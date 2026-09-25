@@ -11,6 +11,7 @@
  */
 
 import type { DashboardData } from "@/lib/data/dashboard";
+import type { Database } from "@/lib/supabase/types";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
 
 export interface OptimisticCompletion {
@@ -106,7 +107,7 @@ export function applyHabitCreate(
     frequency: string;
     schedule: unknown;
     time_window: unknown;
-    is_shared: boolean;
+    visibility: Database["public"]["Enums"]["habit_visibility"];
   },
 ): DashboardData | undefined {
   if (!data) return data;

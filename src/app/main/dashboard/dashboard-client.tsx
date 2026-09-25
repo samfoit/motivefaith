@@ -113,6 +113,10 @@ const StreakCelebration = dynamic(
     ),
   { ssr: false, loading: () => null },
 );
+const ShareCardSheet = dynamic(
+  () => import("@/components/social/ShareCardSheet").then((m) => m.ShareCardSheet),
+  { ssr: false },
+);
 const CompletionFlyout = dynamic(
   () =>
     import("@/components/habits/CompletionFlyout").then(
@@ -337,6 +341,13 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     },
     [],
   );
+  // What the share sheet should draw, or null when it is closed. The habit is
+  // captured at the moment the milestone fires rather than looked up on open,
+  // so a later check-in cannot change the card under the user.
+  const [shareCard, setShareCard] = useState<
+    { title: string; streak: number; unit: string } | null
+  >(null);
+
   const dismissConfetti = useCallback(() => setShowConfetti(false), []);
   const dismissFlyout = useCallback(() => setFlyout(null), []);
 
@@ -349,6 +360,12 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         variant: "success",
         title: `${MILESTONE_MESSAGES[newStreak]} 🔥`,
         description: `${habitTitle} — ${newStreak}-${unit} streak`,
+        duration: 8000,
+        action: {
+          label: "Share",
+          altText: `Share your ${newStreak}-${unit} streak`,
+          onClick: () => setShareCard({ title: habitTitle, streak: newStreak, unit }),
+        },
       });
     },
     [showToast],
@@ -756,6 +773,16 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         timezone={timezone}
         onComplete={handleCompletion}
       />
+
+      {shareCard && (
+        <ShareCardSheet
+          open
+          onOpenChange={(next) => { if (!next) setShareCard(null); }}
+          title={shareCard.title}
+          streak={shareCard.streak}
+          unit={shareCard.unit}
+        />
+      )}
 
       {/* Streak milestone celebration */}
       <StreakCelebration active={showConfetti} onDone={dismissConfetti} />

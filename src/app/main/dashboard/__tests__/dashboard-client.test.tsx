@@ -42,7 +42,7 @@ const habit: HabitWithCompletions = {
   frequency: "daily",
   schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
   time_window: null,
-  is_shared: false,
+  visibility: "private" as const,
   streak_current: 4,
   streak_best: 12,
   total_completions: 30,

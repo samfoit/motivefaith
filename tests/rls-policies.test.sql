@@ -62,25 +62,28 @@ VALUES (
 -- Setup: Insert profiles
 -- ---------------------------------------------------------------------------
 
-INSERT INTO public.profiles (id, display_name, username) VALUES
-  ('11111111-1111-1111-1111-111111111111', 'Alice', 'alice'),
-  ('22222222-2222-2222-2222-222222222222', 'Bob', 'bob'),
-  ('33333333-3333-3333-3333-333333333333', 'Charlie', 'charlie');
+-- handle_new_user() fires on the auth.users inserts above and creates a
+-- profile for each, so these name them rather than inserting them.
+UPDATE public.profiles SET display_name = 'Alice',   username = 'alice'   WHERE id = '11111111-1111-1111-1111-111111111111';
+UPDATE public.profiles SET display_name = 'Bob',     username = 'bob'     WHERE id = '22222222-2222-2222-2222-222222222222';
+UPDATE public.profiles SET display_name = 'Charlie', username = 'charlie' WHERE id = '33333333-3333-3333-3333-333333333333';
 
 -- ---------------------------------------------------------------------------
 -- Setup: Insert test data as alice
 -- ---------------------------------------------------------------------------
 
--- Alice's habit (private, not shared)
+-- Alice's habit (private, no partners)
 INSERT INTO public.habits (id, user_id, title, emoji)
 VALUES ('aaaa0001-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111', 'Morning Run', '🏃');
 
--- Alice's habit shared with Bob
-INSERT INTO public.habits (id, user_id, title, emoji, is_shared)
-VALUES ('aaaa0002-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111', 'Read Books', '📚', true);
+-- Alice's habit with Bob as an accepted partner.
+-- status is spelled out because it defaults to 'pending' since 029, and a
+-- pending share grants nothing — see tests/habit-visibility.test.sql.
+INSERT INTO public.habits (id, user_id, title, emoji, visibility)
+VALUES ('aaaa0002-0000-0000-0000-000000000000', '11111111-1111-1111-1111-111111111111', 'Read Books', '📚', 'public');
 
-INSERT INTO public.habit_shares (habit_id, shared_with)
-VALUES ('aaaa0002-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222');
+INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by)
+VALUES ('aaaa0002-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222', 'accepted', '11111111-1111-1111-1111-111111111111');
 
 -- Alice's completion on private habit
 INSERT INTO public.completions (id, user_id, habit_id, completion_type)
@@ -297,7 +300,6 @@ END $$;
 -- Cleanup
 -- ---------------------------------------------------------------------------
 
-RAISE NOTICE '';
-RAISE NOTICE '=== ALL RLS TESTS PASSED ===';
+DO $$ BEGIN RAISE NOTICE '=== ALL RLS TESTS PASSED ==='; END $$;
 
 ROLLBACK;

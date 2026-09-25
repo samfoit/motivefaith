@@ -26,7 +26,12 @@ interface PushPayload {
     | "missed_habit"
     | "encouragement"
     | "group_message"
-    | "weekly_summary";
+    | "weekly_summary"
+    // Kept apart so an unanswered invitation is not replaced in the tray by
+    // news that someone accepted a different one — the service worker uses
+    // `type` as the notification tag.
+    | "partner_request"
+    | "partner_accepted";
   /** User ID that owns this subscription — used to scope cleanup */
   user_id?: string;
 }

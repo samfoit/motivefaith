@@ -85,24 +85,24 @@ export default async function JourneyPage({ params }: Props) {
 
   if (!friendship) notFound();
 
-  // 2. Profiles + journey RPC in parallel (single round-trip)
+  // 2. Profiles + journey + their profile habits, in parallel
   const [{ data: friendProfile }, { data: myProfile }, { data: journeyRows }] =
     await Promise.all([
-      supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url, username")
-        .eq("id", friendId)
-        .single(),
-      supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url, username")
-        .eq("id", user.id)
-        .single(),
-      untypedRpc<JourneyRpcRow[]>(supabase, "get_friend_journey", {
-        p_user_id: user.id,
-        p_friend_id: friendId,
-      }),
-    ]);
+    supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url, username")
+      .eq("id", friendId)
+      .single(),
+    supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url, username")
+      .eq("id", user.id)
+      .single(),
+    untypedRpc<JourneyRpcRow[]>(supabase, "get_friend_journey", {
+      p_user_id: user.id,
+      p_friend_id: friendId,
+    }),
+  ]);
 
   if (!friendProfile) notFound();
 
