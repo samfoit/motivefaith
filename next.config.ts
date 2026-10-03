@@ -31,6 +31,9 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
+    // Local Supabase is 127.0.0.1, and the optimizer refuses private IPs (an
+    // SSRF guard). Development only — production never talks to one.
+    dangerouslyAllowLocalIP: process.env.NODE_ENV === "development",
     remotePatterns: [
       ...(supabaseHostname
         ? [{ protocol: "https" as const, hostname: supabaseHostname }]
@@ -40,6 +43,14 @@ const nextConfig: NextConfig = {
         hostname: "127.0.0.1",
         port: "54321",
         pathname: "/storage/v1/object/public/**",
+      },
+      // Private buckets (completions: check-in and capture photos) are read
+      // through short-lived signed URLs.
+      {
+        protocol: "http",
+        hostname: "127.0.0.1",
+        port: "54321",
+        pathname: "/storage/v1/object/sign/**",
       },
     ],
   },
