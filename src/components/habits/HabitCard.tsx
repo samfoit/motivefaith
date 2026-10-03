@@ -7,7 +7,6 @@ import {
   Clock,
   CloudRain,
   CornerDownRight,
-  Globe,
   Flame,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -456,18 +455,8 @@ export const HabitCard = React.memo(function HabitCard({
                 {habit.challenge.emoji} {habit.challenge.title}
               </span>
             )}
-            {/* Only public habits are marked. Nearly every habit is private,
-                so a lock on all of them would be noise — it is being findable
-                that is the exception worth flagging. */}
-            {habit.visibility === "public" && (
-              <span
-                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5 text-text-tertiary bg-bg-secondary"
-                title="Friends can find this on your profile"
-              >
-                <Globe className="w-2.5 h-2.5" />
-                Public
-              </span>
-            )}
+            {/* Visibility is left to the habit's detail page: it is a setting,
+                not something to act on from the dashboard. */}
             {rainCheckedToday && !completedToday && (
               <span
                 className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
