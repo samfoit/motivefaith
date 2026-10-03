@@ -92,13 +92,13 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // Use getSession() for redirect-only decisions — reads the JWT locally
-  // without a network round-trip to Supabase Auth. The actual auth
-  // verification happens via the cached getAuthUser() in layout/page.
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
+  // getClaims() verifies the JWT signature locally against the cached JWKS
+  // (no Supabase Auth round-trip with an asymmetric signing key), and
+  // refreshes the session first if the access token has expired. This must be
+  // the only place a refresh happens: refresh tokens are single-use, and
+  // Server Components cannot write the rotated cookie back.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims.sub ?? null;
 
   // Unauthenticated users trying to access protected routes
   if (

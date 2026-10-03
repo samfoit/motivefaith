@@ -38,11 +38,25 @@ export async function createServerSupabase() {
 /**
  * Request-scoped cached auth check. React's `cache()` deduplicates
  * calls within a single server render pass, so layout.tsx + page.tsx
- * share a single network round-trip to Supabase Auth.
+ * share a single verification.
+ *
+ * Uses `getClaims()`, which verifies the access token's signature against
+ * the project's cached JWKS instead of asking Supabase Auth on every request
+ * the way `getUser()` does. Only the user id is exposed because that is all
+ * any caller needs — the claims are not a full `User`. Code that needs a
+ * server-confirmed user (bans, admin checks) should still call `getUser()`.
+ *
+ * With a symmetric (HS256) signing key `getClaims()` falls back to a network
+ * check, so this is never less safe than before — only slower.
  */
 export const getAuthUser = cache(async () => {
   const supabase = await createServerSupabase();
-  return supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
+  const userId = data?.claims.sub;
+  return {
+    data: { user: userId ? { id: userId } : null },
+    error,
+  };
 });
 
 /**
