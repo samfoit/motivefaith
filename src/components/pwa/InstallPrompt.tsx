@@ -261,7 +261,11 @@ export function InstallPrompt() {
   if (!visible) return null;
 
   return (
-    <div className="install-prompt-enter fixed bottom-20 inset-x-0 z-50 px-4 pb-[env(safe-area-inset-bottom)]">
+    // z-40, not 50: above the bottom nav (also 40, and earlier in the DOM) but
+    // under every full-screen surface. At z-50 it sat on top of the camera,
+    // over the shutter, so a press there hit the banner instead — and a
+    // slide-up zoom became a page scroll the browser cancelled.
+    <div className="install-prompt-enter fixed bottom-20 inset-x-0 z-40 px-4 pb-[env(safe-area-inset-bottom)]">
           <div
             className={cn(
               "mx-auto max-w-md rounded-xl shadow-lg",
