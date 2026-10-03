@@ -252,6 +252,48 @@ describe("CameraCapture video takes", () => {
   });
 });
 
+describe("CameraCapture retake", () => {
+  let camera: ReturnType<typeof installCamera>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FakeMediaRecorder.instances = [];
+    vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
+    URL.createObjectURL = vi.fn(() => "blob:take");
+    URL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("MediaStream", FakeMediaStream);
+    camera = installCamera();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  it("reopens the camera the take was made on", async () => {
+    await renderCamera();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /switch camera/i }));
+    });
+
+    await pressShutter(400);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /finish video/i }));
+    });
+
+    camera.getUserMedia.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /retake/i }));
+    });
+
+    expect(camera.getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ video: { facingMode: { ideal: "user" } } }),
+    );
+  });
+});
+
 /**
  * Flipping mid-take works because the recorder is bound to the offscreen
  * canvas rather than the camera, so the camera underneath can be exchanged

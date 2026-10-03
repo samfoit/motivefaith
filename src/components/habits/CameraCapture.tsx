@@ -466,8 +466,9 @@ export function CameraCapture({
     setIsPaused(false);
     setNotes("");
     setStage("viewfinder");
-    requestCamera();
-  }, [previewUrl, requestCamera]);
+    // Reopen whichever camera the take came from, not the default rear one.
+    requestCamera(facingMode);
+  }, [previewUrl, requestCamera, facingMode]);
 
   // --- Use capture ---
   const handleUse = useCallback(() => {
