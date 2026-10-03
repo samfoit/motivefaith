@@ -17,7 +17,11 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 vi.mock("@/lib/supabase/rpc", () => ({
   untypedRpc: async () => ({
-    data: [{ id: "h1", title: "Pray", emoji: "🙏", color: null, streak_current: 0 }],
+    data: [
+      { id: "h1", title: "Pray", emoji: "🙏", color: null, streak_current: 0, frequency: "daily", partner_ids: [], group_ids: [] },
+      // Its check-in already shows in Bob's thread and on Prayer Circle.
+      { id: "h2", title: "Fast", emoji: "🍞", color: null, streak_current: 0, frequency: "daily", partner_ids: ["f1"], group_ids: ["g1"] },
+    ],
     error: null,
   }),
 }));
@@ -125,5 +129,23 @@ describe("QuickCaptureFlow share step", () => {
     expect(state.habitIds).toEqual(["h1"]);
     // The camera (mocked by next/dynamic as a div) is handed the earlier take.
     expect(screen.getByTestId("dynamic-component")).toBeInTheDocument();
+  });
+
+  it("doesn't double send to who a picked habit already reaches", async () => {
+    renderFlow();
+
+    // Picked by hand first, then taken over by the habit.
+    await userEvent.click(await screen.findByText("Bob"));
+    await userEvent.click(screen.getByText("Prayer Circle"));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Fast" }));
+
+    expect(useQuickCaptureStore.getState().friendIds).toEqual([]);
+    expect(useQuickCaptureStore.getState().groupIds).toEqual([]);
+
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({ habitIds: ["h2"], friendIds: [], groupIds: [] }),
+    );
   });
 });

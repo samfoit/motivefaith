@@ -276,6 +276,71 @@ DO $$ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- Test 7: no double send to who the check-in already reaches
+-- ---------------------------------------------------------------------------
+-- friend is an accepted partner on "Fast", and "Fast" is shared with the
+-- group, so its check-in already shows in both places.
+
+RESET role;
+INSERT INTO public.habits (id, user_id, title, emoji, schedule) VALUES
+  ('c5000000-0000-4000-8000-000000000006', 'c1000000-0000-4000-8000-000000000001',
+   'Fast', '🍞', '{"days":[0,1,2,3,4,5,6]}'::jsonb);
+INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by) VALUES
+  ('c5000000-0000-4000-8000-000000000006', 'c2000000-0000-4000-8000-000000000002', 'accepted', 'c1000000-0000-4000-8000-000000000001');
+INSERT INTO public.group_habit_shares (group_id, habit_id, shared_by) VALUES
+  ('c6000000-0000-4000-8000-000000000001', 'c5000000-0000-4000-8000-000000000006', 'c1000000-0000-4000-8000-000000000001');
+SET LOCAL role TO authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"c1000000-0000-4000-8000-000000000001","role":"authenticated"}';
+
+DO $$
+DECLARE r JSONB; h RECORD;
+BEGIN
+  SELECT * INTO h FROM public.get_incomplete_habits_today('UTC')
+   WHERE id = 'c5000000-0000-4000-8000-000000000006';
+  ASSERT h.partner_ids = ARRAY['c2000000-0000-4000-8000-000000000002']::uuid[],
+    format('TEST 7 FAILED: partner_ids should name the friend, got %s', h.partner_ids);
+  ASSERT h.group_ids = ARRAY['c6000000-0000-4000-8000-000000000001']::uuid[],
+    format('TEST 7 FAILED: group_ids should name the group, got %s', h.group_ids);
+
+  r := public.share_capture(
+    'c1000000-0000-4000-8000-000000000001/capture/three.webp', 'photo', NULL,
+    ARRAY['c5000000-0000-4000-8000-000000000006']::uuid[],
+    ARRAY['c2000000-0000-4000-8000-000000000002']::uuid[],
+    ARRAY['c6000000-0000-4000-8000-000000000001']::uuid[]
+  );
+
+  ASSERT jsonb_array_length(r->'completion_ids') = 1, 'TEST 7 FAILED: expected the check-in';
+  ASSERT jsonb_array_length(r->'encouragement_ids') = 0,
+    'TEST 7 FAILED: the partner was DMed a capture their thread already shows';
+  ASSERT jsonb_array_length(r->'group_message_ids') = 0,
+    'TEST 7 FAILED: the group was messaged a capture its timeline already shows';
+  RAISE NOTICE 'TEST 7 PASSED: a habit''s partners and groups are not sent the capture twice';
+END $$;
+
+-- The group now gets the capture only through the check-in, so its members
+-- must be able to open the photo it carries. stranger joins the group for
+-- this; partner (on another habit, not in the group) must still be refused.
+RESET role;
+INSERT INTO public.group_members (group_id, user_id, role)
+VALUES ('c6000000-0000-4000-8000-000000000001', 'c3000000-0000-4000-8000-000000000003', 'member');
+SET LOCAL role TO authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"c3000000-0000-4000-8000-000000000003","role":"authenticated"}';
+
+DO $$ BEGIN
+  ASSERT public.can_read_capture_media('c1000000-0000-4000-8000-000000000001/capture/three.webp'),
+    'TEST 7b FAILED: a group member cannot open the photo on a check-in shared with the group';
+  RAISE NOTICE 'TEST 7b PASSED: group members can open a group-shared check-in''s photo';
+END $$;
+
+SET LOCAL request.jwt.claims TO '{"sub":"c4000000-0000-4000-8000-000000000004","role":"authenticated"}';
+
+DO $$ BEGIN
+  ASSERT NOT public.can_read_capture_media('c1000000-0000-4000-8000-000000000001/capture/three.webp'),
+    'TEST 7c FAILED: someone outside the group and not a partner on that habit can open it';
+  RAISE NOTICE 'TEST 7c PASSED: and nobody else';
+END $$;
+
+-- ---------------------------------------------------------------------------
 
 DO $$ BEGIN RAISE NOTICE '=== ALL CAPTURE SHARE TESTS PASSED ==='; END $$;
 

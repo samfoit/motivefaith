@@ -106,4 +106,15 @@ describe("useQuickCaptureStore", () => {
     useQuickCaptureStore.getState().reset();
     expect(useQuickCaptureStore.getState().groupIds).toEqual([]);
   });
+
+  it("deselectTargets drops only the given ids of one kind", () => {
+    const { toggleTarget, deselectTargets } = useQuickCaptureStore.getState();
+    toggleTarget("friend", "f1");
+    toggleTarget("friend", "f2");
+    toggleTarget("group", "f1");
+    deselectTargets("friend", new Set(["f1", "nope"]).keys());
+
+    expect(useQuickCaptureStore.getState().friendIds).toEqual(["f2"]);
+    expect(useQuickCaptureStore.getState().groupIds).toEqual(["f1"]);
+  });
 });

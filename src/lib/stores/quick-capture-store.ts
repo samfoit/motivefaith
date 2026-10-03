@@ -19,6 +19,8 @@ interface QuickCaptureState {
   backToPreview: () => void;
   setStep: (step: Step) => void;
   toggleTarget: (target: ShareTarget, id: string) => void;
+  /** Unpick these, e.g. ones a picked habit's check-in now reaches anyway. */
+  deselectTargets: (target: ShareTarget, ids: Iterable<string>) => void;
 }
 
 const TARGET_KEY = {
@@ -53,5 +55,11 @@ export const useQuickCaptureStore = create<QuickCaptureState>((set) => ({
       return {
         [key]: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
       };
+    }),
+  deselectTargets: (target, ids) =>
+    set((s) => {
+      const drop = new Set(ids);
+      const key = TARGET_KEY[target];
+      return { [key]: s[key].filter((x) => !drop.has(x)) };
     }),
 }));

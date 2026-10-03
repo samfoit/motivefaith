@@ -1,7 +1,7 @@
 "use client";
 
 import React, { memo, useMemo, useState } from "react";
-import { Check, Target, UserRound, Users, X } from "lucide-react";
+import { Check, Lock, Target, UserRound, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
 import { SearchInput } from "@/components/ui/SearchInput";
@@ -24,6 +24,9 @@ export interface PickerHabit {
   color: string | null;
   streak_current: number;
   frequency: Habit["frequency"];
+  /** Friends and groups this habit's check-in already shows up for. */
+  partner_ids: string[];
+  group_ids: string[];
 }
 
 export interface PickerFriend {
@@ -78,6 +81,35 @@ const SECTIONS: {
 ];
 
 // ---------------------------------------------------------------------------
+// Reach
+// ---------------------------------------------------------------------------
+
+export type Reached = Record<"friend" | "group", Map<string, string>>;
+
+/**
+ * The friends and groups the picked habits' check-ins already reach — each
+ * mapped to the title of a habit that reaches it. Sending them the capture as
+ * well would be a double send, so they are shown included and locked until
+ * the habit is unpicked. share_capture skips them on the server too.
+ */
+export function reachedByHabits(
+  habits: PickerHabit[],
+  habitIds: string[],
+): Reached {
+  const reached: Reached = { friend: new Map(), group: new Map() };
+  for (const habit of habits) {
+    if (!habitIds.includes(habit.id)) continue;
+    for (const id of habit.partner_ids) {
+      if (!reached.friend.has(id)) reached.friend.set(id, habit.title);
+    }
+    for (const id of habit.group_ids) {
+      if (!reached.group.has(id)) reached.group.set(id, habit.title);
+    }
+  }
+  return reached;
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -99,6 +131,13 @@ export function ShareTargetPicker({
 }: ShareTargetPickerProps) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("all");
+
+  const reached = useMemo(
+    () => reachedByHabits(habits, selected.habit),
+    [habits, selected.habit],
+  );
+  const reachedVia = (kind: ShareTarget, id: string) =>
+    kind === "habit" ? undefined : reached[kind].get(id);
 
   const items = useMemo<Record<ShareTarget, Item[]>>(
     () => ({
@@ -184,7 +223,10 @@ export function ShareTargetPicker({
               key={kind}
               active={tab === kind}
               onClick={() => setTab(kind)}
-              count={selected[kind].length}
+              count={
+                selected[kind].length +
+                (kind === "habit" ? 0 : reached[kind].size)
+              }
             >
               {label}
             </TabButton>
@@ -227,12 +269,23 @@ export function ShareTargetPicker({
               ) : (
                 <ul className="space-y-1.5">
                   {shown.map((item) => {
-                    const Row = item.habit ? HabitTargetRow : TargetRow;
+                    if (item.habit) {
+                      return (
+                        <HabitTargetRow
+                          key={item.id}
+                          item={item}
+                          selected={selected.habit.includes(item.id)}
+                          onToggle={onToggle}
+                        />
+                      );
+                    }
+                    const via = reachedVia(kind, item.id);
                     return (
-                      <Row
+                      <TargetRow
                         key={item.id}
                         item={item}
-                        selected={selected[kind].includes(item.id)}
+                        selected={!!via || selected[kind].includes(item.id)}
+                        reachedVia={via}
                         onToggle={onToggle}
                       />
                     );
@@ -360,6 +413,11 @@ type RowProps = {
   onToggle: (kind: ShareTarget, id: string) => void;
 };
 
+type TargetRowProps = RowProps & {
+  /** Title of a picked habit whose check-in already reaches this target. */
+  reachedVia?: string;
+};
+
 /**
  * A habit, drawn with the dashboard card's own pieces so the two cannot drift
  * apart. Picking it fills the same circle completing it on the dashboard does
@@ -406,20 +464,27 @@ const HabitTargetRow = memo(function HabitTargetRow({
 const TargetRow = memo(function TargetRow({
   item,
   selected,
+  reachedVia,
   onToggle,
-}: RowProps) {
+}: TargetRowProps) {
+  const locked = reachedVia !== undefined;
   return (
     <li className="[content-visibility:auto] [contain-intrinsic-size:auto_64px]">
+      {/* aria-disabled rather than disabled: a locked row stays focusable, so
+          a screen reader can still say why it can't be unticked. */}
       <button
         type="button"
         role="checkbox"
         aria-checked={selected}
-        onClick={() => onToggle(item.kind, item.id)}
+        aria-disabled={locked || undefined}
+        onClick={locked ? undefined : () => onToggle(item.kind, item.id)}
         className={cn(
-          "w-full min-h-16 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors active:scale-[0.99]",
-          selected
-            ? "bg-brand-light"
-            : "bg-bg-secondary hover:bg-surface-hover",
+          "w-full min-h-16 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors",
+          locked
+            ? "bg-brand-light/60 cursor-default"
+            : selected
+              ? "bg-brand-light active:scale-[0.99]"
+              : "bg-bg-secondary hover:bg-surface-hover active:scale-[0.99]",
         )}
       >
         <span className="shrink-0">{item.leading}</span>
@@ -427,10 +492,17 @@ const TargetRow = memo(function TargetRow({
           <span className="block text-sm font-medium text-text-primary truncate">
             {item.title}
           </span>
-          {item.subtitle && (
-            <span className="block text-xs text-text-secondary truncate">
-              {item.subtitle}
+          {locked ? (
+            <span className="flex items-center gap-1 text-xs text-text-secondary truncate">
+              <Lock className="w-3 h-3 shrink-0" aria-hidden />
+              <span className="truncate">Included via {reachedVia}</span>
             </span>
+          ) : (
+            item.subtitle && (
+              <span className="block text-xs text-text-secondary truncate">
+                {item.subtitle}
+              </span>
+            )
           )}
         </span>
         <span
@@ -438,6 +510,7 @@ const TargetRow = memo(function TargetRow({
           className={cn(
             "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
             selected ? "bg-brand border-brand" : "border-text-tertiary",
+            locked && "opacity-60",
           )}
         >
           {selected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}

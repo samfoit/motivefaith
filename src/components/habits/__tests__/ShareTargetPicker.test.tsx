@@ -11,8 +11,9 @@ import {
 import type { ShareTarget } from "@/lib/stores/quick-capture-store";
 
 const HABITS: PickerHabit[] = [
-  { id: "h1", title: "Pray", emoji: "🙏", color: null, streak_current: 3, frequency: "daily" },
-  { id: "h2", title: "Sabbath", emoji: "🕯️", color: null, streak_current: 4, frequency: "weekly" },
+  // Pray's check-in already reaches Friend 0 (a partner) and Prayer Circle.
+  { id: "h1", title: "Pray", emoji: "🙏", color: null, streak_current: 3, frequency: "daily", partner_ids: ["f0"], group_ids: ["g1"] },
+  { id: "h2", title: "Sabbath", emoji: "🕯️", color: null, streak_current: 4, frequency: "weekly", partner_ids: [], group_ids: [] },
 ];
 const FRIENDS: PickerFriend[] = Array.from({ length: 12 }, (_, i) => ({
   id: `f${i}`,
@@ -85,5 +86,30 @@ describe("ShareTargetPicker", () => {
     render(<Harness />);
     expect(screen.getByLabelText("3-day streak")).toBeInTheDocument();
     expect(screen.getByLabelText("4-week streak")).toBeInTheDocument();
+  });
+
+  it("locks in whoever a picked habit's check-in already reaches, until it's unpicked", async () => {
+    render(<Harness />);
+    const friend = () => screen.getByRole("checkbox", { name: /Friend 0/ });
+    const group = () => screen.getByRole("checkbox", { name: /Prayer Circle/ });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Pray" }));
+
+    for (const row of [friend(), group()]) {
+      expect(row).toHaveAttribute("aria-checked", "true");
+      expect(row).toHaveAttribute("aria-disabled", "true");
+      expect(row).toHaveTextContent("Included via Pray");
+    }
+
+    // A locked row can't be unticked on its own...
+    await userEvent.click(friend());
+    expect(friend()).toHaveAttribute("aria-checked", "true");
+
+    // ...only by unpicking the habit, which hands control back.
+    await userEvent.click(screen.getByRole("checkbox", { name: "Pray" }));
+    expect(friend()).toHaveAttribute("aria-checked", "false");
+    expect(friend()).not.toHaveAttribute("aria-disabled");
+    await userEvent.click(friend());
+    expect(friend()).toHaveAttribute("aria-checked", "true");
   });
 });

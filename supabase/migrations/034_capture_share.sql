@@ -50,7 +50,55 @@ CREATE INDEX IF NOT EXISTS idx_completions_evidence_url
   ON public.completions (evidence_url)
   WHERE evidence_url IS NOT NULL;
 
--- ── 2. Who may read a shared capture ──
+-- ── 2. Who a habit's check-in already reaches ──
+--
+-- A check-in shows in the DM thread of each accepted partner (get_friend_
+-- journey) and on the timeline of each group the habit is shared with or is
+-- an active challenge in (get_group_timeline_activity, 033). Sending the same
+-- capture to them again as a message would be a double send, so the picker
+-- locks them in, share_capture skips them, and the read rule (2b) lets
+-- them open the photo the check-in carries. These two functions are the one
+-- definition both go through.
+
+CREATE OR REPLACE FUNCTION public.habit_partner_ids(h_id UUID)
+RETURNS UUID[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT coalesce(array_agg(hs.shared_with), '{}')
+  FROM habit_shares hs
+  WHERE hs.habit_id = h_id
+    AND hs.status = 'accepted';
+$$;
+
+CREATE OR REPLACE FUNCTION public.habit_group_ids(h_id UUID)
+RETURNS UUID[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT coalesce(array_agg(DISTINCT g.group_id), '{}')
+  FROM (
+    SELECT ghs.group_id
+    FROM group_habit_shares ghs
+    WHERE ghs.habit_id = h_id
+    UNION
+    SELECT gc.group_id
+    FROM group_challenge_participants gcp
+    JOIN group_challenges gc ON gc.id = gcp.challenge_id
+    WHERE gcp.habit_id = h_id
+      AND gc.is_active = true
+  ) g;
+$$;
+
+-- Internal: only called from the SECURITY DEFINER functions below.
+REVOKE ALL ON FUNCTION public.habit_partner_ids(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.habit_group_ids(UUID) FROM PUBLIC;
+
+-- ── 2b. Who may read a shared capture ──
 
 CREATE OR REPLACE FUNCTION public.can_read_capture_media(p_path TEXT)
 RETURNS BOOLEAN
@@ -72,10 +120,17 @@ AS $$
       AND is_group_member(gm.group_id)
   )
   OR EXISTS (
+    -- A check-in is seen by the habit's partners and its groups (section 2).
     SELECT 1 FROM completions c
     WHERE c.evidence_url = p_path
       AND c.user_id::text = split_part(p_path, '/', 1)
-      AND is_accepted_partner(c.habit_id)
+      AND (
+        is_accepted_partner(c.habit_id)
+        OR EXISTS (
+          SELECT 1 FROM unnest(habit_group_ids(c.habit_id)) AS g(id)
+          WHERE is_group_member(g.id)
+        )
+      )
   );
 $$;
 
@@ -109,6 +164,10 @@ CREATE POLICY "Users read own or shared completions"
 -- limit in one place. Friend and group checks mirror the insert policies on
 -- encouragements and group_messages; their rate-limit and notify triggers
 -- still fire on each row.
+--
+-- A friend or group the picked habits' check-ins already reach is skipped
+-- rather than refused: the client locks them in for the same reason, and an
+-- older client that sends them anyway should not double send either.
 
 CREATE OR REPLACE FUNCTION public.share_capture(
   p_media_path TEXT,
@@ -131,6 +190,8 @@ DECLARE
   v_completion_ids UUID[] := '{}';
   v_encouragement_ids UUID[] := '{}';
   v_group_message_ids UUID[] := '{}';
+  v_reached_friends UUID[] := '{}';
+  v_reached_groups UUID[] := '{}';
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501';
@@ -159,9 +220,13 @@ BEGIN
       v_id, p_media_type::completion_type, p_media_path, v_caption
     );
     v_completion_ids := v_completion_ids || v_completion.id;
+    -- After insert_completion, which has checked the habit is the caller's.
+    v_reached_friends := v_reached_friends || habit_partner_ids(v_id);
+    v_reached_groups := v_reached_groups || habit_group_ids(v_id);
   END LOOP;
 
   FOREACH v_id IN ARRAY coalesce(p_friend_ids, '{}') LOOP
+    CONTINUE WHEN v_id = ANY(v_reached_friends);
     IF v_id = v_uid OR NOT are_friends(v_uid, v_id) THEN
       RAISE EXCEPTION 'Not friends with recipient' USING ERRCODE = '42501';
     END IF;
@@ -176,6 +241,7 @@ BEGIN
   END LOOP;
 
   FOREACH v_id IN ARRAY coalesce(p_group_ids, '{}') LOOP
+    CONTINUE WHEN v_id = ANY(v_reached_groups);
     IF NOT is_group_member(v_id) THEN
       RAISE EXCEPTION 'Not a member of that group' USING ERRCODE = '42501';
     END IF;
@@ -517,6 +583,8 @@ $$;
 --   emoji      harmless in a plain list, but the card tints itself with the
 --              color, so every uncolored habit turned purple — and the two
 --              screens disagreed about what a habit looks like.
+--   partner_ids,  who the check-in already reaches (2), so the picker can
+--   group_ids     lock them in instead of letting them be sent to twice.
 --
 -- A new column changes the return type, which CREATE OR REPLACE cannot do.
 
@@ -529,7 +597,9 @@ RETURNS TABLE (
   emoji TEXT,
   color TEXT,
   streak_current INTEGER,
-  frequency habit_frequency
+  frequency habit_frequency,
+  partner_ids UUID[],
+  group_ids UUID[]
 )
 LANGUAGE plpgsql
 STABLE
@@ -552,7 +622,9 @@ BEGIN
     h.emoji,
     h.color,
     coalesce(h.streak_current, 0) AS streak_current,
-    h.frequency
+    h.frequency,
+    habit_partner_ids(h.id),
+    habit_group_ids(h.id)
   FROM habits h
   WHERE h.user_id = auth.uid()
     AND h.is_paused = false

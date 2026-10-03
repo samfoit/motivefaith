@@ -14,8 +14,10 @@ import { useGroupsList } from "@/lib/hooks/useGroups";
 import {
   ShareTargetPicker,
   SelectedTargets,
+  reachedByHabits,
   type PickerHabit,
 } from "@/components/habits/ShareTargetPicker";
+import type { ShareTarget } from "@/lib/stores/quick-capture-store";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
@@ -71,6 +73,7 @@ export function QuickCaptureFlow() {
   const friendIds = useQuickCaptureStore((s) => s.friendIds);
   const groupIds = useQuickCaptureStore((s) => s.groupIds);
   const toggleTarget = useQuickCaptureStore((s) => s.toggleTarget);
+  const deselectTargets = useQuickCaptureStore((s) => s.deselectTargets);
 
   // Only fetched once the flow is open; both are cached across opens.
   const { data: friends } = useFriendsList(step !== "closed" ? userId : undefined);
@@ -222,6 +225,23 @@ export function QuickCaptureFlow() {
   );
 
   const selectedCount = habitIds.length + friendIds.length + groupIds.length;
+
+  // Picking a habit takes over whoever its check-in already reaches: drop
+  // them from the hand-picked lists so the picker shows them locked, and so
+  // they come back unpicked — not silently re-selected — when the habit is.
+  const handleToggle = useCallback(
+    (kind: ShareTarget, id: string) => {
+      toggleTarget(kind, id);
+      if (kind !== "habit") return;
+      const reached = reachedByHabits(
+        habits,
+        useQuickCaptureStore.getState().habitIds,
+      );
+      deselectTargets("friend", reached.friend.keys());
+      deselectTargets("group", reached.group.keys());
+    },
+    [habits, toggleTarget, deselectTargets],
+  );
 
   const handleSend = useCallback(async () => {
     if (!capturedFile || !captureMode || selectedCount === 0) return;
@@ -412,7 +432,7 @@ export function QuickCaptureFlow() {
               friends={pickerFriends}
               groups={pickerGroups}
               selected={selected}
-              onToggle={toggleTarget}
+              onToggle={handleToggle}
             />
           </div>
 
@@ -422,7 +442,7 @@ export function QuickCaptureFlow() {
               friends={pickerFriends}
               groups={pickerGroups}
               selected={selected}
-              onToggle={toggleTarget}
+              onToggle={handleToggle}
             />
             <Button
               className="w-full min-h-12"
