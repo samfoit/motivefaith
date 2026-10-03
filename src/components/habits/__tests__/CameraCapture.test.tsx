@@ -148,6 +148,25 @@ async function renderCamera() {
 // Tests
 // ---------------------------------------------------------------------------
 
+/**
+ * A mouse or trackpad device — the only kind offered the framing choice.
+ * Installed fresh for every test: each suite's vi.restoreAllMocks() also
+ * strips the implementation off the setup file's shared matchMedia stub.
+ */
+function finePointer(fine: boolean) {
+  vi.spyOn(window, "matchMedia").mockImplementation(
+    (query: string) =>
+      ({
+        matches: fine && query === "(hover: hover) and (pointer: fine)",
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }) as unknown as MediaQueryList,
+  );
+}
+
+beforeEach(() => finePointer(false));
+
 describe("CameraCapture video takes", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -472,3 +491,117 @@ describe("CameraCapture mid-take flip", () => {
     expect(screen.getByText(/Tap to pause/)).toBeInTheDocument();
   });
 });
+
+/**
+ * The viewfinder shows the camera with object-fit: cover, so on a screen of a
+ * different shape it trims two edges. The capture must trim the same ones —
+ * what you see is what you get.
+ */
+describe("CameraCapture framing", () => {
+  let drawImage: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
+    vi.stubGlobal("MediaStream", FakeMediaStream);
+    URL.createObjectURL = vi.fn(() => "blob:take");
+    URL.revokeObjectURL = vi.fn();
+    installCamera();
+    drawImage = vi.fn();
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      scale: vi.fn(),
+      drawImage,
+    })) as unknown as HTMLCanvasElement["getContext"];
+    HTMLCanvasElement.prototype.toBlob = vi.fn((cb: BlobCallback) =>
+      cb(new Blob(["jpg"], { type: "image/jpeg" })),
+    );
+
+    // A 4:3 webcam in a 16:9 viewfinder.
+    const size = (name: string, value: number) =>
+      vi.spyOn(HTMLVideoElement.prototype, name as "videoWidth", "get").mockReturnValue(value);
+    size("videoWidth", 1920);
+    size("videoHeight", 1440);
+    size("clientWidth", 1600);
+    size("clientHeight", 900);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  it("shows the whole frame by default on a landscape screen, and remembers a switch", async () => {
+    localStorage.removeItem("camera-framing");
+    finePointer(true);
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1440);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(900);
+    const view = await renderCamera();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Fill the screen" }));
+    });
+    expect(screen.getByRole("button", { name: "Show the whole frame" })).toBeInTheDocument();
+    expect(localStorage.getItem("camera-framing")).toBe("fill");
+
+    // A fresh camera on the same device opens the way it was left.
+    view.unmount();
+    await renderCamera();
+    expect(screen.getByRole("button", { name: "Show the whole frame" })).toBeInTheDocument();
+    localStorage.removeItem("camera-framing");
+  });
+
+  it("always fills on a touch device, with no switch, whatever was saved", async () => {
+    localStorage.setItem("camera-framing", "fit");
+    finePointer(false);
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(844);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(390);
+    await renderCamera();
+
+    expect(screen.queryByRole("button", { name: /Fill the screen|Show the whole frame/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Switch camera" })).toBeInTheDocument();
+    localStorage.removeItem("camera-framing");
+  });
+
+  it("hides the framing switch mid-take, when the shape is already fixed", async () => {
+    finePointer(true);
+    await renderCamera();
+    await pressShutter(400);
+    expect(screen.queryByRole("button", { name: /Fill the screen|Show the whole frame/ })).toBeNull();
+  });
+
+  it("photographs only the band the viewfinder shows", async () => {
+    await renderCamera();
+    await pressShutter(50);
+
+    expect(drawImage).toHaveBeenCalledWith(
+      expect.any(HTMLVideoElement), 0, 180, 1920, 1080, 0, 0, 1920, 1080,
+    );
+  });
+
+  it("records a video of the viewfinder's shape", async () => {
+    await renderCamera();
+    const created: HTMLCanvasElement[] = [];
+    const realCreate = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = realCreate(tag);
+      if (tag === "canvas") {
+        (el as HTMLCanvasElement & { captureStream: () => MediaStream }).captureStream = () =>
+          streamOf([fakeTrack("video", "canvas")]) as unknown as MediaStream;
+        created.push(el as HTMLCanvasElement);
+      }
+      return el;
+    });
+
+    await pressShutter(400);
+
+    const take = created.at(-1)!;
+    expect(take.width / take.height).toBeCloseTo(16 / 9, 2);
+    expect(take.height).toBe(1080);
+  });
+});
+

@@ -2,12 +2,13 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
-import { X, RotateCcw, Image as ImageIcon, Check } from "lucide-react";
+import { X, RotateCcw, Image as ImageIcon, Check, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { useCamera } from "@/lib/hooks/useCamera";
 import { useCameraGestures } from "@/lib/hooks/useCameraGestures";
 import { getSupportedMimeType } from "@/lib/utils/media-recorder";
+import { elementAspect, viewfinderCrop } from "@/lib/utils/viewfinder-crop";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +43,39 @@ const SHUTTER_DRAG_SLOP_PX = 10;
 
 const RING_RADIUS = 36;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+/**
+ * How the live camera sits in the viewfinder. "fill" covers the screen and
+ * trims the camera's overflow; "fit" shows the camera's whole frame. Either
+ * way the capture is exactly what is on screen (see viewfinderCrop).
+ */
+type Framing = "fit" | "fill";
+const FRAMING_KEY = "camera-framing";
+
+/**
+ * Only a mouse or trackpad device gets the choice. A phone's or tablet's
+ * camera is shaped for its own screen and full-bleed is what a camera app
+ * looks like there; the control would be clutter. On a laptop a 4:3 webcam
+ * filling a wide display loses most of its height, so it earns its place.
+ */
+function canChooseFraming(): boolean {
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+/**
+ * Touch devices always fill. Otherwise the remembered choice, else "fit" on
+ * a landscape screen and "fill" on a portrait one.
+ */
+function initialFraming(): Framing {
+  if (!canChooseFraming()) return "fill";
+  try {
+    const saved = localStorage.getItem(FRAMING_KEY);
+    if (saved === "fit" || saved === "fill") return saved;
+  } catch {
+    // Storage blocked: fall through to the screen's shape.
+  }
+  return window.innerWidth > window.innerHeight ? "fit" : "fill";
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -89,6 +123,10 @@ export function CameraCapture({
   const [isPaused, setIsPaused] = useState(false);
   const [notes, setNotes] = useState(initialCapture?.notes ?? "");
   const [isPressed, setIsPressed] = useState(false);
+  const [framingChoice] = useState(canChooseFraming);
+  const [framing, setFraming] = useState<Framing>(initialFraming);
+  /** The camera frame's width / height, once its first frame arrives. */
+  const [frameAspect, setFrameAspect] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,14 +223,15 @@ export function CameraCapture({
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    // Take only the part of the frame the viewfinder is showing. A digital
-    // zoom is a crop, so the photo comes out at the cropped size rather than
-    // being stretched back up to the sensor's.
-    const z = digitalZoomRef.current;
-    const sw = video.videoWidth / z;
-    const sh = video.videoHeight / z;
-    const sx = (video.videoWidth - sw) / 2;
-    const sy = (video.videoHeight - sh) / 2;
+    // Take only the part of the frame the viewfinder is showing — its cover
+    // trim and the digital zoom — at the camera's own resolution for that
+    // region rather than stretched back up to the sensor's.
+    const { sx, sy, sw, sh } = viewfinderCrop(
+      video.videoWidth,
+      video.videoHeight,
+      elementAspect(video),
+      digitalZoomRef.current,
+    );
 
     canvas.width = Math.round(sw);
     canvas.height = Math.round(sh);
@@ -315,44 +354,40 @@ export function CameraCapture({
       const ctx = mc.getContext("2d");
 
       if (ctx && typeof mc.captureStream === "function") {
-        // Fixed for the whole take — a canvas that resized mid-recording would
-        // corrupt the file. Anything the camera sends is fitted to these
-        // dimensions below, including the other camera's, which need not have
-        // the same resolution or even the same aspect ratio.
-        mc.width = video.videoWidth || 640;
-        mc.height = video.videoHeight || 480;
+        // The take has the viewfinder's shape, at the camera's resolution for
+        // the region it shows. Fixed for the whole take — a canvas that
+        // resized mid-recording would corrupt the file. Anything the camera
+        // sends is fitted to it below, including the other camera's, which
+        // need not have the same resolution or even the same aspect ratio.
+        const shown = viewfinderCrop(
+          video.videoWidth || 640,
+          video.videoHeight || 480,
+          elementAspect(video),
+        );
+        // Even sizes: some encoders reject odd frame dimensions.
+        mc.width = Math.round(shown.sw / 2) * 2;
+        mc.height = Math.round(shown.sh / 2) * 2;
         const frameAspect = mc.width / mc.height;
 
         const drawFrame = () => {
-          const z = digitalZoomRef.current;
           const vw = video.videoWidth || mc.width;
           const vh = video.videoHeight || mc.height;
 
-          // Cover-crop to the frame's shape, then crop again for the zoom, so
+          // Trim to the take's shape, then crop again for the live zoom, so
           // the picture fills the frame without ever being stretched.
-          let sw = vw;
-          let sh = vh;
-          if (vw / vh > frameAspect) sw = vh * frameAspect;
-          else sh = vw / frameAspect;
-          sw /= z;
-          sh /= z;
+          const { sx, sy, sw, sh } = viewfinderCrop(
+            vw,
+            vh,
+            frameAspect,
+            digitalZoomRef.current,
+          );
 
           ctx.save();
           if (mirrorRef.current) {
             ctx.translate(mc.width, 0);
             ctx.scale(-1, 1);
           }
-          ctx.drawImage(
-            video,
-            (vw - sw) / 2,
-            (vh - sh) / 2,
-            sw,
-            sh,
-            0,
-            0,
-            mc.width,
-            mc.height,
-          );
+          ctx.drawImage(video, sx, sy, sw, sh, 0, 0, mc.width, mc.height);
           ctx.restore();
           mirrorAnimRef.current = requestAnimationFrame(drawFrame);
         };
@@ -530,6 +565,29 @@ export function CameraCapture({
   }, [stopCamera, onClose]);
 
   // --- Flip ---
+  // --- Framing ---
+  const toggleFraming = useCallback(() => {
+    setFraming((f) => {
+      const next = f === "fit" ? "fill" : "fit";
+      try {
+        localStorage.setItem(FRAMING_KEY, next);
+      } catch {
+        // Not remembered; it still applies now.
+      }
+      return next;
+    });
+  }, []);
+
+  const readFrameAspect = useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      const { videoWidth, videoHeight } = e.currentTarget;
+      if (videoWidth > 0 && videoHeight > 0) {
+        setFrameAspect(videoWidth / videoHeight);
+      }
+    },
+    [],
+  );
+
   const handleFlip = useCallback(() => {
     if (stage === "review") return;
 
@@ -608,14 +666,34 @@ export function CameraCapture({
         </button>
 
         {stage !== "review" && (
-          <button
-            type="button"
-            onClick={handleFlip}
-            className="p-2 rounded-full bg-black/40 backdrop-blur-sm"
-            aria-label="Switch camera"
-          >
-            <RotateCcw className="w-5 h-5 text-white" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Not mid-take: the recording's shape is fixed when it starts. */}
+            {stage === "viewfinder" && framingChoice && (
+              <button
+                type="button"
+                onClick={toggleFraming}
+                className="p-2 rounded-full bg-black/40 backdrop-blur-sm"
+                aria-label={
+                  framing === "fit" ? "Fill the screen" : "Show the whole frame"
+                }
+                aria-pressed={framing === "fill"}
+              >
+                {framing === "fit" ? (
+                  <Maximize2 className="w-5 h-5 text-white" />
+                ) : (
+                  <Minimize2 className="w-5 h-5 text-white" />
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleFlip}
+              className="p-2 rounded-full bg-black/40 backdrop-blur-sm"
+              aria-label="Switch camera"
+            >
+              <RotateCcw className="w-5 h-5 text-white" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -639,7 +717,11 @@ export function CameraCapture({
       {/* Center: viewfinder or preview — also the gesture surface */}
       <div
         className="flex-1 flex items-center justify-center overflow-hidden"
-        style={{ touchAction: stage === "review" ? undefined : "none" }}
+        style={{
+          touchAction: stage === "review" ? undefined : "none",
+          // Lets the "fit" viewfinder size itself against this box (cq units).
+          containerType: "size",
+        }}
         {...gestureHandlers}
       >
         {stage === "review" && previewUrl ? (
@@ -665,8 +747,27 @@ export function CameraCapture({
             autoPlay
             playsInline
             muted
-            className={cn("w-full h-full object-cover", !stream && "opacity-0")}
+            onLoadedMetadata={readFrameAspect}
+            onResize={readFrameAspect}
+            className={cn(
+              "object-cover",
+              framing === "fill" || !frameAspect
+                ? "w-full h-full"
+                : "rounded-2xl",
+              !stream && "opacity-0",
+            )}
             style={{
+              // "fit": the element takes the camera's own shape, as large as
+              // the box allows, so the cover trim — and the capture's — is
+              // nothing. It must be the element that has the frame's shape,
+              // not object-fit: contain, because the capture reads the
+              // element's shape to know what is on screen.
+              ...(framing === "fit" && frameAspect
+                ? {
+                    width: `min(100cqw, calc(100cqh * ${frameAspect}))`,
+                    height: `min(100cqh, calc(100cqw / ${frameAspect}))`,
+                  }
+                : null),
               // The mirror and the digital zoom are one transform: scaling X
               // negatively flips the front camera, and the uniform scale is
               // the crop the capture pipeline reproduces.
