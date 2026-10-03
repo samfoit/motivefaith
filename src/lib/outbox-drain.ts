@@ -18,6 +18,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { useFeedStaleStore } from "@/lib/stores/feed-stale-store";
 import type { Database } from "@/lib/supabase/types";
 import { replayOutbox } from "@/lib/offline-write";
 import {
@@ -190,6 +191,7 @@ async function runDrain(): Promise<DrainResult> {
   }
 
   const remaining = (await getPendingCount()) + (await getOutboxCount());
+  if (synced > 0) useFeedStaleStore.getState().markStale();
   if (synced > 0 || dropped > 0) notifyPendingChanged();
   return { synced, dropped, remaining };
 }

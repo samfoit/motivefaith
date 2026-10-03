@@ -9,6 +9,7 @@ import { FriendRow } from "@/components/social/FriendRow";
 import { GroupRow } from "@/components/social/GroupRow";
 import { createClient } from "@/lib/supabase/client";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
+import { useFeedStaleStore } from "@/lib/stores/feed-stale-store";
 import { cn } from "@/lib/utils/cn";
 import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
@@ -81,6 +82,18 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
     router.refresh();
     queryClient.invalidateQueries({ queryKey: ["unread-feeds"] });
   }, [router, queryClient]);
+
+  // Our own check-ins never arrive over the realtime channel below, and can
+  // land after this page was rendered (see feed-stale-store). Ask again
+  // whenever one has — on mount for a write made elsewhere, or later for one
+  // sent as the dashboard unmounted. Not debounced: dropping this refresh is
+  // the bug it exists to fix.
+  const feedStale = useFeedStaleStore((s) => s.stale);
+  useEffect(() => {
+    if (!feedStale) return;
+    useFeedStaleStore.getState().clearStale();
+    router.refresh();
+  }, [feedStale, router]);
 
   // Derive stable ID lists for realtime filters
   const friendIds = useMemo(
