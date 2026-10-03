@@ -75,8 +75,10 @@ function renderWithHabits(habits: HabitWithCompletions[]) {
   return queryClient;
 }
 
+let queryClient: QueryClient;
+
 async function renderDashboard() {
-  renderWithHabits([habit]);
+  queryClient = renderWithHabits([habit]);
   return await screen.findByRole("button", { name: "Complete Morning Run" });
 }
 
@@ -135,6 +137,34 @@ describe("DashboardClient quick check-in", () => {
 
     await vi.advanceTimersByTimeAsync(6000);
     expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("is not undone by a refetch while the check-in is held back", async () => {
+    // The server has not been sent the check-in yet, so any refetch in the
+    // window — returning to the app, say — answers without it.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({ habits: [habit], timezone: "UTC", firstName: "Alice" }),
+          { headers: { "content-type": "application/json" } },
+        ),
+    );
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const complete = await renderDashboard();
+
+      await user.click(complete);
+      // What a window-focus refetch does.
+      await queryClient.refetchQueries({ type: "active" });
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(
+        screen.getByRole("button", { name: "Morning Run completed" }),
+      ).toBeDisabled();
+      expect(screen.getByLabelText("5-day streak")).toBeInTheDocument();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });
 
