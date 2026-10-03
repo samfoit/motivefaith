@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Camera, CloudRain, Video, MessageSquare, Zap, Play, X, Heart, MoreHorizontal, Mic } from "lucide-react";
+import { motion } from "motion/react";
+import { Camera, CloudRain, Video, MessageSquare, Zap, Play, Heart, MoreHorizontal, Mic } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
 import { EvidenceAudio } from "@/components/ui/EvidenceAudio";
+import { MediaLightbox } from "@/components/ui/MediaLightbox";
 import { Avatar } from "@/components/ui/Avatar";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
 import { rainCheckReasonLabel } from "@/lib/constants/rain-check";
@@ -255,44 +256,13 @@ export const CompletionBubble = React.memo(function CompletionBubble({
         </div>
       </motion.div>
 
-      {/* Photo lightbox */}
       {completionType === "photo" && evidenceUrl && (
-        <AnimatePresence>
-          {lightboxOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-              onClick={() => setLightboxOpen(false)}
-            >
-              <button
-                type="button"
-                onClick={() => setLightboxOpen(false)}
-                className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] as const }}
-                className="relative w-[90vw] h-[80vh] flex items-center justify-center"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <EvidenceMedia
-                  path={evidenceUrl}
-                  type="photo"
-                  alt="Completion photo"
-                  className="max-w-full max-h-full object-contain"
-                />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <MediaLightbox
+          path={evidenceUrl}
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+          alt="Completion photo"
+        />
       )}
     </>
   );
