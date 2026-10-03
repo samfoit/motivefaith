@@ -1,18 +1,16 @@
 "use client";
 
 import React, { useRef, useCallback, useEffect, useId } from "react";
-import {
-  Check,
-  ChevronRight,
-  Clock,
-  CloudRain,
-  CornerDownRight,
-  Flame,
-} from "lucide-react";
+import { ChevronRight, Clock, CloudRain, CornerDownRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
+import {
+  HabitCircle,
+  HabitTitleRow,
+  habitSurfaceProps,
+} from "@/components/habits/HabitCardParts";
 import type { Tables } from "@/lib/supabase/types";
 import type { Habit } from "@/lib/types/habit";
 
@@ -344,20 +342,19 @@ export const HabitCard = React.memo(function HabitCard({
       {/* Card surface */}
       <div
         ref={surfaceRef}
-        className={cn(
-          // The habit's color tints the whole card (see .habit-tint), which
-          // also gives the drawer an opaque surface to hide behind.
-          "hc-surface habit-tint relative flex items-center gap-2 rounded-lg border py-3 pl-2 pr-4 shadow-sm",
-          "cursor-pointer select-none",
-          "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-          "active:brightness-[0.98]",
-        )}
-        style={{
-          ["--habit-color" as string]: habit.color ?? undefined,
-          touchAction: "pan-y",
-          WebkitTouchCallout: "none",
-          WebkitTapHighlightColor: "transparent",
-        } as React.CSSProperties}
+        // The tinted surface also gives the drawer an opaque face to hide behind.
+        {...habitSurfaceProps(habit.color, {
+          className: cn(
+            "cursor-pointer select-none",
+            "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            "active:brightness-[0.98]",
+          ),
+          style: {
+            touchAction: "pan-y",
+            WebkitTouchCallout: "none",
+            WebkitTapHighlightColor: "transparent",
+          },
+        })}
         onContextMenu={(e) => e.preventDefault()}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -400,44 +397,13 @@ export const HabitCard = React.memo(function HabitCard({
 
         {/* Emoji + Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xl leading-none shrink-0">{habit.emoji}</span>
-            <h3
-              className={cn(
-                "font-semibold truncate min-w-0",
-                completedToday || rainCheckedToday
-                  ? "text-text-secondary"
-                  : "text-text-primary",
-              )}
-              style={{ fontSize: "var(--text-base)" }}
-            >
-              {habit.title}
-            </h3>
-
-            {/* The streak sits with the title rather than down in the meta
-                row: it is the one thing on this card worth keeping, so it
-                reads at a glance instead of queueing behind the timestamps.
-                A long title gives way to it — the pill is short and fixed.
-
-                The flame says "streak" on its own, so the pill is just the
-                number — the same shorthand the streak row in DayView uses.
-                Only the label spells out the unit, since a screen reader
-                gets no flame. */}
-            {(habit.streak_current ?? 0) > 0 && (
-              <span
-                className="shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
-                style={{
-                  color: "var(--color-streak)",
-                  backgroundColor:
-                    "color-mix(in srgb, var(--color-streak) 14%, transparent)",
-                }}
-                aria-label={`${habit.streak_current}-${habit.frequency === "weekly" ? "week" : "day"} streak`}
-              >
-                <Flame className="w-3 h-3" aria-hidden />
-                {habit.streak_current}
-              </span>
-            )}
-          </div>
+          <HabitTitleRow
+            emoji={habit.emoji}
+            title={habit.title}
+            streak={habit.streak_current}
+            frequency={habit.frequency}
+            muted={completedToday || rainCheckedToday}
+          />
 
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {scheduledTime && (
@@ -501,23 +467,10 @@ export const HabitCard = React.memo(function HabitCard({
           onPointerDown={(e) => e.stopPropagation()}
           disabled={completedToday}
           className={cn(
-            "shrink-0 w-10 h-10 rounded-full flex items-center justify-center",
-            "transition-all duration-200 ease-bounce",
+            "group shrink-0 rounded-full",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand",
-            completedToday
-              ? "bg-success text-white"
-              : rainCheckedToday
-                ? "border-2 active:scale-90"
-                : "border-2 border-gray-300 hover:border-success hover:bg-success/10 active:scale-90",
+            !completedToday && "active:scale-90 transition-transform",
           )}
-          style={
-            !completedToday && rainCheckedToday
-              ? {
-                borderColor: "var(--color-rain)",
-                color: "var(--color-rain)",
-              }
-              : undefined
-          }
           aria-label={
             completedToday
               ? `${habit.title} completed`
@@ -526,13 +479,10 @@ export const HabitCard = React.memo(function HabitCard({
                 : `Complete ${habit.title}`
           }
         >
-          {completedToday ? (
-            <div className="animate-[landing-pop_0.3s_var(--ease-bounce)_both]">
-              <Check className="w-5 h-5" strokeWidth={3} />
-            </div>
-          ) : rainCheckedToday ? (
-            <CloudRain className="w-[18px] h-[18px]" strokeWidth={2.25} />
-          ) : null}
+          <HabitCircle
+            state={completedToday ? "done" : rainCheckedToday ? "rain" : "open"}
+            animateDone
+          />
         </button>
       </div>
     </div>
