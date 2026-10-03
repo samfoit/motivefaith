@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { resolveEvidenceUrl } from "@/lib/utils/evidence";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { cn } from "@/lib/utils/cn";
 
 interface EvidenceAudioProps {
@@ -45,18 +46,11 @@ export function EvidenceAudio({ path, className }: EvidenceAudioProps) {
 
   if (!url) {
     return (
-      <div className={cn("h-12 rounded-lg overflow-hidden", className)}>
+      <div className={cn("h-9 w-56 max-w-full rounded-full overflow-hidden", className)}>
         <Skeleton variant="rect" className="w-full h-full" />
       </div>
     );
   }
 
-  return (
-    <audio
-      src={url}
-      controls
-      preload="metadata"
-      className={cn("w-full", className)}
-    />
-  );
+  return <AudioPlayer src={url} className={className} />;
 }
