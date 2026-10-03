@@ -291,7 +291,7 @@ body {
   animation: landing-fade-up-sm 0.5s var(--ease-out) both;
 }
 
-.landing-feature-card {
+.landing-feature-list {
   animation: landing-fade-up-sm 0.5s var(--ease-out) both;
 }
 
