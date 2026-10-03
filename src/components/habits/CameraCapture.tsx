@@ -20,6 +20,12 @@ export interface CameraCaptureProps {
   onClose: () => void;
   onFallback: () => void;
   maxVideoDuration?: number;
+  /**
+   * Reopen on the review screen with an earlier take — how the send screen's
+   * back button returns to the full-size preview instead of starting over.
+   * The camera itself only starts if the user retakes.
+   */
+  initialCapture?: { file: File; notes?: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +62,7 @@ export function CameraCapture({
   onClose,
   onFallback,
   maxVideoDuration = 15,
+  initialCapture,
 }: CameraCaptureProps) {
   const {
     state,
@@ -71,12 +78,16 @@ export function CameraCapture({
     stopCamera,
   } = useCamera({ audio: true });
 
-  const [stage, setStage] = useState<CaptureStage>("viewfinder");
-  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+  const [stage, setStage] = useState<CaptureStage>(
+    initialCapture ? "review" : "viewfinder",
+  );
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(
+    initialCapture?.file ?? null,
+  );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(initialCapture?.notes ?? "");
   const [isPressed, setIsPressed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -115,9 +126,26 @@ export function CameraCapture({
   const shutterDragRef = useRef<{ y: number; zoom: number; dragged: boolean } | null>(null);
 
   // --- Request camera on mount ---
+  // Not when reopening on a review: the camera light would come on behind a
+  // still photo. handleRetake starts it if the user wants a new take.
+  const startOnReviewRef = useRef(!!initialCapture);
   useEffect(() => {
+    if (startOnReviewRef.current) return;
     requestCamera();
   }, [requestCamera]);
+
+  // --- Preview for a reopened take ---
+  // Minted in an effect, not in useState's initializer: Strict Mode's
+  // mount → unmount → mount would revoke an initializer-made URL in the
+  // cleanup below and then keep rendering the dead string.
+  const initialFileRef = useRef(initialCapture?.file ?? null);
+  useEffect(() => {
+    const file = initialFileRef.current;
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, []);
 
   // --- Attach / detach stream on the viewfinder element ---
   useEffect(() => {
@@ -568,11 +596,13 @@ export function CameraCapture({
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4">
+        {/* On a review, ✕ discards the take and goes back to the camera, the
+            way Snapchat does; only ✕ on the live camera leaves altogether. */}
         <button
           type="button"
-          onClick={handleClose}
+          onClick={stage === "review" ? handleRetake : handleClose}
           className="p-2 rounded-full bg-black/40 backdrop-blur-sm"
-          aria-label="Close camera"
+          aria-label={stage === "review" ? "Discard and retake" : "Close camera"}
         >
           <X className="w-5 h-5 text-white" />
         </button>

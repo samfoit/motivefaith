@@ -18,7 +18,8 @@
     "test:partner-notifications": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/partner-notifications.test.sql",
     "test:feed-preview": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/feed-preview.test.sql",
     "test:group-feed-preview": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/group-feed-preview.test.sql",
-    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview",
+    "test:capture-share": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/capture-share.test.sql",
+    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share",
     "analyze": "ANALYZE=true next build"
   },
   "dependencies": {

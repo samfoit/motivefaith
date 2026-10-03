@@ -48,6 +48,7 @@ import { useRegenerateInviteCode, useRemoveGroupMember } from "@/lib/hooks/useGr
 import { useCreateChallenge, useJoinChallenge, useLeaveChallenge } from "@/lib/hooks/useGroupChallenges";
 import { ReportSheet } from "@/components/social/ReportSheet";
 import { CompletionBubble, slideVariant } from "@/components/social/CompletionBubble";
+import { MessageMedia } from "@/components/social/MessageMedia";
 import type {
   GroupTimelineData,
   GroupTimelineMessage,
@@ -206,7 +207,9 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
         id: string;
         group_id: string;
         user_id: string;
-        content: string;
+        content: string | null;
+        media_path: string | null;
+        media_type: "photo" | "video" | null;
         created_at: string;
       }>(
         "postgres_changes",
@@ -224,6 +227,8 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
           const newMsg: GroupTimelineMessage = {
             id: row.id,
             content: row.content,
+            media_path: row.media_path,
+            media_type: row.media_type,
             created_at: row.created_at,
             user_id: row.user_id,
             isMe: false,
@@ -839,7 +844,12 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
                             {m.user_name}
                           </p>
                         )}
-                        <p className="text-sm break-words">{m.content}</p>
+                        {m.media_path && m.media_type && (
+                          <MessageMedia path={m.media_path} type={m.media_type} />
+                        )}
+                        {m.content && (
+                          <p className="text-sm break-words">{m.content}</p>
+                        )}
                         <div className="flex items-center gap-1.5">
                           <p
                             className={cn(

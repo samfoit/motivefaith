@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { CameraCapture } from "../CameraCapture";
@@ -285,12 +286,76 @@ describe("CameraCapture retake", () => {
 
     camera.getUserMedia.mockClear();
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /retake/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Retake" }));
     });
 
     expect(camera.getUserMedia).toHaveBeenCalledWith(
       expect.objectContaining({ video: { facingMode: { ideal: "user" } } }),
     );
+  });
+
+  it("reopens on the review of an earlier take without starting the camera", async () => {
+    const file = new File(["jpg"], "shot.jpg", { type: "image/jpeg" });
+    const onCapture = vi.fn();
+    render(
+      <CameraCapture
+        onCapture={onCapture}
+        onClose={vi.fn()}
+        onFallback={vi.fn()}
+        initialCapture={{ file, notes: "sunrise" }}
+      />,
+    );
+    await act(async () => {});
+
+    expect(camera.getUserMedia).not.toHaveBeenCalled();
+    expect(screen.getByAltText("Captured photo")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("sunrise")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Use Photo" }));
+    });
+    expect(onCapture).toHaveBeenCalledWith(file, "sunrise");
+  });
+
+  it("shows a live preview of the reopened take under Strict Mode", async () => {
+    let n = 0;
+    const revoked = new Set<string>();
+    URL.createObjectURL = vi.fn(() => `blob:take-${++n}`);
+    URL.revokeObjectURL = vi.fn((url: string) => void revoked.add(url));
+
+    render(
+      <StrictMode>
+        <CameraCapture
+          onCapture={vi.fn()}
+          onClose={vi.fn()}
+          onFallback={vi.fn()}
+          initialCapture={{ file: new File(["jpg"], "shot.jpg", { type: "image/jpeg" }) }}
+        />
+      </StrictMode>,
+    );
+    await act(async () => {});
+
+    const src = screen.getByAltText("Captured photo").getAttribute("src")!;
+    expect(revoked.has(src)).toBe(false);
+  });
+
+  it("discards a take with the review's close button and goes back to the camera", async () => {
+    const onClose = vi.fn();
+    render(
+      <CameraCapture
+        onCapture={vi.fn()}
+        onClose={onClose}
+        onFallback={vi.fn()}
+        initialCapture={{ file: new File(["jpg"], "shot.jpg", { type: "image/jpeg" }) }}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Discard and retake" }));
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(1);
+    expect(screen.queryByAltText("Captured photo")).not.toBeInTheDocument();
   });
 });
 

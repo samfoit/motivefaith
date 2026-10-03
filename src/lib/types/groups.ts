@@ -141,7 +141,10 @@ export type GroupTimelineCompletion = {
 /** A message entry in the group timeline */
 export type GroupTimelineMessage = {
   id: string;
-  content: string;
+  /** Null for a photo or video sent without a caption. */
+  content: string | null;
+  media_path?: string | null;
+  media_type?: "photo" | "video" | null;
   created_at: string;
   user_id: string;
   isMe: boolean;
