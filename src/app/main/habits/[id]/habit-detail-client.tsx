@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
 import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
 import { Avatar } from "@/components/ui/Avatar";
@@ -43,6 +44,9 @@ import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import type { Tables } from "@/lib/supabase/types";
 import type { Habit } from "@/lib/types/habit";
+import type { DashboardData } from "@/lib/data/dashboard";
+import { applyHabitUpdate, removeHabit } from "@/lib/data/dashboard-mutations";
+import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
 import {
   rainCheckReasonLabel,
@@ -186,6 +190,7 @@ export function HabitDetailClient({
   username,
 }: HabitDetailClientProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const completeHabit = useCompleteHabit();
   const { show: showToast, ToastElements } = useToast();
   const [habit, setHabit] = useState(initialHabit);
@@ -425,6 +430,15 @@ export function HabitDetailClient({
       showToast({ variant: "error", title: "Failed to update habit" });
     } else {
       setHabit((h) => ({ ...h, is_paused: newPaused }));
+      // Paused habits are left off the dashboard; a resumed one has to be
+      // fetched back, since the cache no longer holds it.
+      if (newPaused) {
+        queryClient.setQueriesData<DashboardData>(
+          { queryKey: DASHBOARD_KEY_PREFIX },
+          (old) => removeHabit(old, habit.id),
+        );
+      }
+      void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
       showToast({
         variant: "info",
         title: newPaused ? "Habit paused" : "Habit resumed",
@@ -446,6 +460,11 @@ export function HabitDetailClient({
       showToast({ variant: "error", title: "Failed to delete habit" });
       setIsDeleting(false);
     } else {
+      queryClient.setQueriesData<DashboardData>(
+        { queryKey: DASHBOARD_KEY_PREFIX },
+        (old) => removeHabit(old, habit.id),
+      );
+      void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
       router.replace("/main/dashboard");
       router.refresh();
     }
@@ -535,9 +554,17 @@ export function HabitDetailClient({
   const handleHabitSaved = useCallback(
     (updates: Partial<Habit>) => {
       setHabit((h) => ({ ...h, ...updates }));
+      // The dashboard reads from the React Query cache, not from the server
+      // render router.refresh() redoes — patch it so the new values show the
+      // moment the user goes back, offline included, then refetch to confirm.
+      queryClient.setQueriesData<DashboardData>(
+        { queryKey: DASHBOARD_KEY_PREFIX },
+        (old) => applyHabitUpdate(old, habit.id, updates),
+      );
+      void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
       router.refresh();
     },
-    [router],
+    [router, queryClient, habit.id],
   );
 
   // --- Render ---

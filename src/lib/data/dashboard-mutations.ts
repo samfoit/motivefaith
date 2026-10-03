@@ -130,3 +130,39 @@ export function applyHabitCreate(
     ],
   };
 }
+
+/**
+ * Apply an edit to a cached habit — title, color, schedule and so on. Without
+ * this the dashboard kept showing the old values after a save: the edit sheet
+ * lives on the habit page, whose `router.refresh()` never touches this cache.
+ */
+export function applyHabitUpdate(
+  data: DashboardData | undefined,
+  habitId: string,
+  patch: Partial<DashboardData["habits"][number]>,
+): DashboardData | undefined {
+  if (!data) return data;
+
+  return {
+    ...data,
+    habits: data.habits.map((habit) =>
+      habit.id === habitId ? { ...habit, ...patch } : habit,
+    ),
+  };
+}
+
+/**
+ * Take a habit off the dashboard — it was deleted, or paused (paused habits are
+ * not shown there).
+ */
+export function removeHabit(
+  data: DashboardData | undefined,
+  habitId: string,
+): DashboardData | undefined {
+  if (!data) return data;
+
+  return {
+    ...data,
+    habits: data.habits.filter((habit) => habit.id !== habitId),
+  };
+}
