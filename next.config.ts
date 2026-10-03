@@ -83,7 +83,10 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            value: "geolocation=(), microphone=(), camera=(self)",
+            // microphone=(self): the camera records video with sound and
+            // voice check-ins record audio. "()" blocked getUserMedia outright
+            // — the whole camera request fails, with no permission prompt.
+            value: "geolocation=(), microphone=(self), camera=(self)",
           },
           {
             key: "X-DNS-Prefetch-Control",
