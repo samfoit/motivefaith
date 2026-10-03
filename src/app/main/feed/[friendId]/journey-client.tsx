@@ -94,7 +94,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
         encouragement_type: "nudge" | "message" | "emoji" | "voice";
         content: string | null;
         media_path: string | null;
-        media_type: "photo" | "video" | null;
+        media_type: "photo" | "video" | "voice" | null;
         created_at: string;
       }>(
         "postgres_changes",

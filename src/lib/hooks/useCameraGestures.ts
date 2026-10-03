@@ -20,6 +20,8 @@ const SWIPE_MIN_PX = 90;
 const SWIPE_MAX_MS = 700;
 /** Horizontal drift is allowed up to this fraction of the vertical travel. */
 const SWIPE_VERTICALITY = 0.66;
+/** A sideways flick is shorter: the screen is narrower than it is tall. */
+const SIDE_SWIPE_MIN_PX = 60;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -37,6 +39,9 @@ export interface UseCameraGesturesOptions {
   onPinchEnd?: () => void;
   /** A downward flick — dismisses the camera. */
   onSwipeDown?: () => void;
+  /** Sideways flicks — step through the capture modes. */
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
 }
 
 export interface CameraGestureHandlers {
@@ -83,6 +88,7 @@ function distance(a: Point, b: Point): number {
  *   - **double tap** — flip between front and back cameras
  *   - **pinch** — zoom
  *   - **swipe down** — dismiss
+ *   - **swipe left / right** — change mode
  *
  * Everything runs off pointer events, so a mouse drives the same code paths as
  * a finger, and each gesture cancels the others: a second finger landing voids
@@ -227,6 +233,18 @@ export function useCameraGestures(
       ) {
         lastTap.current = null;
         optsRef.current.onSwipeDown?.();
+        return;
+      }
+
+      // --- Sideways flick ---
+      if (
+        Math.abs(dx) >= SIDE_SWIPE_MIN_PX &&
+        dt <= SWIPE_MAX_MS &&
+        Math.abs(dy) <= Math.abs(dx) * SWIPE_VERTICALITY
+      ) {
+        lastTap.current = null;
+        if (dx < 0) optsRef.current.onSwipeLeft?.();
+        else optsRef.current.onSwipeRight?.();
       }
     },
     [endPinch],

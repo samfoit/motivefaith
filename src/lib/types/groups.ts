@@ -144,7 +144,7 @@ export type GroupTimelineMessage = {
   /** Null for a photo or video sent without a caption. */
   content: string | null;
   media_path?: string | null;
-  media_type?: "photo" | "video" | null;
+  media_type?: "photo" | "video" | "voice" | null;
   created_at: string;
   user_id: string;
   isMe: boolean;

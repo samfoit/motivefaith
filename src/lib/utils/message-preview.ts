@@ -1,5 +1,5 @@
 /**
- * The one-line text for a message in a feed preview. A photo or video sent
+ * The one-line text for a message in a feed preview. A photo, video or voice note sent
  * from the capture flow may have no caption, so it needs words of its own —
  * the same ones its push notification uses (migration 034).
  */
@@ -10,5 +10,6 @@ export function messagePreviewText(
   if (content) return content;
   if (mediaType === "photo") return "📷 Photo";
   if (mediaType === "video") return "🎥 Video";
+  if (mediaType === "voice") return "🎙️ Voice message";
   return "";
 }

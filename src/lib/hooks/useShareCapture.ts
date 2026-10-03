@@ -8,7 +8,7 @@ import { useFeedStaleStore } from "@/lib/stores/feed-stale-store";
 export interface ShareCaptureParams {
   /** Storage path of the already-uploaded file in the `completions` bucket. */
   mediaPath: string;
-  mediaType: "photo" | "video";
+  mediaType: "photo" | "video" | "voice";
   caption?: string;
   habitIds: string[];
   friendIds: string[];

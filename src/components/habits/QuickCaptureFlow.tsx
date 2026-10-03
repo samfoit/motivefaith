@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
-import { ChevronLeft, Loader2, Send } from "lucide-react";
+import { ChevronLeft, Loader2, Mic, Send } from "lucide-react";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
@@ -179,7 +179,11 @@ export function QuickCaptureFlow() {
   const handleCameraCapture = useCallback(
     (file: File, captionNotes?: string) => {
       // Detect mode from file type
-      const mode = file.type.startsWith("video") ? "video" : "photo";
+      const mode = file.type.startsWith("video")
+        ? "video"
+        : file.type.startsWith("audio")
+          ? "voice"
+          : "photo";
       useQuickCaptureStore.setState({ captureMode: mode });
       setCapturedFile(file);
       // Always overwrite: clearing the caption on the preview must stick.
@@ -256,9 +260,11 @@ export function QuickCaptureFlow() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // The bare type: a recorder's "video/webm;codecs=vp9" is neither in
+      // MIME_TO_EXT nor in the bucket's allowed types.
       let uploadBlob: Blob = capturedFile;
-      let ext = MIME_TO_EXT[capturedFile.type] ?? "bin";
-      let contentType = capturedFile.type;
+      let contentType = capturedFile.type.split(";")[0];
+      let ext = MIME_TO_EXT[contentType] ?? "bin";
 
       if (captureMode === "photo") {
         uploadBlob = await compressImage(capturedFile);
@@ -343,7 +349,8 @@ export function QuickCaptureFlow() {
         onChange={handleFileChange}
       />
 
-      {/* Camera - full screen (Snapchat-style: tap for photo, hold for video) */}
+      {/* Camera - full screen (Snapchat-style: tap for photo, hold for video,
+          or a voice note from its Voice mode) */}
       {step === "camera" && (
         <CameraCapture
           onCapture={handleCameraCapture}
@@ -389,7 +396,11 @@ export function QuickCaptureFlow() {
                   aria-label="View full preview"
                   className="w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-bg-secondary active:scale-95 transition-transform"
                 >
-                  {captureMode === "photo" ? (
+                  {captureMode === "voice" ? (
+                    <span className="w-full h-full flex items-center justify-center">
+                      <Mic className="w-6 h-6 text-text-secondary" aria-hidden />
+                    </span>
+                  ) : captureMode === "photo" ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={previewUrl}

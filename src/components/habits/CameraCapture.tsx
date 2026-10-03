@@ -2,12 +2,15 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
-import { X, RotateCcw, Image as ImageIcon, Check, Maximize2, Minimize2 } from "lucide-react";
+import { X, RotateCcw, Image as ImageIcon, Check, Maximize2, Minimize2, Mic } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { useCamera } from "@/lib/hooks/useCamera";
 import { useCameraGestures } from "@/lib/hooks/useCameraGestures";
+import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
 import { getSupportedMimeType } from "@/lib/utils/media-recorder";
+import { MIME_TO_EXT } from "@/lib/utils/media-types";
+import { MAX_AUDIO_DURATION_S } from "@/lib/constants/limits";
 import { elementAspect, viewfinderCrop } from "@/lib/utils/viewfinder-crop";
 
 // ---------------------------------------------------------------------------
@@ -16,11 +19,15 @@ import { elementAspect, viewfinderCrop } from "@/lib/utils/viewfinder-crop";
 
 type CaptureStage = "viewfinder" | "recording" | "review";
 
+/** What the shutter makes: a photo or video, or a voice note with no camera. */
+type CaptureMode = "camera" | "voice";
+
 export interface CameraCaptureProps {
   onCapture: (file: File, notes?: string) => void;
   onClose: () => void;
   onFallback: () => void;
   maxVideoDuration?: number;
+  maxVoiceDuration?: number;
   /**
    * Reopen on the review screen with an earlier take — how the send screen's
    * back button returns to the full-size preview instead of starting over.
@@ -51,6 +58,37 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
  */
 type Framing = "fit" | "fill";
 const FRAMING_KEY = "camera-framing";
+
+/**
+ * The gestures are taught by a tip over the viewfinder for the first few
+ * opens, then left to memory, rather than spelled out under the shutter on
+ * every open.
+ */
+const COACH_KEY = "camera-coach-opens";
+const COACH_OPENS = 3;
+const COACH_MS = 4000;
+
+function coachOpens(): number {
+  try {
+    return Number(localStorage.getItem(COACH_KEY)) || 0;
+  } catch {
+    // Storage blocked: no tip rather than one on every open.
+    return COACH_OPENS;
+  }
+}
+
+function countCoachOpen() {
+  try {
+    localStorage.setItem(COACH_KEY, String(coachOpens() + 1));
+  } catch {
+    // Not counted; coachOpens() already treats blocked storage as done.
+  }
+}
+
+const MODES = [
+  { id: "camera", label: "Camera" },
+  { id: "voice", label: "Voice" },
+] as const;
 
 /**
  * Only a mouse or trackpad device gets the choice. A phone's or tablet's
@@ -87,6 +125,140 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+const METER_BARS = 24;
+
+/**
+ * Bars that follow the mic's level, so a voice take visibly hears you. Drawn
+ * straight onto the bars' styles each frame rather than through state, which
+ * would re-render the whole camera sixty times a second.
+ */
+function VoiceMeter({
+  analyserRef,
+  active,
+}: {
+  analyserRef: React.RefObject<AnalyserNode | null>;
+  active: boolean;
+}) {
+  const barsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const bars = barsRef.current?.children;
+    if (!bars) return;
+    const reset = () => {
+      for (const bar of Array.from(bars)) (bar as HTMLElement).style.transform = "scaleY(0.08)";
+    };
+    if (!active) {
+      reset();
+      return;
+    }
+
+    let frame: number;
+    const data = new Uint8Array(128);
+    const half = METER_BARS / 2;
+    const draw = () => {
+      const analyser = analyserRef.current;
+      if (analyser) {
+        analyser.getByteFrequencyData(data);
+        // Mirrored from the middle out: the lowest bins, where speech is
+        // loudest, drive the centre bars and higher ones the edges, so the
+        // shape is even rather than piled up at one end.
+        for (let i = 0; i < bars.length; i++) {
+          const band = Math.floor(Math.abs(i - (half - 0.5)));
+          const bin = 1 + band * 2;
+          const level = Math.min(1, ((data[bin] ?? 0) + (data[bin + 1] ?? 0)) / 2 / 190);
+          (bars[i] as HTMLElement).style.transform = `scaleY(${Math.max(0.08, level)})`;
+        }
+      }
+      frame = requestAnimationFrame(draw);
+    };
+    frame = requestAnimationFrame(draw);
+    return () => {
+      cancelAnimationFrame(frame);
+      reset();
+    };
+  }, [analyserRef, active]);
+
+  return (
+    <div ref={barsRef} className="flex items-center gap-1 h-16" aria-hidden>
+      {Array.from({ length: METER_BARS }, (_, i) => (
+        <span
+          key={i}
+          className={cn(
+            "block w-1.5 h-full rounded-full origin-center transition-[transform,background-color] duration-75",
+            active ? "bg-red-500" : "bg-white/30",
+          )}
+          style={{ transform: "scaleY(0.08)" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The modes as a row of words above the shutter, slid so the current one
+ * sits over it, the way the system camera does. Takes the place of a
+ * separate switch, and swiping the viewfinder moves along it too.
+ */
+function ModeStrip({
+  mode,
+  hidden,
+  onChange,
+}: {
+  mode: CaptureMode;
+  /** Mid-take: keeps its height so the shutter does not jump. */
+  hidden: boolean;
+  onChange: (mode: CaptureMode) => void;
+}) {
+  const stripRef = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState(0);
+
+  useEffect(() => {
+    const strip = stripRef.current;
+    const active = strip?.querySelector<HTMLElement>(`[data-mode="${mode}"]`);
+    const parent = strip?.parentElement;
+    if (!strip || !active || !parent) return;
+    const centre = () =>
+      setOffset(parent.clientWidth / 2 - (active.offsetLeft + active.offsetWidth / 2));
+    centre();
+    window.addEventListener("resize", centre);
+    return () => window.removeEventListener("resize", centre);
+  }, [mode]);
+
+  return (
+    <div
+      className={cn("w-full h-8 overflow-hidden", hidden && "invisible")}
+      aria-hidden={hidden || undefined}
+    >
+      <div
+        ref={stripRef}
+        role="radiogroup"
+        aria-label="Capture mode"
+        className="inline-flex h-full items-center gap-5 motion-safe:transition-transform motion-safe:duration-200 ease-out"
+        style={{ transform: `translateX(${offset}px)` }}
+      >
+        {MODES.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            role="radio"
+            data-mode={m.id}
+            aria-checked={mode === m.id}
+            tabIndex={hidden ? -1 : undefined}
+            onClick={() => onChange(m.id)}
+            className={cn(
+              "relative px-1 py-1 text-[13px] transition-colors rounded",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+              mode === m.id ? "text-white font-semibold" : "text-white/45 font-medium",
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -96,6 +268,7 @@ export function CameraCapture({
   onClose,
   onFallback,
   maxVideoDuration = 15,
+  maxVoiceDuration = MAX_AUDIO_DURATION_S,
   initialCapture,
 }: CameraCaptureProps) {
   const {
@@ -112,6 +285,9 @@ export function CameraCapture({
     stopCamera,
   } = useCamera({ audio: true });
 
+  const [mode, setMode] = useState<CaptureMode>(
+    initialCapture?.file.type.startsWith("audio") ? "voice" : "camera",
+  );
   const [stage, setStage] = useState<CaptureStage>(
     initialCapture ? "review" : "viewfinder",
   );
@@ -124,6 +300,9 @@ export function CameraCapture({
   const [notes, setNotes] = useState(initialCapture?.notes ?? "");
   const [isPressed, setIsPressed] = useState(false);
   const [framingChoice] = useState(canChooseFraming);
+  // Not on a reopened review: that is the same visit, not a new open.
+  const [coach, setCoach] = useState(() => !initialCapture && coachOpens() < COACH_OPENS);
+  const coachCountedRef = useRef(false);
   const [framing, setFraming] = useState<Framing>(initialFraming);
   /** The camera frame's width / height, once its first frame arrives. */
   const [frameAspect, setFrameAspect] = useState<number | null>(null);
@@ -141,6 +320,22 @@ export function CameraCapture({
   const startedTakeRef = useRef(false);
   /** Whether the running take is canvas-backed, and so can survive a flip. */
   const canFlipMidTakeRef = useRef(false);
+
+  const voice = useVoiceRecording({
+    maxDuration: maxVoiceDuration,
+    onFinish: (blob) => {
+      setCapturedBlob(blob);
+      setPreviewUrl(URL.createObjectURL(blob));
+      setStage("review");
+    },
+  });
+  const {
+    status: voiceStatus,
+    start: startVoice,
+    pause: pauseVoice,
+    resume: resumeVoice,
+    cancel: cancelVoice,
+  } = voice;
 
   /**
    * How much of the zoom we are applying ourselves. When the camera zooms in
@@ -184,6 +379,37 @@ export function CameraCapture({
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, []);
+
+  // --- First-opens tip ---
+  // Counted once per open, through the ref, even when Strict Mode runs the
+  // effect twice.
+  useEffect(() => {
+    if (!coach) return;
+    if (!coachCountedRef.current) {
+      coachCountedRef.current = true;
+      countCoachOpen();
+    }
+    const t = setTimeout(() => setCoach(false), COACH_MS);
+    return () => clearTimeout(t);
+  }, [coach]);
+  const showCoach = coach && stage === "viewfinder" && mode === "camera" && !isPressed;
+
+  // --- Voice mode lets go of the camera ---
+  // Also catches a camera that was still starting when the mode switched,
+  // which would otherwise light up behind the voice screen.
+  useEffect(() => {
+    if (mode === "voice" && stream) stopCamera();
+  }, [mode, stream, stopCamera]);
+
+  const switchMode = useCallback(
+    (next: CaptureMode) => {
+      if (next === mode || stage !== "viewfinder") return;
+      setMode(next);
+      if (next === "camera") requestCamera(facingMode);
+      else stopCamera();
+    },
+    [mode, stage, requestCamera, stopCamera, facingMode],
+  );
 
   // --- Attach / detach stream on the viewfinder element ---
   useEffect(() => {
@@ -529,9 +755,11 @@ export function CameraCapture({
     setIsPaused(false);
     setNotes("");
     setStage("viewfinder");
+    // A voice take goes back to voice mode, with the camera left off.
+    if (mode === "voice") return;
     // Reopen whichever camera the take came from, not the default rear one.
     requestCamera(facingMode);
-  }, [previewUrl, requestCamera, facingMode]);
+  }, [previewUrl, requestCamera, facingMode, mode]);
 
   // --- Use capture ---
   const handleUse = useCallback(() => {
@@ -542,11 +770,17 @@ export function CameraCapture({
       // Gallery pick — already a proper File
       file = capturedBlob;
     } else {
-      // Camera capture — wrap blob
+      // Camera or voice capture — wrap blob
       const isPhoto = capturedBlob.type.startsWith("image");
-      const ext = isPhoto ? "jpg" : (getSupportedMimeType()?.extension ?? "webm");
+      const isVoice = capturedBlob.type.startsWith("audio");
+      const ext = isPhoto
+        ? "jpg"
+        : isVoice
+          ? (MIME_TO_EXT[capturedBlob.type] ?? "webm")
+          : (getSupportedMimeType()?.extension ?? "webm");
       const mimeType = isPhoto ? "image/jpeg" : (capturedBlob.type || "video/webm");
-      file = new File([capturedBlob], `capture-${Date.now()}.${ext}`, { type: mimeType });
+      const name = isVoice ? "voice" : "capture";
+      file = new File([capturedBlob], `${name}-${Date.now()}.${ext}`, { type: mimeType });
     }
 
     stopCamera();
@@ -556,13 +790,14 @@ export function CameraCapture({
   // --- Close handler ---
   const handleClose = useCallback(() => {
     stopCamera();
+    cancelVoice();
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
       recorderRef.current.stop();
     }
     if (timerRef.current) clearInterval(timerRef.current);
     if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     onClose();
-  }, [stopCamera, onClose]);
+  }, [stopCamera, cancelVoice, onClose]);
 
   // --- Flip ---
   // --- Framing ---
@@ -589,7 +824,7 @@ export function CameraCapture({
   );
 
   const handleFlip = useCallback(() => {
-    if (stage === "review") return;
+    if (stage === "review" || mode === "voice") return;
 
     // Mid-take the recorder is fed by the canvas, not the camera, so only the
     // video source is swapped and the audio track it is recording keeps
@@ -603,28 +838,55 @@ export function CameraCapture({
       navigator.vibrate(10);
     }
     void switchCamera({ keepAudio: midTake });
-  }, [stage, switchCamera]);
+  }, [stage, mode, switchCamera]);
+
+  // --- Voice shutter: tap to start, then tap to pause or resume ---
+  const handleVoiceShutter = useCallback(() => {
+    if (voiceStatus === "idle") void startVoice();
+    else if (voiceStatus === "recording") pauseVoice();
+    else resumeVoice();
+  }, [voiceStatus, startVoice, pauseVoice, resumeVoice]);
 
   // --- Viewfinder gestures ---
   const { handlers: gestureHandlers, isPinching } = useCameraGestures({
-    enabled: stage !== "review",
+    // Off mid voice take: nothing on that screen answers a gesture, and a
+    // stray swipe must not close it.
+    enabled: stage !== "review" && (mode === "camera" || voiceStatus === "idle"),
     onDoubleTap: handleFlip,
     onPinchStart: () => {
       pinchStartZoomRef.current = zoomRef.current;
     },
-    onPinch: (scale) => setZoom(pinchStartZoomRef.current * scale),
-    // Flicking the viewfinder away closes it, but not out from under a take
-    // in progress.
+    onPinch: (scale) => {
+      if (mode === "camera") setZoom(pinchStartZoomRef.current * scale);
+    },
+    // Flicking the viewfinder away closes it, and flicking it sideways
+    // changes mode, but neither out from under a take in progress.
     onSwipeDown: stage === "viewfinder" ? handleClose : undefined,
+    onSwipeLeft: stage === "viewfinder" ? () => switchMode("voice") : undefined,
+    onSwipeRight: stage === "viewfinder" ? () => switchMode("camera") : undefined,
   });
 
   // --- Derived ---
   const isPhotoCapture = capturedBlob?.type.startsWith("image");
+  const isVoiceCapture = capturedBlob?.type.startsWith("audio");
+  const isVoice = mode === "voice";
+  // What the screen shows. A voice take never leaves "viewfinder" until it is
+  // finished, so whether one is running comes from the recorder.
+  const view: CaptureStage =
+    stage === "review"
+      ? "review"
+      : isVoice
+        ? (voice.status === "idle" ? "viewfinder" : "recording")
+        : stage;
+  const paused = isVoice ? voice.status === "paused" : isPaused;
+  const elapsed = isVoice ? voice.elapsed : recordingTime;
+  const maxDuration = isVoice ? maxVoiceDuration : maxVideoDuration;
   const zoomFactor = zoom / zoomRange.min;
   const isZoomed = zoomFactor > 1.05;
 
   // --- Permission denied / unsupported ---
-  if (state === "denied" || state === "unsupported" || errorMessage) {
+  // Only in camera mode: a voice note needs no camera, so it is offered here.
+  if (!isVoice && (state === "denied" || state === "unsupported" || errorMessage)) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black p-6">
         <div className="text-center space-y-3">
@@ -643,6 +905,14 @@ export function CameraCapture({
             Use File Picker Instead
           </Button>
         </div>
+        <button
+          type="button"
+          onClick={() => setMode("voice")}
+          className="flex items-center gap-2 text-white/70 text-sm underline-offset-4 hover:underline"
+        >
+          <Mic className="w-4 h-4" aria-hidden />
+          Record a voice note instead
+        </button>
       </div>
     );
   }
@@ -660,12 +930,14 @@ export function CameraCapture({
           type="button"
           onClick={stage === "review" ? handleRetake : handleClose}
           className="p-2 rounded-full bg-black/40 backdrop-blur-sm"
-          aria-label={stage === "review" ? "Discard and retake" : "Close camera"}
+          aria-label={
+            stage === "review" ? "Discard and retake" : isVoice ? "Close" : "Close camera"
+          }
         >
           <X className="w-5 h-5 text-white" />
         </button>
 
-        {stage !== "review" && (
+        {stage !== "review" && !isVoice && (
           <div className="flex items-center gap-2">
             {/* Not mid-take: the recording's shape is fixed when it starts. */}
             {stage === "viewfinder" && framingChoice && (
@@ -698,17 +970,17 @@ export function CameraCapture({
       </div>
 
       {/* Recording indicator */}
-      {stage === "recording" && (
+      {view === "recording" && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm">
           <motion.div
-            className={cn("w-2.5 h-2.5 rounded-full", isPaused ? "bg-white/50" : "bg-red-500")}
-            animate={isPaused ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
-            transition={isPaused ? { duration: 0 } : { duration: 1, repeat: Infinity }}
+            className={cn("w-2.5 h-2.5 rounded-full", paused ? "bg-white/50" : "bg-red-500")}
+            animate={paused ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
+            transition={paused ? { duration: 0 } : { duration: 1, repeat: Infinity }}
           />
           <span className="text-white text-sm font-mono tabular-nums">
-            {formatTime(recordingTime)}
+            {formatTime(elapsed)}
           </span>
-          {isPaused && (
+          {paused && (
             <span className="text-white/50 text-xs uppercase tracking-wide">Paused</span>
           )}
         </div>
@@ -716,7 +988,7 @@ export function CameraCapture({
 
       {/* Center: viewfinder or preview — also the gesture surface */}
       <div
-        className="flex-1 flex items-center justify-center overflow-hidden"
+        className="relative flex-1 flex items-center justify-center overflow-hidden"
         style={{
           touchAction: stage === "review" ? undefined : "none",
           // Lets the "fit" viewfinder size itself against this box (cq units).
@@ -725,7 +997,19 @@ export function CameraCapture({
         {...gestureHandlers}
       >
         {stage === "review" && previewUrl ? (
-          isPhotoCapture ? (
+          isVoiceCapture ? (
+            <div className="flex flex-col items-center gap-6 px-6 w-full">
+              <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center">
+                <Mic className="w-10 h-10 text-white/70" />
+              </div>
+              <audio
+                src={previewUrl}
+                controls
+                preload="metadata"
+                className="w-full max-w-xs"
+              />
+            </div>
+          ) : isPhotoCapture ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={previewUrl}
@@ -741,6 +1025,49 @@ export function CameraCapture({
               className="w-full h-full object-contain"
             />
           )
+        ) : isVoice ? (
+          <div className="flex flex-col items-center gap-6 px-6 text-center">
+            {voice.error ? (
+              <>
+                <p className="text-white text-lg font-display">
+                  {voice.error === "denied"
+                    ? "Microphone Access Denied"
+                    : "Recording Unavailable"}
+                </p>
+                <p className="text-white/60 text-sm max-w-xs">
+                  {voice.error === "denied"
+                    ? "Please allow microphone access in your browser settings and try again."
+                    : "Your browser does not support audio recording."}
+                </p>
+              </>
+            ) : (
+              <>
+                <div
+                  className={cn(
+                    "w-24 h-24 rounded-full flex items-center justify-center transition-colors",
+                    view === "recording" ? "bg-red-500/20" : "bg-white/10",
+                  )}
+                >
+                  <Mic
+                    className={cn(
+                      "w-10 h-10",
+                      view === "recording" && !paused ? "text-red-500" : "text-white/60",
+                    )}
+                  />
+                </div>
+                {/* The shutter's ring already shows how much of the take is
+                    left, so a running take needs only the meter. */}
+                {view === "recording" ? (
+                  <VoiceMeter
+                    analyserRef={voice.analyserRef}
+                    active={voice.status === "recording"}
+                  />
+                ) : (
+                  <p className="text-white/45 text-sm">Tap the button to record</p>
+                )}
+              </>
+            )}
+          </div>
         ) : (
           <video
             ref={videoRef}
@@ -776,10 +1103,25 @@ export function CameraCapture({
             }}
           />
         )}
+
+        {/* First-opens tip, over the bottom of the viewfinder */}
+        {stage === "viewfinder" && (
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-4 z-10 whitespace-nowrap",
+              "rounded-full bg-black/55 backdrop-blur-sm px-3.5 py-1.5 text-white/90 text-[13px]",
+              "motion-safe:transition-opacity motion-safe:duration-500",
+              showCoach ? "opacity-100" : "opacity-0",
+            )}
+          >
+            Hold for video, double-tap to flip
+          </div>
+        )}
       </div>
 
       {/* Zoom read-out */}
-      {stage !== "review" && (isZoomed || isPinching) && (
+      {stage !== "review" && !isVoice && (isZoomed || isPinching) && (
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -816,13 +1158,18 @@ export function CameraCapture({
 
       {/* Bottom controls */}
       <div className="shrink-0 pb-safe">
-        <div className="flex flex-col items-center justify-center p-6">
-          {(stage === "viewfinder" || stage === "recording") && (
+        <div className="flex flex-col items-center justify-center px-6 pt-2 pb-5">
+          {(view === "viewfinder" || view === "recording") && (
             <>
-              <div className="flex items-center justify-center w-full max-w-xs">
+              <ModeStrip
+                mode={mode}
+                hidden={view === "recording"}
+                onChange={switchMode}
+              />
+              <div className="mt-2 flex items-center justify-center w-full max-w-xs">
                 {/* Gallery button — hidden during recording */}
                 <div className="flex-1 flex justify-center">
-                  {stage === "viewfinder" && (
+                  {view === "viewfinder" && !isVoice && (
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -840,7 +1187,7 @@ export function CameraCapture({
                   style={{ width: 80, height: 80, touchAction: "none" }}
                 >
                   {/* Progress ring for recording */}
-                  {stage === "recording" && (
+                  {view === "recording" && (
                     <svg
                       className="absolute inset-0 -rotate-90"
                       width="80"
@@ -865,11 +1212,11 @@ export function CameraCapture({
                         strokeLinecap="round"
                         strokeDasharray={RING_CIRCUMFERENCE}
                         strokeDashoffset={
-                          RING_CIRCUMFERENCE * (1 - recordingTime / maxVideoDuration)
+                          RING_CIRCUMFERENCE * (1 - elapsed / maxDuration)
                         }
                         className={cn(
                           "transition-[stroke-dashoffset] duration-1000 ease-linear",
-                          isPaused && "opacity-50",
+                          paused && "opacity-50",
                         )}
                       />
                     </svg>
@@ -877,34 +1224,43 @@ export function CameraCapture({
 
                   <button
                     type="button"
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handleShutterMove}
-                    onPointerUp={handlePointerUp}
-                    onPointerCancel={handlePointerCancel}
+                    // Voice has no hold and no zoom: the shutter is a plain
+                    // tap, to start a take and then to pause or resume it.
+                    {...(isVoice
+                      ? { onClick: handleVoiceShutter }
+                      : {
+                          onPointerDown: handlePointerDown,
+                          onPointerMove: handleShutterMove,
+                          onPointerUp: handlePointerUp,
+                          onPointerCancel: handlePointerCancel,
+                        })}
                     onContextMenu={(e) => e.preventDefault()}
                     draggable={false}
                     className={cn(
                       "absolute inset-0 rounded-full flex items-center justify-center transition-colors duration-150",
-                      stage === "viewfinder"
+                      view === "viewfinder"
                         ? "border-4 border-white"
                         : "border-4 border-red-500",
                     )}
                     aria-label={
-                      stage === "viewfinder"
-                        ? "Tap for photo, hold for video, slide up to zoom"
-                        : isPaused
+                      view === "viewfinder"
+                        ? isVoice
+                          ? "Start recording"
+                          : "Tap for photo, hold for video, slide up to zoom"
+                        : paused
                           ? "Resume recording"
                           : "Pause recording"
                     }
                   >
-                    {stage === "viewfinder" ? (
+                    {view === "viewfinder" ? (
                       <div
                         className={cn(
-                          "w-14 h-14 rounded-full bg-white transition-transform duration-100",
+                          "w-14 h-14 rounded-full transition-transform duration-100",
+                          isVoice ? "bg-red-500" : "bg-white",
                           isPressed && "scale-90",
                         )}
                       />
-                    ) : isPaused ? (
+                    ) : paused ? (
                       // Paused: back to a record dot, because tapping resumes.
                       <motion.div
                         className="w-7 h-7 rounded-full bg-red-500"
@@ -928,37 +1284,20 @@ export function CameraCapture({
 
                 {/* Finish button during a take — balances the gallery button */}
                 <div className="flex-1 flex justify-center">
-                  {stage === "recording" && (
+                  {view === "recording" && (
                     <motion.button
                       type="button"
                       initial={{ scale: 0.6, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ duration: 0.15 }}
-                      onClick={finishRecording}
+                      onClick={isVoice ? voice.finish : finishRecording}
                       className="w-12 h-12 rounded-full bg-white flex items-center justify-center"
-                      aria-label="Finish video"
+                      aria-label={isVoice ? "Finish recording" : "Finish video"}
                     >
                       <Check className="w-6 h-6 text-black" strokeWidth={3} />
                     </motion.button>
                   )}
                 </div>
-              </div>
-
-              <div className="mt-3 text-center select-none">
-                {stage === "viewfinder" ? (
-                  <>
-                    <p className="text-white/40 text-xs">
-                      Tap for photo &middot; Hold for video
-                    </p>
-                    <p className="text-white/25 text-[11px] mt-0.5">
-                      Double-tap to flip &middot; Pinch or slide up to zoom
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-white/40 text-xs">
-                    {isPaused ? "Tap to keep going" : "Tap to pause"} &middot; Check to finish
-                  </p>
-                )}
               </div>
             </>
           )}
@@ -973,7 +1312,7 @@ export function CameraCapture({
                 Retake
               </Button>
               <Button className="flex-1" onClick={handleUse}>
-                {isPhotoCapture ? "Use Photo" : "Use Video"}
+                {isVoiceCapture ? "Use Recording" : isPhotoCapture ? "Use Photo" : "Use Video"}
               </Button>
             </div>
           )}

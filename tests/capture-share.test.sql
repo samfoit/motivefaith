@@ -1,5 +1,5 @@
 -- =============================================================================
--- Capture & share (migration 034)
+-- Capture & share (migrations 034, 035)
 -- =============================================================================
 --   psql "postgresql://postgres:postgres@localhost:54322/postgres" -f tests/capture-share.test.sql
 --
@@ -338,6 +338,56 @@ DO $$ BEGIN
   ASSERT NOT public.can_read_capture_media('c1000000-0000-4000-8000-000000000001/capture/three.webp'),
     'TEST 7c FAILED: someone outside the group and not a partner on that habit can open it';
   RAISE NOTICE 'TEST 7c PASSED: and nobody else';
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Test 8: a voice note goes everywhere a photo does (migration 035)
+-- ---------------------------------------------------------------------------
+
+SET LOCAL request.jwt.claims TO '{"sub":"c1000000-0000-4000-8000-000000000001","role":"authenticated"}';
+
+DO $$
+DECLARE v_before INT; v_result JSONB; p JSONB;
+BEGIN
+  SELECT count(*) INTO v_before FROM public._sent_push;
+
+  v_result := public.share_capture('c1000000-0000-4000-8000-000000000001/capture/four.webm', 'voice', NULL,
+    ARRAY['c5000000-0000-4000-8000-000000000005']::uuid[],
+    ARRAY['c2000000-0000-4000-8000-000000000002']::uuid[],
+    ARRAY['c6000000-0000-4000-8000-000000000001']::uuid[]);
+
+  ASSERT (SELECT completion_type FROM public.completions
+          WHERE id = (v_result->'completion_ids'->>0)::uuid) = 'voice',
+    'TEST 8 FAILED: the habit check-in is not a voice completion';
+  ASSERT (SELECT media_type FROM public.encouragements
+          WHERE id = (v_result->'encouragement_ids'->>0)::uuid) = 'voice',
+    'TEST 8 FAILED: the DM does not carry the voice note';
+  ASSERT (SELECT media_type FROM public.group_messages
+          WHERE id = (v_result->'group_message_ids'->>0)::uuid) = 'voice',
+    'TEST 8 FAILED: the group message does not carry the voice note';
+
+  FOR p IN SELECT body FROM public._sent_push WHERE id > v_before LOOP
+    ASSERT p->>'body' = '🎙️ Sent a voice message', format('TEST 8 FAILED: wrong body %s', p->>'body');
+  END LOOP;
+  ASSERT (SELECT count(*) FROM public._sent_push) > v_before,
+    'TEST 8 FAILED: no push was sent';
+
+  BEGIN
+    PERFORM public.share_capture('c1000000-0000-4000-8000-000000000001/capture/five.webm', 'audio', NULL,
+      '{}', ARRAY['c2000000-0000-4000-8000-000000000002']::uuid[], '{}');
+    RAISE EXCEPTION 'TEST 8 FAILED: an unknown media type was accepted';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+
+  RAISE NOTICE 'TEST 8 PASSED: a voice note reaches a habit, a friend and a group';
+END $$;
+
+SET LOCAL request.jwt.claims TO '{"sub":"c2000000-0000-4000-8000-000000000002","role":"authenticated"}';
+
+DO $$ BEGIN
+  ASSERT public.can_read_capture_media('c1000000-0000-4000-8000-000000000001/capture/four.webm'),
+    'TEST 8b FAILED: the DM recipient cannot open the voice note';
+  RAISE NOTICE 'TEST 8b PASSED: the recipient can open the voice note';
 END $$;
 
 -- ---------------------------------------------------------------------------

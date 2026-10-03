@@ -148,4 +148,39 @@ describe("QuickCaptureFlow share step", () => {
       expect.objectContaining({ habitIds: ["h2"], friendIds: [], groupIds: [] }),
     );
   });
+
+  it("uploads a voice note as itself and sends it as 'voice'", async () => {
+    useQuickCaptureStore.setState({ captureMode: "voice" });
+    useQuickCaptureStore
+      .getState()
+      .setCapturedFile(new File(["opus"], "voice-1.webm", { type: "audio/webm" }));
+    renderFlow();
+
+    await userEvent.click(await screen.findByText("Bob"));
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    const [path, , options] = upload.mock.calls[0];
+    expect(path).toMatch(/^me\/capture\/[0-9a-f-]+\.webm$/);
+    expect(options).toEqual({ contentType: "audio/webm" });
+    expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaType: "voice", friendIds: ["f1"] }),
+    );
+  });
+
+  it("uploads a recorder's codec-tagged video under its bare type", async () => {
+    useQuickCaptureStore.setState({ captureMode: "video" });
+    useQuickCaptureStore
+      .getState()
+      .setCapturedFile(new File(["v"], "capture-1.webm", { type: "video/webm;codecs=vp9" }));
+    renderFlow();
+
+    await userEvent.click(await screen.findByText("Bob"));
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(1));
+    const [path, , options] = upload.mock.calls[0];
+    expect(path).toMatch(/\.webm$/);
+    expect(options).toEqual({ contentType: "video/webm" });
+  });
 });

@@ -194,7 +194,7 @@ describe("CameraCapture video takes", () => {
     expect(FakeMediaRecorder.latest.start).toHaveBeenCalled();
     expect(FakeMediaRecorder.latest.state).toBe("recording");
     expect(FakeMediaRecorder.latest.stop).not.toHaveBeenCalled();
-    expect(screen.getByText(/Tap to pause/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause recording" })).toBeInTheDocument();
   });
 
   it("pauses on the next tap and picks up again on the one after", async () => {
@@ -205,7 +205,7 @@ describe("CameraCapture video takes", () => {
     expect(FakeMediaRecorder.latest.pause).toHaveBeenCalledTimes(1);
     expect(FakeMediaRecorder.latest.state).toBe("paused");
     expect(screen.getByText(/Paused/)).toBeInTheDocument();
-    expect(screen.getByText(/Tap to keep going/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume recording" })).toBeInTheDocument();
 
     await pressShutter(50);
     expect(FakeMediaRecorder.latest.resume).toHaveBeenCalledTimes(1);
@@ -488,7 +488,7 @@ describe("CameraCapture mid-take flip", () => {
     // No swap was attempted, and the take carries on untouched.
     expect(camera.getUserMedia).not.toHaveBeenCalled();
     expect(recorder.state).toBe("recording");
-    expect(screen.getByText(/Tap to pause/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause recording" })).toBeInTheDocument();
   });
 });
 
@@ -605,3 +605,214 @@ describe("CameraCapture framing", () => {
   });
 });
 
+
+/**
+ * Voice mode is the same shutter cycle with no camera at all: the camera is
+ * let go when the mode switches, and the mic is opened only for the take.
+ */
+describe("CameraCapture voice mode", () => {
+  let camera: ReturnType<typeof installCamera>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FakeMediaRecorder.instances = [];
+    vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
+    URL.createObjectURL = vi.fn(() => "blob:take");
+    URL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("MediaStream", FakeMediaStream);
+    camera = installCamera();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  async function switchToVoice() {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "Voice" }));
+    });
+  }
+
+  async function tapVoiceShutter() {
+    const shutter = screen.getByRole("button", { name: /start recording|pause|resume/i });
+    await act(async () => {
+      fireEvent.click(shutter);
+    });
+  }
+
+  it("lets go of the camera and hides its controls", async () => {
+    await renderCamera();
+    const cameraStream = (await camera.getUserMedia.mock.results[0].value) as unknown as FakeMediaStream;
+
+    await switchToVoice();
+
+    for (const track of cameraStream.getTracks()) expect(track.stop).toHaveBeenCalled();
+    expect(screen.getByRole("radio", { name: "Voice" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("button", { name: /switch camera/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /gallery/i })).not.toBeInTheDocument();
+  });
+
+  it("records from the mic alone, pauses on a tap and finishes on the check", async () => {
+    const { onCapture } = await renderCamera();
+    await switchToVoice();
+    camera.getUserMedia.mockClear();
+
+    await tapVoiceShutter();
+    expect(camera.getUserMedia).toHaveBeenCalledWith({ audio: true, video: false });
+    expect(FakeMediaRecorder.latest.state).toBe("recording");
+    // The mode belongs to the take now.
+    expect(screen.queryByRole("radio", { name: "Camera" })).not.toBeInTheDocument();
+
+    await act(async () => void vi.advanceTimersByTime(2000));
+    await tapVoiceShutter();
+    expect(FakeMediaRecorder.latest.state).toBe("paused");
+    await act(async () => void vi.advanceTimersByTime(5000));
+    expect(screen.getByText("00:02")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /finish recording/i }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Use Recording" }));
+    });
+
+    const [file] = onCapture.mock.calls[0] as [File];
+    expect(file.type).toBe("audio/webm");
+    expect(file.name).toMatch(/^voice-\d+\.webm$/);
+  });
+
+  it("stops itself at the voice limit, not the video one", async () => {
+    await renderCamera();
+    await switchToVoice();
+    await tapVoiceShutter();
+
+    await act(async () => void vi.advanceTimersByTime(15_000));
+    expect(FakeMediaRecorder.latest.stop).not.toHaveBeenCalled();
+
+    await act(async () => void vi.advanceTimersByTime(105_000));
+    expect(FakeMediaRecorder.latest.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("retakes in voice mode without turning the camera back on", async () => {
+    await renderCamera();
+    await switchToVoice();
+    await tapVoiceShutter();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /finish recording/i }));
+    });
+
+    camera.getUserMedia.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Retake" }));
+    });
+
+    expect(camera.getUserMedia).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Start recording" })).toBeInTheDocument();
+  });
+
+  it("reopens on the review of an earlier voice note, still in voice mode", async () => {
+    const file = new File(["ogg"], "voice.webm", { type: "audio/webm" });
+    render(
+      <CameraCapture
+        onCapture={vi.fn()}
+        onClose={vi.fn()}
+        onFallback={vi.fn()}
+        initialCapture={{ file }}
+      />,
+    );
+    await act(async () => {});
+    expect(camera.getUserMedia).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Use Recording" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Discard and retake" }));
+    });
+    expect(camera.getUserMedia).not.toHaveBeenCalled();
+    expect(screen.getByRole("radio", { name: "Voice" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("explains a denied mic instead of recording", async () => {
+    await renderCamera();
+    await switchToVoice();
+    camera.getUserMedia.mockRejectedValueOnce(new Error("NotAllowedError"));
+
+    await tapVoiceShutter();
+
+    expect(screen.getByText("Microphone Access Denied")).toBeInTheDocument();
+    expect(FakeMediaRecorder.instances).toHaveLength(0);
+  });
+
+  it("offers a voice note when there is no camera", async () => {
+    const err = Object.assign(new Error("denied"), { name: "NotAllowedError" });
+    camera.getUserMedia.mockRejectedValueOnce(err);
+    await renderCamera();
+    expect(screen.getByText("Camera Access Denied")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /voice note instead/i }));
+    });
+
+    expect(screen.getByRole("button", { name: "Start recording" })).toBeInTheDocument();
+  });
+});
+
+describe("CameraCapture first-opens tip and mode swipes", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FakeMediaRecorder.instances = [];
+    vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
+    URL.createObjectURL = vi.fn(() => "blob:take");
+    URL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("MediaStream", FakeMediaStream);
+    installCamera();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  const tip = () => screen.getByText("Hold for video, double-tap to flip");
+
+  it("shows the gesture tip on the first few opens only, and lets it fade", async () => {
+    for (let open = 1; open <= 3; open++) {
+      const { unmount } = await renderCamera();
+      expect(tip()).toHaveClass("opacity-100");
+      await act(async () => void vi.advanceTimersByTime(4000));
+      expect(tip()).toHaveClass("opacity-0");
+      unmount();
+    }
+
+    await renderCamera();
+    expect(tip()).toHaveClass("opacity-0");
+  });
+
+  it("changes mode on a sideways swipe of the viewfinder", async () => {
+    const { container } = await renderCamera();
+    const surface = container.querySelector("video")!.parentElement!;
+    const swipe = async (fromX: number, toX: number) => {
+      await act(async () => {
+        fireEvent.pointerDown(surface, { pointerId: 2, clientX: fromX, clientY: 300, timeStamp: 0 });
+        fireEvent.pointerMove(surface, { pointerId: 2, clientX: toX, clientY: 305, timeStamp: 100 });
+        fireEvent.pointerUp(surface, { pointerId: 2, clientX: toX, clientY: 305, timeStamp: 150 });
+      });
+    };
+
+    await swipe(300, 100);
+    expect(screen.getByRole("radio", { name: "Voice" })).toHaveAttribute("aria-checked", "true");
+
+    const voiceSurface = screen.getByText("Tap the button to record").closest("div.relative")!;
+    await act(async () => {
+      fireEvent.pointerDown(voiceSurface, { pointerId: 3, clientX: 100, clientY: 300, timeStamp: 0 });
+      fireEvent.pointerMove(voiceSurface, { pointerId: 3, clientX: 300, clientY: 305, timeStamp: 100 });
+      fireEvent.pointerUp(voiceSurface, { pointerId: 3, clientX: 300, clientY: 305, timeStamp: 150 });
+    });
+    expect(screen.getByRole("radio", { name: "Camera" })).toHaveAttribute("aria-checked", "true");
+  });
+});

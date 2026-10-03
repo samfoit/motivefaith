@@ -49,7 +49,7 @@ type RpcEncouragement = {
   encouragement_type: string;
   content: string | null;
   media_path: string | null;
-  media_type: "photo" | "video" | null;
+  media_type: "photo" | "video" | "voice" | null;
   created_at: string;
   completion_id: string | null;
 };

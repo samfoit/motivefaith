@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 type Step = "closed" | "camera" | "share" | "uploading";
-type CaptureMode = "photo" | "video";
+type CaptureMode = "photo" | "video" | "voice";
 export type ShareTarget = "habit" | "friend" | "group";
 
 interface QuickCaptureState {
