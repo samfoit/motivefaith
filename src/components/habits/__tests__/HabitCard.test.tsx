@@ -46,24 +46,15 @@ describe("HabitCard", () => {
     useHabitDrawerStore.setState({ openHabitId: null });
   });
 
-  it("flags a public habit, and leaves a private one unmarked", () => {
-    const { rerender } = render(
-      <HabitCard
-        habit={makeHabit()}
-        completedToday={false}
-        onQuickComplete={vi.fn()}
-      />,
-    );
-    expect(screen.queryByText("Public")).not.toBeInTheDocument();
-
-    rerender(
+  it("leaves visibility to the detail page, even for a public habit", () => {
+    render(
       <HabitCard
         habit={makeHabit({ visibility: "public" })}
         completedToday={false}
         onQuickComplete={vi.fn()}
       />,
     );
-    expect(screen.getByText("Public")).toBeInTheDocument();
+    expect(screen.queryByText("Public")).not.toBeInTheDocument();
   });
 
   it("renders habit title, emoji, and streak", () => {

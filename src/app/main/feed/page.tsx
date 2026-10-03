@@ -6,6 +6,7 @@ import { FeedClient } from "./feed-client";
 import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
 import { isRainCheck } from "@/lib/constants/completion";
+import { messagePreviewText } from "@/lib/utils/message-preview";
 
 // --------------------------------------------------------------------------
 // Types for the RPC result
@@ -224,7 +225,7 @@ async function FeedWithGroups({
       .in("id", groupIds),
     supabase
       .from("group_messages")
-      .select("group_id, content, user_id, created_at, profiles!user_id(display_name)")
+      .select("group_id, content, media_type, user_id, created_at, profiles!user_id(display_name)")
       .in("group_id", groupIds)
       .order("created_at", { ascending: false })
       .limit(Math.max(groupIds.length * 2, 10)),
@@ -281,7 +282,7 @@ async function FeedWithGroups({
     if (!latestMsgMap.has(msg.group_id) && msg.created_at) {
       const profile = msg.profiles as unknown as { display_name: string } | null;
       latestMsgMap.set(msg.group_id, {
-        content: msg.content,
+        content: messagePreviewText(msg.content, msg.media_type),
         user_id: msg.user_id,
         created_at: msg.created_at,
         author_name: profile?.display_name ?? null,

@@ -137,3 +137,34 @@ describe("useCompleteHabit — offline", () => {
     expect(await getPendingCount()).toBe(0);
   });
 });
+
+describe("useCompleteHabit — feed staleness", () => {
+  /**
+   * The feed cannot hear about the viewer's own check-ins over realtime, and a
+   * held quick check-in is sent as the dashboard unmounts — after the feed has
+   * rendered. The hook's flag is how the feed learns to ask again.
+   */
+  it("marks the feed stale once the check-in is saved", async () => {
+    rpc.mockResolvedValue({ data: { id: "c1" }, error: null });
+    const { useCompleteHabit } = await import("../useCompleteHabit");
+    const { useFeedStaleStore } = await import("@/lib/stores/feed-stale-store");
+
+    const { result } = renderHook(() => useCompleteHabit(), { wrapper });
+    result.current.mutate({ habitId: "h1", type: "quick" });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(useFeedStaleStore.getState().stale).toBe(true);
+  });
+
+  it("leaves the feed alone when the save fails", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "denied" } });
+    const { useCompleteHabit } = await import("../useCompleteHabit");
+    const { useFeedStaleStore } = await import("@/lib/stores/feed-stale-store");
+
+    const { result } = renderHook(() => useCompleteHabit(), { wrapper });
+    result.current.mutate({ habitId: "h1", type: "quick" });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(useFeedStaleStore.getState().stale).toBe(false);
+  });
+});

@@ -6,6 +6,10 @@
 --
 -- These tests create two users (alice & bob), insert data as alice, and verify
 -- that bob cannot read/write data he shouldn't have access to.
+--
+-- Uses its own emails and usernames (rls-*), so it runs against a seeded
+-- database: seed.sql already has alice@test.com, bob@test.com and
+-- charlie@test.com, and auth.users.email is unique.
 -- =============================================================================
 
 \set ON_ERROR_STOP on
@@ -22,7 +26,7 @@ VALUES (
   '11111111-1111-1111-1111-111111111111',
   '00000000-0000-0000-0000-000000000000',
   'authenticated', 'authenticated',
-  'alice@test.com',
+  'rls-alice@test.com',
   crypt('password123', gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
@@ -36,7 +40,7 @@ VALUES (
   '22222222-2222-2222-2222-222222222222',
   '00000000-0000-0000-0000-000000000000',
   'authenticated', 'authenticated',
-  'bob@test.com',
+  'rls-bob@test.com',
   crypt('password123', gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
@@ -50,7 +54,7 @@ VALUES (
   '33333333-3333-3333-3333-333333333333',
   '00000000-0000-0000-0000-000000000000',
   'authenticated', 'authenticated',
-  'charlie@test.com',
+  'rls-charlie@test.com',
   crypt('password123', gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
@@ -64,9 +68,9 @@ VALUES (
 
 -- handle_new_user() fires on the auth.users inserts above and creates a
 -- profile for each, so these name them rather than inserting them.
-UPDATE public.profiles SET display_name = 'Alice',   username = 'alice'   WHERE id = '11111111-1111-1111-1111-111111111111';
-UPDATE public.profiles SET display_name = 'Bob',     username = 'bob'     WHERE id = '22222222-2222-2222-2222-222222222222';
-UPDATE public.profiles SET display_name = 'Charlie', username = 'charlie' WHERE id = '33333333-3333-3333-3333-333333333333';
+UPDATE public.profiles SET display_name = 'Alice',   username = 'rls_alice'   WHERE id = '11111111-1111-1111-1111-111111111111';
+UPDATE public.profiles SET display_name = 'Bob',     username = 'rls_bob'     WHERE id = '22222222-2222-2222-2222-222222222222';
+UPDATE public.profiles SET display_name = 'Charlie', username = 'rls_charlie' WHERE id = '33333333-3333-3333-3333-333333333333';
 
 -- ---------------------------------------------------------------------------
 -- Setup: Insert test data as alice

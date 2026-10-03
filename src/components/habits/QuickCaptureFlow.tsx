@@ -1,13 +1,23 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
-import { Loader2, X } from "lucide-react";
+import { ChevronLeft, Loader2, Mic, Send } from "lucide-react";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
-import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
+import { useShareCapture } from "@/lib/hooks/useShareCapture";
+import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+import { useFriendsList } from "@/lib/hooks/useFriends";
+import { useGroupsList } from "@/lib/hooks/useGroups";
+import {
+  ShareTargetPicker,
+  SelectedTargets,
+  reachedByHabits,
+  type PickerHabit,
+} from "@/components/habits/ShareTargetPicker";
+import type { ShareTarget } from "@/lib/stores/quick-capture-store";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
@@ -42,25 +52,14 @@ const CameraCapture = dynamic(
 import { MAX_VIDEO_SIZE_MB } from "@/lib/constants/limits";
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface TodayHabit {
-  id: string;
-  title: string;
-  emoji: string;
-  color: string;
-  streak_current: number;
-}
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function QuickCaptureFlow() {
   const queryClient = useQueryClient();
   const { show, ToastElements } = useToast();
-  const completeHabit = useCompleteHabit();
+  const shareCapture = useShareCapture();
+  const userId = useAuthUserId() ?? undefined;
 
   const step = useQuickCaptureStore((s) => s.step);
   const captureMode = useQuickCaptureStore((s) => s.captureMode);
@@ -69,8 +68,37 @@ export function QuickCaptureFlow() {
   const setStep = useQuickCaptureStore((s) => s.setStep);
   const close = useQuickCaptureStore((s) => s.close);
   const reset = useQuickCaptureStore((s) => s.reset);
+  const backToPreview = useQuickCaptureStore((s) => s.backToPreview);
+  const habitIds = useQuickCaptureStore((s) => s.habitIds);
+  const friendIds = useQuickCaptureStore((s) => s.friendIds);
+  const groupIds = useQuickCaptureStore((s) => s.groupIds);
+  const toggleTarget = useQuickCaptureStore((s) => s.toggleTarget);
+  const deselectTargets = useQuickCaptureStore((s) => s.deselectTargets);
 
-  const [habits, setHabits] = useState<TodayHabit[]>([]);
+  // Only fetched once the flow is open; both are cached across opens.
+  const { data: friends } = useFriendsList(step !== "closed" ? userId : undefined);
+  const { data: groups } = useGroupsList(step !== "closed" ? userId : undefined);
+
+  const pickerFriends = useMemo(
+    () => (friends ?? []).map((f) => f.profile),
+    [friends],
+  );
+  const pickerGroups = useMemo(
+    () =>
+      (groups ?? []).map((g) => ({
+        id: g.id,
+        name: g.name,
+        avatar_url: g.avatar_url,
+        memberCount: g.memberCount,
+      })),
+    [groups],
+  );
+  const selected = useMemo(
+    () => ({ habit: habitIds, friend: friendIds, group: groupIds }),
+    [habitIds, friendIds, groupIds],
+  );
+
+  const [habits, setHabits] = useState<PickerHabit[]>([]);
   const [habitsLoading, setHabitsLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,10 +129,10 @@ export function QuickCaptureFlow() {
     }
   }, [capturedFile]);
 
-  // Fetch today's incomplete habits when entering habit-select.
+  // Fetch today's incomplete habits when entering the share step.
   // Uses a single RPC instead of 3 sequential client queries.
   useEffect(() => {
-    if (step !== "habit-select") return;
+    if (step !== "share") return;
 
     let canceled = false;
 
@@ -116,7 +144,7 @@ export function QuickCaptureFlow() {
         const supabase = createClient();
         const tz = getBrowserTimezone();
 
-        const { data, error: rpcError } = await untypedRpc<TodayHabit[]>(
+        const { data, error: rpcError } = await untypedRpc<PickerHabit[]>(
           supabase,
           "get_incomplete_habits_today",
           { p_timezone: tz },
@@ -125,14 +153,9 @@ export function QuickCaptureFlow() {
         if (rpcError) throw rpcError;
 
         if (!canceled) {
-          setHabits(
-            (data ?? []).map((h) => ({
-              ...h,
-              emoji: h.emoji ?? "✅",
-              color: h.color ?? null,
-              streak_current: h.streak_current ?? 0,
-            })),
-          );
+          // Rows come back exactly as the dashboard card draws them: no
+          // made-up emoji or color for a habit that has none.
+          setHabits(data ?? []);
           setHabitsLoading(false);
         }
       } catch {
@@ -156,10 +179,15 @@ export function QuickCaptureFlow() {
   const handleCameraCapture = useCallback(
     (file: File, captionNotes?: string) => {
       // Detect mode from file type
-      const mode = file.type.startsWith("video") ? "video" : "photo";
+      const mode = file.type.startsWith("video")
+        ? "video"
+        : file.type.startsWith("audio")
+          ? "voice"
+          : "photo";
       useQuickCaptureStore.setState({ captureMode: mode });
       setCapturedFile(file);
-      if (captionNotes) setNotes(captionNotes);
+      // Always overwrite: clearing the caption on the preview must stick.
+      setNotes(captionNotes ?? "");
     },
     [setCapturedFile],
   );
@@ -200,69 +228,102 @@ export function QuickCaptureFlow() {
     [setCapturedFile],
   );
 
-  const handleHabitSelect = useCallback(
-    async (habitId: string) => {
-      if (!capturedFile || !captureMode) return;
+  const selectedCount = habitIds.length + friendIds.length + groupIds.length;
 
-      setStep("uploading");
-      setError(null);
-
-      try {
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) throw new Error("Not authenticated");
-
-        let uploadBlob: Blob = capturedFile;
-        let ext = MIME_TO_EXT[capturedFile.type] ?? "bin";
-        let contentType = capturedFile.type;
-
-        if (captureMode === "photo") {
-          uploadBlob = await compressImage(capturedFile);
-          ext = "webp";
-          contentType = "image/webp";
-        }
-
-        const path = `${user.id}/${habitId}/${Date.now()}.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("completions")
-          .upload(path, uploadBlob, { contentType });
-
-        if (uploadError) throw uploadError;
-
-        // Store the path — signed URLs are resolved at render time
-        await completeHabit.mutateAsync({
-          habitId,
-          type: captureMode,
-          evidenceUrl: path,
-          notes: notes.trim() || undefined,
-        });
-
-        show({ title: "Habit completed!", variant: "success" });
-        // The dashboard reads from the query cache now, not from server props,
-        // so router.refresh() would be a wasted round trip — and one that
-        // fails outright offline.
-        void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
-        reset();
-      } catch (err) {
-        console.error("Quick capture upload failed:", err);
-        show({ title: "Upload failed. Try again.", variant: "error" });
-        setStep("habit-select");
-      }
+  // Picking a habit takes over whoever its check-in already reaches: drop
+  // them from the hand-picked lists so the picker shows them locked, and so
+  // they come back unpicked — not silently re-selected — when the habit is.
+  const handleToggle = useCallback(
+    (kind: ShareTarget, id: string) => {
+      toggleTarget(kind, id);
+      if (kind !== "habit") return;
+      const reached = reachedByHabits(
+        habits,
+        useQuickCaptureStore.getState().habitIds,
+      );
+      deselectTargets("friend", reached.friend.keys());
+      deselectTargets("group", reached.group.keys());
     },
-    [
-      capturedFile,
-      captureMode,
-      completeHabit,
-      notes,
-      reset,
-      queryClient,
-      setStep,
-      show,
-    ],
+    [habits, toggleTarget, deselectTargets],
   );
+
+  const handleSend = useCallback(async () => {
+    if (!capturedFile || !captureMode || selectedCount === 0) return;
+
+    setStep("uploading");
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // The bare type: a recorder's "video/webm;codecs=vp9" is neither in
+      // MIME_TO_EXT nor in the bucket's allowed types.
+      let uploadBlob: Blob = capturedFile;
+      let contentType = capturedFile.type.split(";")[0];
+      let ext = MIME_TO_EXT[contentType] ?? "bin";
+
+      if (captureMode === "photo") {
+        uploadBlob = await compressImage(capturedFile);
+        ext = "webp";
+        contentType = "image/webp";
+      }
+
+      // Uploaded once; every destination row points at this path, and those
+      // rows are what let a friend or group member read it (migration 034).
+      const path = `${user.id}/capture/${crypto.randomUUID()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("completions")
+        .upload(path, uploadBlob, { contentType });
+
+      if (uploadError) throw uploadError;
+
+      await shareCapture.mutateAsync({
+        mediaPath: path,
+        mediaType: captureMode,
+        caption: notes.trim() || undefined,
+        habitIds,
+        friendIds,
+        groupIds,
+      });
+
+      show({
+        title: habitIds.length > 0 && selectedCount === habitIds.length
+          ? "Habit completed!"
+          : "Sent!",
+        variant: "success",
+      });
+      // The dashboard reads from the query cache now, not from server props,
+      // so router.refresh() would be a wasted round trip — and one that
+      // fails outright offline.
+      if (habitIds.length > 0) {
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
+      }
+      setNotes("");
+      reset();
+    } catch (err) {
+      console.error("Quick capture send failed:", err);
+      show({ title: "Couldn't send. Try again.", variant: "error" });
+      setStep("share");
+    }
+  }, [
+    capturedFile,
+    captureMode,
+    selectedCount,
+    shareCapture,
+    notes,
+    habitIds,
+    friendIds,
+    groupIds,
+    reset,
+    queryClient,
+    setStep,
+    show,
+  ]);
 
   const handleClose = useCallback(() => {
     close();
@@ -288,63 +349,85 @@ export function QuickCaptureFlow() {
         onChange={handleFileChange}
       />
 
-      {/* Camera - full screen (Snapchat-style: tap for photo, hold for video) */}
+      {/* Camera - full screen (Snapchat-style: tap for photo, hold for video,
+          or a voice note from its Voice mode) */}
       {step === "camera" && (
         <CameraCapture
           onCapture={handleCameraCapture}
           onClose={handleClose}
           onFallback={handleCameraFallback}
+          initialCapture={
+            capturedFile
+              ? { file: capturedFile, notes: notes || undefined }
+              : undefined
+          }
         />
       )}
 
-      {/* Habit Selection — full-screen solid panel */}
-      {step === "habit-select" && (
+      {/* Send to… — full-screen solid panel */}
+      {step === "share" && (
         <div className="fixed inset-0 z-50 flex flex-col bg-bg-primary">
-          <div className="flex items-center justify-between p-4">
-            <h2 className="font-display text-lg font-semibold text-text-primary">
-              Log to habit
-            </h2>
+          {/* Back goes to the full-size preview, not out of the flow — the
+              preview's own ✕ is the way to discard the take. */}
+          <div className="flex items-center gap-1 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-2">
             <button
               type="button"
-              onClick={handleClose}
-              className="p-2 rounded-lg hover:bg-surface-hover transition-colors"
-              aria-label="Close"
+              onClick={backToPreview}
+              className="p-2.5 -ml-2.5 rounded-lg hover:bg-surface-hover transition-colors"
+              aria-label="Back to preview"
             >
-              <X className="w-5 h-5 text-text-secondary" />
+              <ChevronLeft className="w-6 h-6 text-text-primary" />
             </button>
+            <h2 className="font-display text-lg font-semibold text-text-primary">
+              Send to…
+            </h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-8">
-            {/* Thumbnail preview */}
-            {previewUrl && captureMode && (
-              <div className="mb-4 rounded-xl overflow-hidden bg-bg-secondary max-h-40 flex items-center justify-center">
-                {captureMode === "photo" ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={previewUrl}
-                    alt="Captured"
-                    className="w-full max-h-40 object-contain"
-                  />
-                ) : (
-                  <video
-                    src={previewUrl}
-                    className="w-full max-h-40 object-contain"
-                    playsInline
-                    muted
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Caption / notes */}
-            <div className="mb-4">
+          {/* One scroll container for everything; the picker's search and
+              tabs stick to its top. */}
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
+            {/* Thumbnail beside the caption, so the list starts high on a
+                phone screen instead of below a tall preview. */}
+            <div className="flex items-center gap-3 mb-3">
+              {previewUrl && captureMode && (
+                <button
+                  type="button"
+                  onClick={backToPreview}
+                  aria-label="View full preview"
+                  className="w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-bg-secondary active:scale-95 transition-transform"
+                >
+                  {captureMode === "voice" ? (
+                    <span className="w-full h-full flex items-center justify-center">
+                      <Mic className="w-6 h-6 text-text-secondary" aria-hidden />
+                    </span>
+                  ) : captureMode === "photo" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewUrl}
+                      alt="Captured"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <video
+                      src={previewUrl}
+                      className="w-full h-full object-cover"
+                      playsInline
+                      muted
+                    />
+                  )}
+                </button>
+              )}
               <input
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add a caption (optional)"
+                enterKeyHint="done"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
                 className={cn(
-                  "w-full rounded-lg border px-4 py-2.5 text-base transition-colors",
+                  "flex-1 min-w-0 rounded-lg border px-4 py-2.5 text-base transition-colors",
                   "bg-bg-secondary border-surface-hover",
                   "text-text-primary placeholder-text-tertiary",
                   "focus:outline-none focus:ring-2 focus:ring-brand",
@@ -354,51 +437,34 @@ export function QuickCaptureFlow() {
 
             {error && <ErrorBanner message={error} className="mb-3" />}
 
-            {habitsLoading ? (
-              <div className="flex flex-col items-center gap-2 py-16">
-                <Loader2 className="w-6 h-6 animate-spin text-brand" />
-                <p className="text-sm text-text-secondary">Loading habits...</p>
-              </div>
-            ) : habits.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-16">
-                <p className="text-sm text-text-secondary">
-                  All done for today!
-                </p>
-                <Button variant="secondary" onClick={handleClose}>
-                  Close
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {habits.map((habit) => (
-                  <button
-                    key={habit.id}
-                    type="button"
-                    onClick={() => handleHabitSelect(habit.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-4 rounded-xl transition-all",
-                      "bg-bg-secondary hover:bg-surface-hover active:scale-[0.98]",
-                      "border-l-[3px]",
-                    )}
-                    style={{
-                      borderLeftColor: habit.color || "var(--color-brand)",
-                    }}
-                  >
-                    <span className="text-xl shrink-0">{habit.emoji}</span>
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className="text-sm font-medium text-text-primary truncate">
-                        {habit.title}
-                      </p>
-                    </div>
-                    {habit.streak_current > 0 && (
-                      <span className="text-xs font-mono text-streak shrink-0">
-                        {habit.streak_current}d
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+            <ShareTargetPicker
+              habits={habits}
+              habitsLoading={habitsLoading}
+              friends={pickerFriends}
+              groups={pickerGroups}
+              selected={selected}
+              onToggle={handleToggle}
+            />
+          </div>
+
+          <div className="border-t border-surface-hover bg-bg-primary px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <SelectedTargets
+              habits={habits}
+              friends={pickerFriends}
+              groups={pickerGroups}
+              selected={selected}
+              onToggle={handleToggle}
+            />
+            <Button
+              className="w-full min-h-12"
+              disabled={selectedCount === 0}
+              onClick={handleSend}
+            >
+              <Send className="inline w-4 h-4 mr-2 -mt-0.5" aria-hidden />
+              {selectedCount === 0
+                ? "Pick where to send it"
+                : `Send to ${selectedCount}`}
+            </Button>
           </div>
         </div>
       )}

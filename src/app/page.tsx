@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { LandingInteractive, FactCarousel } from "./landing-client";
-import { Container } from "@/components/ui/Card";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 
@@ -11,39 +10,39 @@ export const dynamic = "force-static";
 const FEATURES = [
   {
     emoji: "\u{1F64F}",
-    title: "Track Any Habit",
+    title: "Track any habit",
     desc: "Prayer, scripture reading, journaling, or a quick check-in \u2014 log your habits your way.",
-    color: "#8b5cf6",
+    color: "var(--color-brand)",
   },
   {
     emoji: "\u{1F525}",
-    title: "Streak Tracking",
-    desc: "Watch your streak grow and hit milestones that keep you motivated",
-    color: "#f59e0b",
+    title: "Streaks and milestones",
+    desc: "Watch your streak grow and hit milestones that keep you motivated.",
+    color: "var(--color-streak)",
   },
   {
     emoji: "\u{1F91D}",
-    title: "Accountability Partners",
+    title: "Accountability partners",
     desc: "Share habits with friends who keep you honest and on track.",
-    color: "#f59e0b",
+    color: "var(--color-success)",
   },
   {
     emoji: "\u{1F4AC}",
     title: "Encouragements",
-    desc: "Send messages and react to eachothers updates to cheer each other on.",
-    color: "#8b5cf6",
+    desc: "Send messages and react to each other\u2019s updates to cheer one another on.",
+    color: "var(--color-encourage)",
   },
   {
     emoji: "\u{1F4CA}",
-    title: "Weekly Summaries",
+    title: "Weekly summaries",
     desc: "Get a snapshot of your progress every week \u2014 celebrate wins, spot patterns.",
-    color: "#3b82f6",
+    color: "var(--color-rain)",
   },
   {
     emoji: "\u{1F4F1}",
-    title: "Works Offline",
-    desc: "Install as an app and track habits even without an internet connection.",
-    color: "#22c55e",
+    title: "Works offline",
+    desc: "Install it as an app and track habits even without an internet connection.",
+    color: "var(--color-text-secondary)",
   },
 ];
 
@@ -164,32 +163,32 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {FEATURES.map((feature, i) => (
-              <div
-                key={feature.title}
-                className="landing-animate-on-scroll landing-feature-card"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                <Container
-                  hoverLift
-                  className="h-full border-l-[3px]"
-                  style={{ borderLeftColor: feature.color }}
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-10 sm:gap-y-12 landing-animate-on-scroll landing-feature-list">
+            {FEATURES.map((feature) => (
+              <li key={feature.title} className="flex items-start gap-4">
+                <span
+                  aria-hidden
+                  className="shrink-0 w-11 h-11 rounded-md flex items-center justify-center text-xl"
+                  style={{
+                    backgroundColor: `color-mix(in oklab, ${feature.color} 14%, var(--color-bg-elevated))`,
+                  }}
                 >
-                  <span className="text-2xl mb-3 block">{feature.emoji}</span>
+                  {feature.emoji}
+                </span>
+                <div className="pt-0.5">
                   <h3 className="font-display font-semibold text-lg mb-1">
                     {feature.title}
                   </h3>
                   <p
-                    className="text-sm"
+                    className="text-sm leading-relaxed max-w-[34ch]"
                     style={{ color: "var(--color-text-secondary)" }}
                   >
                     {feature.desc}
                   </p>
-                </Container>
-              </div>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </section>
 
@@ -347,7 +346,10 @@ function HeroMockup() {
       <div className="flex items-center gap-3 mb-4">
         <div
           className="w-10 h-10 rounded-md flex items-center justify-center text-lg"
-          style={{ backgroundColor: "var(--cat-spiritual)", color: "white" }}
+          style={{
+            backgroundColor:
+              "color-mix(in oklab, var(--color-brand) 14%, var(--color-bg-elevated))",
+          }}
         >
           {"\u{1F64F}"}
         </div>

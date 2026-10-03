@@ -28,13 +28,24 @@ async function fetchDashboardJson(): Promise<DashboardData> {
   return response.json();
 }
 
-export function useDashboard() {
+export function useDashboard({
+  holdRefetch = false,
+}: {
+  /**
+   * Stop every automatic refetch (focus, mount, invalidation) while true.
+   * The dashboard sets it while a check-in is written optimistically but not
+   * yet confirmed: the server does not have it, so a refetch landing in that
+   * gap would wipe it off screen until the write lands and the next refetch
+   * puts it back. The cached data stays readable throughout.
+   */
+  holdRefetch?: boolean;
+} = {}) {
   const userId = useAuthUserId();
 
   return useQuery({
     queryKey: dashboardKey(userId),
     queryFn: fetchDashboardJson,
-    enabled: !!userId,
+    enabled: !!userId && !holdRefetch,
     // The habits list changes only when the user acts, and every such action
     // updates the cache optimistically — so a refetch is about picking up
     // changes made elsewhere (another device, the service worker's sync),

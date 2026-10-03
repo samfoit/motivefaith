@@ -63,6 +63,11 @@ $fn$;
 -- owner  owns the habits, has push on
 -- pal    friend of owner, has push on
 -- mute   friend of owner, has push but partner_alerts off
+--
+-- owner and pal get notification_prefs = '{}' explicitly. Left at the column
+-- default they inherit quiet hours of 22:00–07:00, so tests 1–6 failed for
+-- nine hours a day — the trigger was right to hold the push back. Quiet hours
+-- are tested on purpose in 7c/7d, with a window placed relative to now().
 
 INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES
@@ -72,12 +77,14 @@ VALUES
 
 UPDATE public.profiles SET
   display_name = 'Owner', username = 'pn_owner', timezone = 'UTC',
-  push_subscription = '{"endpoint":"https://push.test/owner","keys":{"p256dh":"x","auth":"y"}}'::jsonb
+  push_subscription = '{"endpoint":"https://push.test/owner","keys":{"p256dh":"x","auth":"y"}}'::jsonb,
+  notification_prefs = '{}'::jsonb
 WHERE id = 'f1000000-0000-4000-8000-000000000001';
 
 UPDATE public.profiles SET
   display_name = 'Pal', username = 'pn_pal', timezone = 'UTC',
-  push_subscription = '{"endpoint":"https://push.test/pal","keys":{"p256dh":"x","auth":"y"}}'::jsonb
+  push_subscription = '{"endpoint":"https://push.test/pal","keys":{"p256dh":"x","auth":"y"}}'::jsonb,
+  notification_prefs = '{}'::jsonb
 WHERE id = 'f2000000-0000-4000-8000-000000000002';
 
 UPDATE public.profiles SET
@@ -107,14 +114,14 @@ BEGIN
   PERFORM public.invite_habit_partner(
     'e2000000-0000-4000-8000-000000000002', 'f2000000-0000-4000-8000-000000000002');
 
-  ASSERT public._push_count() = 1, 'TEST 1 FAILED: expected exactly one push, got %', public._push_count();
+  ASSERT public._push_count() = 1, format('TEST 1 FAILED: expected exactly one push, got %s', public._push_count());
   p := public._last_push();
   ASSERT p->>'user_id' = 'f2000000-0000-4000-8000-000000000002',
     'TEST 1 FAILED: invitation went to the wrong person';
-  ASSERT p->>'type' = 'partner_request', 'TEST 1 FAILED: wrong type %', p->>'type';
-  ASSERT p->>'url' = '/main/inbox', 'TEST 1 FAILED: wrong url %', p->>'url';
+  ASSERT p->>'type' = 'partner_request', format('TEST 1 FAILED: wrong type %s', p->>'type');
+  ASSERT p->>'url' = '/main/inbox', format('TEST 1 FAILED: wrong url %s', p->>'url');
   ASSERT p->>'title' LIKE '%invited you to follow Journal%',
-    'TEST 1 FAILED: wrong wording: %', p->>'title';
+    format('TEST 1 FAILED: wrong wording: %s', p->>'title');
   RAISE NOTICE 'TEST 1 PASSED: an invitation notifies the invitee, and points at the inbox';
 END $$;
 
@@ -131,15 +138,15 @@ BEGIN
    WHERE habit_id = 'e2000000-0000-4000-8000-000000000002' AND shared_with = auth.uid();
   PERFORM public.respond_habit_partner(v_share, true);
 
-  ASSERT public._push_count() = 2, 'TEST 2 FAILED: expected one more push, total %', public._push_count();
+  ASSERT public._push_count() = 2, format('TEST 2 FAILED: expected one more push, total %s', public._push_count());
   p := public._last_push();
   ASSERT p->>'user_id' = 'f1000000-0000-4000-8000-000000000001',
     'TEST 2 FAILED: acceptance should notify the owner who invited';
-  ASSERT p->>'type' = 'partner_accepted', 'TEST 2 FAILED: wrong type %', p->>'type';
+  ASSERT p->>'type' = 'partner_accepted', format('TEST 2 FAILED: wrong type %s', p->>'type');
   ASSERT p->>'url' = '/main/habits/e2000000-0000-4000-8000-000000000002',
-    'TEST 2 FAILED: should land on the owner''s own habit, got %', p->>'url';
+    format('TEST 2 FAILED: should land on the owner''s own habit, got %s', p->>'url');
   ASSERT p->>'title' LIKE '%is now following Journal%',
-    'TEST 2 FAILED: wrong wording: %', p->>'title';
+    format('TEST 2 FAILED: wrong wording: %s', p->>'title');
   RAISE NOTICE 'TEST 2 PASSED: acceptance notifies the inviter and opens their habit';
 END $$;
 
@@ -159,7 +166,7 @@ BEGIN
   ASSERT p->>'user_id' = 'f1000000-0000-4000-8000-000000000001',
     'TEST 3a FAILED: a request should notify the habit owner';
   ASSERT p->>'title' LIKE '%asked to follow Morning Run%',
-    'TEST 3a FAILED: wrong wording: %', p->>'title';
+    format('TEST 3a FAILED: wrong wording: %s', p->>'title');
   RAISE NOTICE 'TEST 3a PASSED: a request notifies the owner';
 END $$;
 
@@ -178,7 +185,7 @@ BEGIN
   ASSERT p->>'user_id' = 'f2000000-0000-4000-8000-000000000002',
     'TEST 3b FAILED: should notify the friend who asked';
   ASSERT p->>'url' = '/main/feed/f1000000-0000-4000-8000-000000000001',
-    'TEST 3b FAILED: should open the owner''s page, got %', p->>'url';
+    format('TEST 3b FAILED: should open the owner''s page, got %s', p->>'url');
   RAISE NOTICE 'TEST 3b PASSED: an accepted request opens the owner''s page';
 END $$;
 
@@ -200,7 +207,7 @@ BEGIN
     'e1000000-0000-4000-8000-000000000001', 'f3000000-0000-4000-8000-000000000003');
 
   ASSERT public._push_count() = v_before,
-    'TEST 4a FAILED: partner_alerts=false should suppress the invite, got %', public._push_count();
+    format('TEST 4a FAILED: partner_alerts=false should suppress the invite, got %s', public._push_count());
   RAISE NOTICE 'TEST 4a PASSED: partner_alerts=false suppresses the invitation';
 END $$;
 
@@ -217,7 +224,7 @@ BEGIN
   PERFORM public.respond_habit_partner(v_share, false);
 
   ASSERT public._push_count() = v_before,
-    'TEST 4b FAILED: declining should notify nobody, count went to %', public._push_count();
+    format('TEST 4b FAILED: declining should notify nobody, count went to %s', public._push_count());
   RAISE NOTICE 'TEST 4b PASSED: a decline is silent — no is a complete answer';
 END $$;
 

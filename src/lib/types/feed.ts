@@ -58,6 +58,9 @@ export type JourneyEncouragement = {
   id: string;
   encouragement_type: "nudge" | "message" | "emoji" | "voice";
   content: string | null;
+  /** A photo or video sent from the capture flow. */
+  media_path?: string | null;
+  media_type?: "photo" | "video" | "voice" | null;
   created_at: string;
   /** The user who sent it */
   user_id: string;

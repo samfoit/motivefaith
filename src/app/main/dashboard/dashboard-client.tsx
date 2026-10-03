@@ -271,7 +271,15 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const userId = useAuthUserId();
-  const { data, isPending, isError, refetch } = useDashboard();
+  // Check-ins shown optimistically that the server does not have yet — held
+  // in their undo window, or in flight. While any exist, refetches are held
+  // off: one landing in that gap would briefly undo the check-in on screen.
+  const [unconfirmedWrites, setUnconfirmedWrites] = useState(0);
+  const beginWrite = useCallback(() => setUnconfirmedWrites((n) => n + 1), []);
+  const endWrite = useCallback(() => setUnconfirmedWrites((n) => n - 1), []);
+  const { data, isPending, isError, refetch } = useDashboard({
+    holdRefetch: unconfirmedWrites > 0,
+  });
   const queryKey = dashboardKey(userId);
 
   // The cache is the single source of truth, including for optimistic
@@ -474,7 +482,10 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     const rainCheck = isRainCheck(type);
 
     // Optimistic update, written to the cache so it is persisted and survives
-    // a reload while the write is still queued offline.
+    // a reload while the write is still queued offline. A fetch already in
+    // flight is cancelled first, or its server copy would land on top of it.
+    beginWrite();
+    void queryClient.cancelQueries({ queryKey });
     const snapshot = queryClient.getQueryData<DashboardData>(queryKey);
     queryClient.setQueryData<DashboardData>(queryKey, (old) =>
       applyCompletion(old, {
@@ -500,6 +511,8 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       settleWrite(result);
     } catch {
       restore(snapshot);
+    } finally {
+      endWrite();
     }
   };
 
@@ -530,7 +543,9 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       }
 
       // Optimistic update, in the cache rather than component state — see the
-      // note on `habits` above.
+      // note on `habits` above. Cancel any fetch in flight first, as above.
+      beginWrite();
+      void queryClient.cancelQueries({ queryKey });
       const snapshot = queryClient.getQueryData<DashboardData>(queryKey);
       queryClient.setQueryData<DashboardData>(queryKey, (old) =>
         applyCompletion(old, { habitId, tempId, type: "quick" }),
@@ -543,6 +558,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         queryClient.setQueryData<DashboardData>(queryKey, (old) =>
           removeCompletion(old, { habitId, tempId, streak: prevStreak }),
         );
+        endWrite();
       };
 
       const commit = async () => {
@@ -562,6 +578,8 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
             title: "Check-in failed",
             description: habit?.title,
           });
+        } finally {
+          endWrite();
         }
       };
 
@@ -595,6 +613,8 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       showToast,
       removeToast,
       settle,
+      beginWrite,
+      endWrite,
     ],
   );
 

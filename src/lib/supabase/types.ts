@@ -161,6 +161,8 @@ export type Database = {
             | null
           id: string
           is_read: boolean | null
+          media_path: string | null
+          media_type: string | null
           recipient_id: string
           user_id: string
         }
@@ -173,6 +175,8 @@ export type Database = {
             | null
           id?: string
           is_read?: boolean | null
+          media_path?: string | null
+          media_type?: string | null
           recipient_id: string
           user_id: string
         }
@@ -185,6 +189,8 @@ export type Database = {
             | null
           id?: string
           is_read?: boolean | null
+          media_path?: string | null
+          media_type?: string | null
           recipient_id?: string
           user_id?: string
         }
@@ -560,24 +566,30 @@ export type Database = {
       }
       group_messages: {
         Row: {
-          content: string
+          content: string | null
           created_at: string | null
           group_id: string
           id: string
+          media_path: string | null
+          media_type: string | null
           user_id: string
         }
         Insert: {
-          content: string
+          content?: string | null
           created_at?: string | null
           group_id: string
           id?: string
+          media_path?: string | null
+          media_type?: string | null
           user_id: string
         }
         Update: {
-          content?: string
+          content?: string | null
           created_at?: string | null
           group_id?: string
           id?: string
+          media_path?: string | null
+          media_type?: string | null
           user_id?: string
         }
         Relationships: [

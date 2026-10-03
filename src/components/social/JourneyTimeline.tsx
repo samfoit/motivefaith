@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { CompletionBubble, slideVariant } from "@/components/social/CompletionBubble";
 import { ReportSheet } from "@/components/social/ReportSheet";
+import { MessageMedia } from "@/components/social/MessageMedia";
 import type { JourneyCompletion, JourneyEncouragement } from "@/lib/types/feed";
 
 // ---------------------------------------------------------------------------
@@ -247,6 +248,10 @@ function EncouragementBubble({
       >
         {/* Sender */}
         <p className="text-xs font-semibold text-encourage">{actor}</p>
+
+        {data.media_path && data.media_type && (
+          <MessageMedia path={data.media_path} type={data.media_type} />
+        )}
 
         {/* Content — always shown */}
         {data.content && (

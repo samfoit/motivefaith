@@ -7,6 +7,9 @@ beforeEach(() => {
     step: "closed",
     captureMode: null,
     capturedFile: null,
+    habitIds: [],
+    friendIds: [],
+    groupIds: [],
   });
 });
 
@@ -49,12 +52,12 @@ describe("useQuickCaptureStore", () => {
     expect(state.capturedFile).toBeNull();
   });
 
-  it("setCapturedFile stores file and advances step to habit-select", () => {
+  it("setCapturedFile stores file and advances step to share", () => {
     const file = new File(["content"], "photo.jpg", { type: "image/jpeg" });
     useQuickCaptureStore.getState().setCapturedFile(file);
     const state = useQuickCaptureStore.getState();
     expect(state.capturedFile).toBe(file);
-    expect(state.step).toBe("habit-select");
+    expect(state.step).toBe("share");
   });
 
   it("setStep changes step directly", () => {
@@ -69,11 +72,49 @@ describe("useQuickCaptureStore", () => {
 
     const file = new File(["data"], "pic.png");
     store.getState().setCapturedFile(file);
-    expect(store.getState().step).toBe("habit-select");
+    expect(store.getState().step).toBe("share");
     expect(store.getState().capturedFile).toBe(file);
 
     store.getState().close();
     expect(store.getState().step).toBe("closed");
     expect(store.getState().capturedFile).toBeNull();
+  });
+
+  it("toggleTarget adds and removes ids per destination kind", () => {
+    const { toggleTarget } = useQuickCaptureStore.getState();
+    toggleTarget("habit", "h1");
+    toggleTarget("habit", "h2");
+    toggleTarget("friend", "f1");
+    toggleTarget("group", "g1");
+    toggleTarget("habit", "h1");
+
+    const state = useQuickCaptureStore.getState();
+    expect(state.habitIds).toEqual(["h2"]);
+    expect(state.friendIds).toEqual(["f1"]);
+    expect(state.groupIds).toEqual(["g1"]);
+  });
+
+  it("close() and reset() clear the selection", () => {
+    const { toggleTarget } = useQuickCaptureStore.getState();
+    toggleTarget("habit", "h1");
+    toggleTarget("friend", "f1");
+    useQuickCaptureStore.getState().close();
+    expect(useQuickCaptureStore.getState().habitIds).toEqual([]);
+    expect(useQuickCaptureStore.getState().friendIds).toEqual([]);
+
+    toggleTarget("group", "g1");
+    useQuickCaptureStore.getState().reset();
+    expect(useQuickCaptureStore.getState().groupIds).toEqual([]);
+  });
+
+  it("deselectTargets drops only the given ids of one kind", () => {
+    const { toggleTarget, deselectTargets } = useQuickCaptureStore.getState();
+    toggleTarget("friend", "f1");
+    toggleTarget("friend", "f2");
+    toggleTarget("group", "f1");
+    deselectTargets("friend", new Set(["f1", "nope"]).keys());
+
+    expect(useQuickCaptureStore.getState().friendIds).toEqual(["f2"]);
+    expect(useQuickCaptureStore.getState().groupIds).toEqual(["f1"]);
   });
 });

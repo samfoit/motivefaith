@@ -80,7 +80,7 @@ export default async function GroupTimelinePage({ params }: Props) {
     supabase.from("groups").select("id, name, invite_code").eq("id", groupId).single(),
     supabase.from("group_members").select("id, group_id, user_id, role, joined_at").eq("group_id", groupId),
     supabase.from("group_challenges").select("id, group_id, title, description, emoji, start_date, end_date, is_active, created_by, created_at").eq("group_id", groupId).eq("is_active", true).order("created_at", { ascending: false }),
-    supabase.from("group_messages").select("id, user_id, content, created_at").eq("group_id", groupId).order("created_at", { ascending: false }).limit(50),
+    supabase.from("group_messages").select("id, user_id, content, media_path, media_type, created_at").eq("group_id", groupId).order("created_at", { ascending: false }).limit(50),
   ]);
 
   if (!myMembership) notFound();
@@ -203,6 +203,8 @@ export default async function GroupTimelinePage({ params }: Props) {
       return {
         id: m.id,
         content: m.content,
+        media_path: m.media_path,
+        media_type: m.media_type as GroupTimelineMessage["media_type"],
         created_at: m.created_at!,
         user_id: m.user_id,
         isMe: m.user_id === user.id,

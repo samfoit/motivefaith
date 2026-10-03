@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { queueCompletion } from "@/lib/offline-queue";
 import { notifyPendingChanged } from "@/lib/outbox-drain";
+import { useFeedStaleStore } from "@/lib/stores/feed-stale-store";
 import type { CompletionType } from "@/lib/constants/completion";
 import type { RainCheckReason } from "@/lib/constants/rain-check";
 
@@ -68,6 +69,10 @@ export function useCompleteHabit() {
         });
 
         if (error) throw error;
+        // Set here rather than in an onSuccess passed to mutate(): those are
+        // dropped once the caller unmounts, and the dashboard sends a held
+        // quick check-in precisely as it unmounts.
+        useFeedStaleStore.getState().markStale();
         return data;
       } catch (err) {
         // TypeError is thrown by fetch on network failure. Queue instead of

@@ -48,6 +48,8 @@ type RpcEncouragement = {
   user_id: string;
   encouragement_type: string;
   content: string | null;
+  media_path: string | null;
+  media_type: "photo" | "video" | "voice" | null;
   created_at: string;
   completion_id: string | null;
 };
@@ -150,6 +152,8 @@ export default async function JourneyPage({ params }: Props) {
     id: e.id,
     encouragement_type: (e.encouragement_type ?? "nudge") as JourneyEncouragement["encouragement_type"],
     content: e.content,
+    media_path: e.media_path,
+    media_type: e.media_type,
     created_at: e.created_at,
     user_id: e.user_id,
     isMe: e.user_id === user.id,

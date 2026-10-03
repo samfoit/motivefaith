@@ -93,6 +93,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
         recipient_id: string;
         encouragement_type: "nudge" | "message" | "emoji" | "voice";
         content: string | null;
+        media_path: string | null;
+        media_type: "photo" | "video" | "voice" | null;
         created_at: string;
       }>(
         "postgres_changes",
@@ -111,6 +113,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
             id: row.id,
             encouragement_type: row.encouragement_type,
             content: row.content,
+            media_path: row.media_path,
+            media_type: row.media_type,
             created_at: row.created_at,
             user_id: row.user_id,
             isMe: false,
