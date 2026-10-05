@@ -64,6 +64,7 @@ export async function proxy(request: NextRequest) {
   }
 
   let supabaseResponse = NextResponse.next({ request });
+  const authCacheHeaders: Record<string, string> = {};
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -73,12 +74,20 @@ export async function proxy(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           const isSecure = process.env.NODE_ENV === "production";
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
+          // Cache-Control and friends, so a CDN never stores a response that
+          // carries someone's session. Supabase sends them with the first
+          // write only, and each write rebuilds the response, so they are
+          // kept and re-applied rather than set once.
+          Object.assign(authCacheHeaders, headers);
           supabaseResponse = NextResponse.next({ request });
+          for (const [key, value] of Object.entries(authCacheHeaders)) {
+            supabaseResponse.headers.set(key, value);
+          }
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, {
               ...options,

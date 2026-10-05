@@ -20,6 +20,7 @@ import { VisibilityPicker } from "@/components/habits/VisibilityPicker";
 import type { HabitVisibility } from "@/lib/types/partners";
 import { getScheduledDays, parseTimeWindow as parseTimeWindowJson } from "@/lib/utils/schedule";
 import type { Habit } from "@/lib/types/habit";
+import type { TablesUpdate } from "@/lib/supabase/types";
 import type { ToastVariant } from "@/components/ui/Toast";
 
 // ---------------------------------------------------------------------------
@@ -136,7 +137,7 @@ export function EditHabitSheet({
     if (!isDirty || !canSave) return;
     setIsSaving(true);
 
-    const updates: Record<string, unknown> = {
+    const updates: TablesUpdate<"habits"> = {
       title: form.title.trim(),
       emoji: form.emoji,
       description: form.description.trim() || null,
