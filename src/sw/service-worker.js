@@ -229,14 +229,19 @@ self.addEventListener("fetch", function (event) {
    *    returned from respondWith() for a navigation request — caching one
    *    would break the page it was cached for.
    *  - the *final* url is re-checked against the authenticated prefix, to
-   *    cover a same-path rewrite ever landing on one.
+   *    cover a same-path rewrite ever landing on one. The one exception is a
+   *    shell document answering a request for itself: without it the runtime
+   *    never refreshed the shell, and offline launches replayed whatever the
+   *    install-time precache had stored, for as long as that worker lived.
    */
-  function isCacheableNavigation(response) {
+  function isCacheableNavigation(response, requestPath) {
     if (!isCacheableResponse(response)) return false;
     if (response.redirected) return false;
     if (!response.url) return true; // no url to judge; the hop check stands
     try {
-      return !isAuthenticatedPath(new URL(response.url).pathname);
+      var finalPath = new URL(response.url).pathname;
+      if (finalPath === requestPath && isShellDocument(finalPath)) return true;
+      return !isAuthenticatedPath(finalPath);
     } catch (e) {
       return false;
     }
@@ -264,7 +269,7 @@ self.addEventListener("fetch", function (event) {
         return preloaded || fetch(event.request);
       })
       .then(function (response) {
-        if (mayCacheDocument && isCacheableNavigation(response)) {
+        if (mayCacheDocument && isCacheableNavigation(response, url.pathname)) {
           var clone = response.clone();
           caches.open(CACHE_NAME).then(function (cache) {
             cache.put(event.request, clone);
