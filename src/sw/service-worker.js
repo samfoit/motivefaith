@@ -201,9 +201,17 @@ self.addEventListener("fetch", function (event) {
   // Skip Supabase API calls (auth, realtime, etc.)
   if (url.hostname !== self.location.hostname) return;
 
-  /** Pages behind the sign-in gate. */
+  /**
+   * Pages whose markup depends on who is signed in: everything behind the
+   * sign-in gate, plus `/invite/*`. The invite page is public, but for a
+   * signed-in viewer it renders the inviter's real name and avatar and the
+   * friendship between them, down to a pending request's id. Cached like the
+   * other public pages, it was stored under the invite URL and served first
+   * on the next visit — to the same user after logout, or to the next person
+   * on a shared device.
+   */
   function isAuthenticatedPath(pathname) {
-    return pathname.indexOf("/main/") === 0;
+    return pathname.indexOf("/main/") === 0 || pathname.indexOf("/invite/") === 0;
   }
 
   /**
@@ -333,7 +341,7 @@ self.addEventListener("fetch", function (event) {
   // Network-first for everything else (API-like routes on same origin).
   //
   // The same privacy rule as navigations applies here, and for the same
-  // reason: a client-side navigation to /main/* fetches the route's RSC
+  // reason: a client-side navigation to /main/* (or /invite/*) fetches the route's RSC
   // payload with mode "cors", not "navigate", so it lands in this branch.
   // Without this check the navigate handler's refusal to cache authenticated
   // HTML was being undone one branch further down — the user's own feed,
@@ -344,7 +352,7 @@ self.addEventListener("fetch", function (event) {
   // habits as JSON, and `isCacheableResponse` accepts application/json, so it
   // would otherwise be written to the cache and served to whoever asked next.
   var isAuthenticatedPayload =
-    url.pathname.startsWith("/main/") || url.pathname.startsWith("/api/");
+    isAuthenticatedPath(url.pathname) || url.pathname.startsWith("/api/");
 
   event.respondWith(
     fetch(event.request)
