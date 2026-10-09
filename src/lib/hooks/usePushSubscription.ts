@@ -63,6 +63,16 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
 }
 
 /**
+ * Whether a subscription's applicationServerKey matches the base64url VAPID key.
+ */
+function sameKey(serverKey: ArrayBuffer | null, vapidKey: string): boolean {
+  if (!serverKey) return false;
+  const a = new Uint8Array(serverKey);
+  const b = urlBase64ToUint8Array(vapidKey);
+  return a.length === b.length && a.every((byte, i) => byte === b[i]);
+}
+
+/**
  * Serialize a PushSubscription to a plain JSON-safe object for storage.
  */
 function serializeSubscription(sub: PushSubscription) {
@@ -105,18 +115,40 @@ export function usePushSubscription(userId: string) {
 
     // Check for an existing subscription
     navigator.serviceWorker.ready
-      .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => {
-        if (sub) {
-          setState("subscribed");
-        } else {
+      .then(async (reg) => {
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
           setState(Notification.permission === "default" ? "prompt" : "unsubscribed");
+          return;
+        }
+        setState("subscribed");
+
+        try {
+          // A subscription made under a different VAPID key (e.g. after a key
+          // rotation) is rejected by the push service, so replace it.
+          const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+          if (vapidKey && !sameKey(sub.options.applicationServerKey, vapidKey)) {
+            await sub.unsubscribe();
+            sub = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(vapidKey),
+            });
+          }
+
+          // The stored row can be cleared server-side while the browser still
+          // holds a live subscription — re-save it so the two stay in step.
+          await createClient()
+            .from("profiles")
+            .update({ push_subscription: serializeSubscription(sub) as unknown as Json })
+            .eq("id", userId);
+        } catch (err) {
+          console.error("Failed to sync push subscription:", err);
         }
       })
       .catch(() => {
         setState("unsupported");
       });
-  }, []);
+  }, [userId]);
 
   const subscribe = useCallback(async () => {
     setIsLoading(true);

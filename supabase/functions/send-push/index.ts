@@ -46,7 +46,7 @@ async function sendWebPush(
   vapidPrivateKey: string,
   vapidPublicKey: string,
   vapidSubject: string,
-): Promise<boolean> {
+): Promise<number> {
   // Import the VAPID keys
   const privateKeyBytes = base64UrlToUint8Array(vapidPrivateKey);
   const publicKeyBytes = base64UrlToUint8Array(vapidPublicKey);
@@ -144,10 +144,9 @@ async function sendWebPush(
   if (!res.ok) {
     const text = await res.text();
     console.error(`Push failed (${res.status}): ${text}`);
-    return false;
   }
 
-  return true;
+  return res.status;
 }
 
 // --- Crypto helpers ---
@@ -455,7 +454,7 @@ Deno.serve(async (req) => {
     type: body.type ?? "completion",
   });
 
-  const success = await sendWebPush(
+  const status = await sendWebPush(
     body.subscription,
     payload,
     vapidPrivateKey,
@@ -463,8 +462,18 @@ Deno.serve(async (req) => {
     vapidSubject,
   );
 
-  if (!success) {
-    // If push failed (likely expired subscription), clean up.
+  if (status < 200 || status >= 300) {
+    // Only 404/410 mean the subscription is gone for good (RFC 8030 §7.3).
+    // Anything else — a 403 from a VAPID key mismatch, a 429, a push-service
+    // 5xx — leaves the subscription intact, since the device still believes
+    // it is subscribed and would never re-register.
+    if (status !== 404 && status !== 410) {
+      return new Response(JSON.stringify({ error: "Push delivery failed", status }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // serviceRoleKey is already validated above; SUPABASE_URL must also be set.
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
