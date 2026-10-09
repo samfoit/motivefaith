@@ -139,10 +139,16 @@ function TimeSelect({
 
 interface NotificationPreferencesProps {
   notificationPrefs: Json | null;
+  /** Called with every edit, so a parent that unmounts this can reseed it. */
+  onChange?: (prefs: Json) => void;
   className?: string;
 }
 
-export function NotificationPreferences({ notificationPrefs, className }: NotificationPreferencesProps) {
+export function NotificationPreferences({
+  notificationPrefs,
+  onChange,
+  className,
+}: NotificationPreferencesProps) {
   const [prefs, setPrefs] = useState<NotificationPrefs>(() => parsePrefs(notificationPrefs));
   const [isSaving, setIsSaving] = useState(false);
 
@@ -174,6 +180,7 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
   }, [flush]);
 
   const save = useCallback((updated: NotificationPrefs) => {
+    onChange?.(updated as unknown as Json);
     pendingRef.current = updated;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
@@ -181,7 +188,7 @@ export function NotificationPreferences({ notificationPrefs, className }: Notifi
       pendingRef.current = null;
       flush(updated);
     }, 500);
-  }, [flush]);
+  }, [flush, onChange]);
 
   const update = useCallback(
     (patch: Partial<NotificationPrefs>) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, Loader2 } from "lucide-react";
+import { Bell, BellOff, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import type { PushState } from "@/lib/hooks/usePushSubscription";
@@ -15,7 +15,7 @@ const STATE_CONFIG: Record<
 > = {
   unsupported: {
     label: "Not Supported",
-    description: "This device can't receive push.",
+    description: "This device can't receive notifications.",
   },
   "requires-install": {
     label: "Install Required",
@@ -37,7 +37,7 @@ const STATE_CONFIG: Record<
   },
   subscribed: {
     label: "Notifications On",
-    description: "Friend activity and encouragements.",
+    description: "Reminders, friend activity, quiet hours.",
     actionLabel: "Turn Off",
   },
 };
@@ -51,6 +51,8 @@ interface NotificationToggleProps {
   isLoading: boolean;
   onSubscribe: () => void;
   onUnsubscribe: () => void;
+  /** When set, the subscribed state drills into settings instead of offering Turn Off. */
+  onOpenSettings?: () => void;
   className?: string;
 }
 
@@ -59,16 +61,21 @@ export function NotificationToggle({
   isLoading,
   onSubscribe,
   onUnsubscribe,
+  onOpenSettings,
   className,
 }: NotificationToggleProps) {
   const config = STATE_CONFIG[state];
   const isActive = state === "subscribed";
   const canToggle = state === "prompt" || state === "unsubscribed" || state === "subscribed";
+  const drillIn = isActive && !!onOpenSettings;
+  const Root = drillIn ? "button" : "div";
 
   return (
-    <div
+    <Root
+      {...(drillIn && { type: "button" as const, onClick: onOpenSettings })}
       className={cn(
-        "flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm",
+        "w-full flex items-center gap-3 rounded-lg bg-elevated p-4 shadow-sm text-left",
+        drillIn && "transition-opacity active:opacity-70",
         className,
       )}
     >
@@ -96,7 +103,9 @@ export function NotificationToggle({
         </p>
       </div>
 
-      {canToggle && (
+      {drillIn ? (
+        <ChevronRight className="w-4 h-4 shrink-0 text-[var(--color-text-tertiary)]" />
+      ) : canToggle && (
         <Button
           variant={isActive ? "ghost" : "secondary"}
           size="sm"
@@ -111,6 +120,6 @@ export function NotificationToggle({
           )}
         </Button>
       )}
-    </div>
+    </Root>
   );
 }

@@ -76,7 +76,7 @@ export function ShareInviteSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange} size="sm" showHandle>
       {ToastElements}
-      <div className="px-4 py-2 space-y-4">
+      <div className="space-y-3">
         <h2
           className="font-display font-bold text-[var(--color-text-primary)]"
           style={{ fontSize: "var(--text-lg)" }}
@@ -112,7 +112,7 @@ export function ShareInviteSheet({
             </div>
 
             {canShare && (
-              <Button className="w-full" size="lg" onClick={handleShare}>
+              <Button className="w-full" onClick={handleShare}>
                 <Share2 className="w-4 h-4" />
                 <span>Share link</span>
               </Button>

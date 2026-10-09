@@ -14,18 +14,18 @@ import {
   Shield,
   Trash2,
   Share2,
-  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { Sheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NotificationToggle } from "@/components/social/NotificationToggle";
 import { NotificationPreferences } from "@/components/social/NotificationPreferences";
 import { usePushSubscription } from "@/lib/hooks/usePushSubscription";
 import { createClient } from "@/lib/supabase/client";
-import type { Tables } from "@/lib/supabase/types";
+import type { Json, Tables } from "@/lib/supabase/types";
 import { ALLOWED_IMAGE_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
 import { ShareInviteSheet } from "@/components/social/ShareInviteSheet";
@@ -64,6 +64,12 @@ export function ProfileClient({
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [notifSettingsOpen, setNotifSettingsOpen] = useState(false);
+  // Held here because the settings sheet unmounts its contents on close; this
+  // reseeds them with the latest edits rather than the server-rendered prefs.
+  const [notificationPrefs, setNotificationPrefs] = useState<Json | null>(
+    profile?.notification_prefs ?? null,
+  );
 
   // Check current MFA status on mount
   useEffect(() => {
@@ -277,6 +283,13 @@ export function ProfileClient({
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
+                <button
+                  onClick={() => setShareOpen(true)}
+                  className="p-1 rounded-lg hover:bg-surface-hover text-text-tertiary transition-colors shrink-0"
+                  aria-label="Invite a friend"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
             <p className="text-sm text-text-secondary">
@@ -287,33 +300,6 @@ export function ProfileClient({
 
         {/* Settings sections */}
         <div className="space-y-5">
-          {/* Friends */}
-          <section>
-            <div className="flex items-center gap-2 mb-3">
-              <UserPlus className="w-4 h-4 text-text-tertiary" />
-              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider">
-                Friends
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShareOpen(true)}
-              className="w-full rounded-lg bg-elevated p-4 shadow-sm text-left transition-opacity active:opacity-70"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-text-primary">
-                    Invite a friend
-                  </p>
-                  <p className="text-xs text-text-secondary">
-                    Share a link that signs them up and adds you
-                  </p>
-                </div>
-                <Share2 className="w-4 h-4 flex-shrink-0 text-text-tertiary" />
-              </div>
-            </button>
-          </section>
-
           {/* Appearance */}
           <section>
             <div className="flex items-center gap-2 mb-3">
@@ -340,19 +326,13 @@ export function ProfileClient({
                 Notifications
               </h2>
             </div>
-            <div className="space-y-3">
-              <NotificationToggle
-                state={pushState}
-                isLoading={pushLoading}
-                onSubscribe={pushSubscribe}
-                onUnsubscribe={pushUnsubscribe}
-              />
-              {pushState === "subscribed" && (
-                <NotificationPreferences
-                  notificationPrefs={profile?.notification_prefs ?? null}
-                />
-              )}
-            </div>
+            <NotificationToggle
+              state={pushState}
+              isLoading={pushLoading}
+              onSubscribe={pushSubscribe}
+              onUnsubscribe={pushUnsubscribe}
+              onOpenSettings={() => setNotifSettingsOpen(true)}
+            />
           </section>
 
           {/* Security — MFA */}
@@ -708,6 +688,29 @@ export function ProfileClient({
         onOpenChange={setDeleteOpen}
         hasMfa={mfaEnabled}
       />
+
+      <Sheet
+        open={notifSettingsOpen && pushState === "subscribed"}
+        onOpenChange={setNotifSettingsOpen}
+        title="Notifications"
+        size="lg"
+      >
+        <div className="space-y-3">
+          <NotificationPreferences
+            notificationPrefs={notificationPrefs}
+            onChange={setNotificationPrefs}
+            className="p-0 shadow-none"
+          />
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={pushUnsubscribe}
+            loading={pushLoading}
+          >
+            Turn off notifications on this device
+          </Button>
+        </div>
+      </Sheet>
 
       <ShareInviteSheet
         open={shareOpen}
