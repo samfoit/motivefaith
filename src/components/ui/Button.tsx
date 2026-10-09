@@ -96,7 +96,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           </svg>
         )}
 
-        <span className={cn(loading ? "opacity-90" : "")}>{children}</span>
+        {/* inline-flex, not a bare span: preflight makes <svg> display:block,
+            which would stack an icon child above its label. */}
+        <span className={cn("inline-flex items-center gap-2", loading && "opacity-90")}>
+          {children}
+        </span>
       </button>
     );
   },
