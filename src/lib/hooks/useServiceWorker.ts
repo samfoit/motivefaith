@@ -33,7 +33,12 @@ export function useServiceWorker() {
             // Only prompt when there's an existing controller (i.e. not first install)
             if (
               newWorker.state === "installed" &&
-              navigator.serviceWorker.controller
+              navigator.serviceWorker.controller &&
+              // Never interrupt an auth flow. The confirm() blocks the page
+              // and the reload restarts it, which on the reset-password page
+              // landed the user on "link expired" mid-reset. The new worker
+              // waits and takes over once the app's tabs are closed.
+              !window.location.pathname.startsWith("/auth/")
             ) {
               // A new version is ready — prompt the user to reload
               if (window.confirm("A new version of MotiveFaith is available. Reload to update?")) {
