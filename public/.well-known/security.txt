@@ -3,5 +3,5 @@
 
 Contact: mailto:security@samfoit.com
 Preferred-Languages: en
-Canonical: https://getmotivefaith.app/.well-known/security.txt
+Canonical: https://motivefaith.com/.well-known/security.txt
 Expires: 2027-03-05T00:00:00.000Z

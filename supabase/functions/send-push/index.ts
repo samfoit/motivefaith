@@ -392,7 +392,7 @@ Deno.serve(async (req) => {
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
   const vapidPublicKey = Deno.env.get("NEXT_PUBLIC_VAPID_PUBLIC_KEY");
   const vapidSubject =
-    Deno.env.get("VAPID_SUBJECT") ?? "mailto:noreply@motivefaith.app";
+    Deno.env.get("VAPID_SUBJECT") ?? "mailto:noreply@motivefaith.com";
 
   if (!vapidPrivateKey || !vapidPublicKey) {
     return new Response(
