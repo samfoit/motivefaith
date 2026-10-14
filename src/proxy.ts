@@ -21,17 +21,18 @@ function buildCsp(nonce: string) {
   return [
     "default-src 'self'",
     isDev
-      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com"
-      : `script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com`,
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://accounts.google.com/gsi/client"
+      : `script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com https://accounts.google.com/gsi/client`,
     // style-src 'unsafe-inline' is required by Radix UI primitives and
     // motion (Framer Motion) which inject inline styles for positioning
     // and animations. Revisit when Radix UI supports CSP nonces for styles.
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    `connect-src 'self' ${httpProto}//${supabaseHost} ${wsProto}//${supabaseHost}`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
+    // accounts.google.com/gsi/: Google's sign-in button on the login page.
+    `connect-src 'self' ${httpProto}//${supabaseHost} ${wsProto}//${supabaseHost} https://accounts.google.com/gsi/`,
     "font-src 'self' https://fonts.gstatic.com",
     `img-src 'self' data: blob: ${httpProto}//${supabaseHost}`,
     `media-src 'self' blob: ${httpProto}//${supabaseHost}`,
-    "frame-src https://challenges.cloudflare.com",
+    "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
