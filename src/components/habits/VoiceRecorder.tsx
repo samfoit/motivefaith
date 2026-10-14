@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
 import { X, Mic } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { getSupportedAudioMimeType } from "@/lib/utils/audio-recorder";
 import { MAX_AUDIO_DURATION_S } from "@/lib/constants/limits";
 
@@ -257,18 +258,7 @@ export function VoiceRecorder({
         {/* Review state */}
         {stage === "review" && previewUrl && (
           <>
-            <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center">
-              <Mic className="w-10 h-10 text-white/60" />
-            </div>
-            <span className="text-white/60 text-sm font-mono tabular-nums">
-              {formatTime(recordingTime)}
-            </span>
-            <audio
-              src={previewUrl}
-              controls
-              preload="metadata"
-              className="w-full max-w-xs"
-            />
+            <VoicePlayback src={previewUrl} />
           </>
         )}
       </div>
