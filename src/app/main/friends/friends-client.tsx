@@ -37,6 +37,8 @@ import {
   type FriendProfile,
   type FriendWithProfile,
 } from "@/lib/hooks/useFriends";
+import { TopBarActions } from "@/components/layout/TopBarSlots";
+import { TOP_BAR_PRIMARY_ACTION_CLASS } from "@/components/layout/topBarStyles";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -209,25 +211,18 @@ export function FriendsClient({
     // add empty scroll under the nav.
     <>
       <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4 sm:pt-6 sm:space-y-6">
-        {/* Header — searching for a username only works on people who are
-            already here, so the way to reach everyone else sits beside it. */}
-        <div className="flex items-center justify-between gap-3">
-          <h1
-            className="font-display font-bold text-[var(--color-text-primary)]"
-            style={{ fontSize: "var(--text-2xl)" }}
-          >
-            Friends
-          </h1>
-          <Button
-            variant="secondary"
-            size="sm"
+        {/* Searching for a username only works on people who are already
+            here, so the way to reach everyone else sits in the TopBar. */}
+        <TopBarActions>
+          <button
+            type="button"
             onClick={() => setShareOpen(true)}
-            className="flex-shrink-0"
+            className={TOP_BAR_PRIMARY_ACTION_CLASS}
           >
-            <Share2 className="w-3.5 h-3.5" />
+            <Share2 className="w-4 h-4" />
             <span>Invite</span>
-          </Button>
-        </div>
+          </button>
+        </TopBarActions>
 
         {/* Search bar */}
         <div className="relative">

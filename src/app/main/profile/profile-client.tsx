@@ -267,12 +267,13 @@ export function ProfileClient({
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <h1
+                {/* h2: the screen's h1 is "Profile", in the TopBar. */}
+                <h2
                   className="font-display font-bold text-text-primary truncate"
                   style={{ fontSize: "var(--text-xl)" }}
                 >
                   {displayName}
-                </h1>
+                </h2>
                 <button
                   onClick={() => {
                     setEditName(displayName);

@@ -262,7 +262,12 @@ self.addEventListener("fetch", function (event) {
     // cache with no network in the critical path, and the fresh copy replaces
     // it in the background for next time.
     var isAuthenticatedPage = isAuthenticatedPath(url.pathname);
-    var mayCacheDocument = !isAuthenticatedPage || isShellDocument(url.pathname);
+    // An email link carries a one-time credential in its query string (a
+    // password reset's token_hash, an OAuth or sign-up code). Keyed by the
+    // full URL, the cached page would keep that credential on the device.
+    var carriesAuthCredential = /[?&](code|token_hash)=/.test(url.search);
+    var mayCacheDocument =
+      !carriesAuthCredential && (!isAuthenticatedPage || isShellDocument(url.pathname));
 
     var fromNetwork = (event.preloadResponse || Promise.resolve())
       .then(function (preloaded) {

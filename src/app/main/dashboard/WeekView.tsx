@@ -1,18 +1,13 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import {
-  format,
-  startOfWeek,
-  addDays,
-  eachDayOfInterval,
-  isToday,
-  isFuture,
-} from "date-fns";
+import { format, startOfWeek, addDays, eachDayOfInterval } from "date-fns";
 import { Flame } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { toDateKey } from "@/lib/utils/timezone";
+import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
+import { habitDayState, indexHabitDays } from "./day-state";
+import { DayMark, DayMarkLegendItem } from "./DayMark";
 
 interface WeekViewProps {
   habits: HabitWithCompletions[];
@@ -20,99 +15,132 @@ interface WeekViewProps {
   onHabitPress: (habitId: string) => void;
 }
 
+/**
+ * The week as one grid — habits down the side, days across the top.
+ *
+ * It used to be a card per habit, each with its own row of seven date
+ * circles: two habits filled a phone screen, the dates repeated on every card,
+ * and a rain check or an unscheduled day looked the same as a miss. Here the
+ * dates are said once, every habit gets a 48px row, and each cell tells the
+ * five states apart.
+ */
 export const WeekView = memo(function WeekView({
   habits,
   timezone,
   onHabitPress,
 }: WeekViewProps) {
-  const weekDays = useMemo(() => {
+  const days = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end: addDays(start, 6) });
-  }, []);
+    return eachDayOfInterval({ start, end: addDays(start, 6) }).map((date) => ({
+      date,
+      key: toDateKey(date, timezone),
+    }));
+  }, [timezone]);
 
-  // Pre-compute date keys for each day and completion date keys per habit.
-  // Reduces O(habits × days × completions) toDateKey calls to O(days + total completions).
-  const dayKeyMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const day of weekDays) m.set(day.toISOString(), toDateKey(day, timezone));
-    return m;
-  }, [weekDays, timezone]);
+  const todayKey = todayDateKey(timezone);
 
-  const completionKeys = useMemo(() => {
-    const m = new Map<string, Set<string>>();
-    for (const h of habits)
-      m.set(h.id, new Set(h.completions.map((c) => toDateKey(c.completed_at, timezone))));
-    return m;
-  }, [habits, timezone]);
+  const rows = useMemo(
+    () =>
+      habits.map((habit) => {
+        const index = indexHabitDays(habit, timezone);
+        const cells = days.map(({ date, key }) =>
+          habitDayState(habit, index, date, key, todayKey, timezone),
+        );
+
+        const due = cells.filter((c) => c !== "off" && c !== "upcoming").length;
+        const done = cells.filter((c) => c === "done").length;
+        return { habit, cells, due, done };
+      }),
+    [habits, days, timezone, todayKey],
+  );
 
   return (
-    <div className="space-y-2 dv-stagger-container">
-      {habits.map((habit) => (
-        <div key={habit.id}>
-          <button
-            type="button"
-            onClick={() => onHabitPress(habit.id)}
-            className="w-full p-3 rounded-xl bg-[var(--color-bg-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors text-left"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-base">{habit.emoji}</span>
-              <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-                {habit.title}
-              </span>
-              {(habit.streak_current ?? 0) > 0 && (
-                <span className="flex items-center gap-0.5 text-streak ml-auto shrink-0">
-                  <Flame className="w-3 h-3" />
-                  <span className="text-xs font-mono font-semibold">
-                    {habit.streak_current}
+    <div className="space-y-3">
+      <div className="rounded-lg bg-bg-secondary overflow-hidden">
+        {/* Day header — said once for the whole grid. */}
+        <div
+          className="flex items-end gap-2 px-3 pt-2.5 pb-2 border-b border-bg-primary"
+          aria-hidden
+        >
+          <div className="flex-1" />
+          <div className="flex">
+            {days.map(({ date, key }) => {
+              const isToday = key === todayKey;
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "w-7 flex flex-col items-center leading-none",
+                    isToday ? "text-brand" : "text-text-secondary",
+                  )}
+                >
+                  <span className="text-[10px] font-medium">
+                    {format(date, "EEEEE")}
                   </span>
-                </span>
-              )}
-            </div>
-            <div className="flex gap-1.5">
-              {weekDays.map((day) => {
-                const completed = completionKeys.get(habit.id)?.has(dayKeyMap.get(day.toISOString()) ?? "") ?? false;
-                const td = isToday(day);
-                const future = isFuture(day) && !td;
-                return (
-                  <div
-                    key={day.toISOString()}
-                    className="flex-1 flex flex-col items-center gap-1"
+                  <span
+                    className={cn(
+                      "mt-1 text-xs tabular-nums",
+                      isToday && "font-bold",
+                    )}
                   >
-                    <span
-                      className={cn(
-                        "text-[10px] font-medium",
-                        td
-                          ? "text-brand"
-                          : "text-[var(--color-text-tertiary)]",
-                      )}
-                    >
-                      {format(day, "EEE")}
-                    </span>
-                    <div
-                      className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium",
-                        completed && "bg-success text-white",
-                        !completed &&
-                          td &&
-                          "ring-2 ring-brand text-[var(--color-text-secondary)] bg-[var(--color-bg-elevated)]",
-                        !completed &&
-                          !td &&
-                          !future &&
-                          "bg-[var(--color-bg-elevated)] text-[var(--color-text-tertiary)]",
-                        !completed &&
-                          future &&
-                          "bg-[var(--color-bg-elevated)] text-[var(--color-text-tertiary)] opacity-30",
-                      )}
-                    >
-                      {format(day, "d")}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </button>
+                    {format(date, "d")}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      ))}
+
+        <ul className="divide-y divide-bg-primary">
+          {rows.map(({ habit, cells, due, done }) => (
+            <li key={habit.id}>
+              <button
+                type="button"
+                onClick={() => onHabitPress(habit.id)}
+                aria-label={`${habit.title}: done ${done} of ${due} ${
+                  due === 1 ? "day" : "days"
+                } so far this week`}
+                className="w-full min-h-12 flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-hover transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+              >
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <span className="text-base shrink-0" aria-hidden>
+                    {habit.emoji}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">
+                      {habit.title}
+                    </p>
+                    {(habit.streak_current ?? 0) > 0 && (
+                      <p className="flex items-center gap-0.5 text-streak text-xs font-mono font-semibold">
+                        <Flame className="w-3 h-3" aria-hidden />
+                        {habit.streak_current}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex shrink-0" aria-hidden>
+                  {cells.map((state, i) => (
+                    <div key={days[i].key} className="w-7 h-5 flex items-center justify-center">
+                      <DayMark state={state} />
+                    </div>
+                  ))}
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* The marks are new shapes; name them once. */}
+      <div
+        className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 text-xs text-text-secondary"
+        aria-hidden
+      >
+        <DayMarkLegendItem state="done" label="Done" />
+        <DayMarkLegendItem state="rain" label="Rain check" />
+        <DayMarkLegendItem state="missed" label="Missed" />
+        <DayMarkLegendItem state="off" label="Not scheduled" />
+      </div>
     </div>
   );
 });
