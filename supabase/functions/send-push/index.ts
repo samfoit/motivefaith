@@ -4,12 +4,15 @@ import { createClient } from "@supabase/supabase-js";
 // Types
 // ---------------------------------------------------------------------------
 
+/** One device's subscription, as PushManager.subscribe().toJSON() shapes it. */
+interface Subscription {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
 interface PushPayload {
-  /** The push subscription JSON (from PushManager.subscribe().toJSON()) */
-  subscription: {
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-  };
+  /** Recipient — the push goes to every device in their push_subscriptions. */
+  user_id: string;
   /** Notification title */
   title: string;
   /** Notification body text */
@@ -27,13 +30,12 @@ interface PushPayload {
     | "encouragement"
     | "group_message"
     | "weekly_summary"
+    | "habit_reminder"
     // Kept apart so an unanswered invitation is not replaced in the tray by
     // news that someone accepted a different one — the service worker uses
     // `type` as the notification tag.
     | "partner_request"
     | "partner_accepted";
-  /** User ID that owns this subscription — used to scope cleanup */
-  user_id?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -41,7 +43,7 @@ interface PushPayload {
 // ---------------------------------------------------------------------------
 
 async function sendWebPush(
-  subscription: PushPayload["subscription"],
+  subscription: Subscription,
   payload: string,
   vapidPrivateKey: string,
   vapidPublicKey: string,
@@ -354,6 +356,37 @@ function derToRaw(der: Uint8Array): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
+// SSRF protection
+// ---------------------------------------------------------------------------
+
+const ALLOWED_PUSH_DOMAINS = [
+  ".push.services.mozilla.com",
+  ".googleapis.com",
+  ".windows.com",
+  ".notify.windows.com",
+  ".push.apple.com",
+  ".web.push.apple.com",
+];
+
+/**
+ * Only HTTPS endpoints on known push service domains. Endpoints are
+ * user-controlled (saved by the client), so a malicious user could otherwise
+ * point theirs at an internal URL (e.g. cloud metadata).
+ */
+function isAllowedEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    if (url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase();
+    return ALLOWED_PUSH_DOMAINS.some(
+      (domain) => host === domain.slice(1) || host.endsWith(domain),
+    );
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Edge Function handler
 // ---------------------------------------------------------------------------
 
@@ -403,48 +436,40 @@ Deno.serve(async (req) => {
 
   const body: PushPayload = await req.json();
 
-  if (!body.subscription?.endpoint || !body.subscription?.keys) {
-    return new Response(JSON.stringify({ error: "Invalid subscription" }), {
+  if (!body.user_id) {
+    return new Response(JSON.stringify({ error: "Missing user_id" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  // SSRF protection: only allow HTTPS endpoints on known push service domains.
-  // Push subscription endpoints are user-controlled (stored in profiles), so a
-  // malicious user could set theirs to an internal URL (e.g. cloud metadata).
-  try {
-    const endpointUrl = new URL(body.subscription.endpoint);
-    if (endpointUrl.protocol !== "https:") {
-      return new Response(
-        JSON.stringify({ error: "Push endpoint must use HTTPS" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
-    }
-    const ALLOWED_PUSH_DOMAINS = [
-      ".push.services.mozilla.com",
-      ".googleapis.com",
-      ".windows.com",
-      ".notify.windows.com",
-      ".push.apple.com",
-      ".web.push.apple.com",
-    ];
-    const host = endpointUrl.hostname.toLowerCase();
-    const isAllowed = ALLOWED_PUSH_DOMAINS.some(
-      (domain) => host === domain.slice(1) || host.endsWith(domain),
-    );
-    if (!isAllowed) {
-      console.error(`Blocked push to disallowed host: ${host}`);
-      return new Response(
-        JSON.stringify({ error: "Push endpoint domain not allowed" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
-    }
-  } catch {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (!supabaseUrl) {
     return new Response(
-      JSON.stringify({ error: "Invalid push endpoint URL" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
+      JSON.stringify({ error: "SUPABASE_URL not configured" }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
+  }
+  const supabase = createClient(supabaseUrl, serviceKey);
+
+  const { data: rows, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("user_id", body.user_id);
+
+  if (error) {
+    console.error("Failed to load push subscriptions:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (!rows || rows.length === 0) {
+    return new Response(JSON.stringify({ success: true, delivered: 0 }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const payload = JSON.stringify({
@@ -454,49 +479,55 @@ Deno.serve(async (req) => {
     type: body.type ?? "completion",
   });
 
-  const status = await sendWebPush(
-    body.subscription,
-    payload,
-    vapidPrivateKey,
-    vapidPublicKey,
-    vapidSubject,
+  const results = await Promise.all(
+    rows.map(async (row) => {
+      if (!isAllowedEndpoint(row.endpoint)) {
+        console.error(`Blocked push to disallowed endpoint: ${row.endpoint}`);
+        return { endpoint: row.endpoint, status: 0 };
+      }
+      try {
+        const status = await sendWebPush(
+          { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
+          payload,
+          vapidPrivateKey,
+          vapidPublicKey,
+          vapidSubject,
+        );
+        return { endpoint: row.endpoint, status };
+      } catch (err) {
+        console.error("Push send threw:", err);
+        return { endpoint: row.endpoint, status: 0 };
+      }
+    }),
   );
 
-  if (status < 200 || status >= 300) {
-    // Only 404/410 mean the subscription is gone for good (RFC 8030 §7.3).
-    // Anything else — a 403 from a VAPID key mismatch, a 429, a push-service
-    // 5xx — leaves the subscription intact, since the device still believes
-    // it is subscribed and would never re-register.
-    if (status !== 404 && status !== 410) {
-      return new Response(JSON.stringify({ error: "Push delivery failed", status }), {
-        status: 502,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    // serviceRoleKey is already validated above; SUPABASE_URL must also be set.
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (supabaseUrl && serviceRoleKey && body.user_id) {
-      const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-      // Remove stale subscription — always scope by both endpoint AND user_id
-      // to avoid accidentally clearing another user's subscription.
-      await supabase
-        .from("profiles")
-        .update({ push_subscription: null })
-        .eq("id", body.user_id)
-        .filter("push_subscription->>endpoint", "eq", body.subscription.endpoint);
-    }
-
-    return new Response(JSON.stringify({ error: "Push delivery failed" }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
+  // Only 404/410 mean a subscription is gone for good (RFC 8030 §7.3).
+  // Anything else — a 403 from a VAPID key mismatch, a 429, a push-service
+  // 5xx — leaves it intact, since the device still believes it is subscribed
+  // and would never re-register.
+  const gone = results
+    .filter((r) => r.status === 404 || r.status === 410)
+    .map((r) => r.endpoint);
+  if (gone.length > 0) {
+    // Scoped by user_id too, so a stale request can never clear an endpoint
+    // that has since moved to another account.
+    await supabase
+      .from("push_subscriptions")
+      .delete()
+      .eq("user_id", body.user_id)
+      .in("endpoint", gone);
   }
 
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+  const delivered = results.filter((r) => r.status >= 200 && r.status < 300).length;
+  if (delivered === 0) {
+    return new Response(
+      JSON.stringify({ error: "Push delivery failed", statuses: results.map((r) => r.status) }),
+      { status: 502, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, delivered, failed: results.length - delivered }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
 });

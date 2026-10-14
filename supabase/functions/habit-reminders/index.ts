@@ -9,10 +9,6 @@ interface HabitDue {
   title: string;
   emoji: string;
   user_id: string;
-  push_subscription: {
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-  } | null;
   notification_prefs: {
     quiet_start?: string;
     quiet_end?: string;
@@ -71,11 +67,8 @@ function localDateKey(timezone: string): string {
 /** Invoke send-push; resolves true only when the push was delivered. */
 async function sendPush(
   supabaseUrl: string,
-  subscription: HabitDue["push_subscription"],
   payload: { title: string; body: string; url: string; type: string; user_id: string },
 ): Promise<boolean> {
-  if (!subscription) return false;
-
   try {
     const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: "POST",
@@ -84,7 +77,6 @@ async function sendPush(
         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       },
       body: JSON.stringify({
-        subscription,
         title: payload.title,
         body: payload.body,
         url: payload.url,
@@ -168,14 +160,13 @@ Deno.serve(async (req) => {
   }> = [];
 
   for (const habit of dueHabits) {
-    if (!habit.push_subscription) continue;
     if (isInQuietHours(habit.notification_prefs, habit.timezone)) continue;
 
     pushTasks.push({
       habitId: habit.id,
       timezone: habit.timezone,
       fn: () =>
-        sendPush(supabaseUrl, habit.push_subscription, {
+        sendPush(supabaseUrl, {
           title: `${habit.emoji} Time for ${habit.title}`,
           body: "Tap to log your completion",
           url: "/main/dashboard",

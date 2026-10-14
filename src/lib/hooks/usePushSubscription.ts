@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Json } from "@/lib/supabase/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,23 +72,36 @@ function sameKey(serverKey: ArrayBuffer | null, vapidKey: string): boolean {
 }
 
 /**
- * Serialize a PushSubscription to a plain JSON-safe object for storage.
+ * Store this device's subscription. Each device has its own row, so saving
+ * never displaces another device's.
  */
-function serializeSubscription(sub: PushSubscription) {
-  const json = sub.toJSON();
-  return {
-    endpoint: json.endpoint,
-    keys: {
-      p256dh: json.keys?.p256dh ?? null,
-      auth: json.keys?.auth ?? null,
-    },
-  };
+async function saveSubscription(sub: PushSubscription): Promise<void> {
+  const { keys } = sub.toJSON();
+  if (!keys?.p256dh || !keys?.auth) throw new Error("Push subscription has no keys");
+  const { error } = await createClient().rpc("save_push_subscription", {
+    p_endpoint: sub.endpoint,
+    p_p256dh: keys.p256dh,
+    p_auth: keys.auth,
+  });
+  if (error) throw error;
+}
+
+/** Remove this device's stored subscription, leaving the user's other devices. */
+async function deleteSubscription(endpoint: string): Promise<void> {
+  const { error } = await createClient().rpc("delete_push_subscription", {
+    p_endpoint: endpoint,
+  });
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
+/**
+ * Push state for this device. `userId` re-runs the sync when the signed-in
+ * user changes; the stored row is always written as the current auth user.
+ */
 export function usePushSubscription(userId: string) {
   const [state, setState] = useState<PushState>("unsupported");
   const [isLoading, setIsLoading] = useState(false);
@@ -128,6 +140,7 @@ export function usePushSubscription(userId: string) {
           // rotation) is rejected by the push service, so replace it.
           const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
           if (vapidKey && !sameKey(sub.options.applicationServerKey, vapidKey)) {
+            await deleteSubscription(sub.endpoint);
             await sub.unsubscribe();
             sub = await reg.pushManager.subscribe({
               userVisibleOnly: true,
@@ -137,10 +150,7 @@ export function usePushSubscription(userId: string) {
 
           // The stored row can be cleared server-side while the browser still
           // holds a live subscription — re-save it so the two stay in step.
-          await createClient()
-            .from("profiles")
-            .update({ push_subscription: serializeSubscription(sub) as unknown as Json })
-            .eq("id", userId);
+          await saveSubscription(sub);
         } catch (err) {
           console.error("Failed to sync push subscription:", err);
         }
@@ -170,14 +180,7 @@ export function usePushSubscription(userId: string) {
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
 
-      // Persist to Supabase
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({ push_subscription: serializeSubscription(sub) as unknown as Json })
-        .eq("id", userId);
-
-      if (error) throw error;
+      await saveSubscription(sub);
 
       setState("subscribed");
     } catch (err) {
@@ -189,7 +192,7 @@ export function usePushSubscription(userId: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   const unsubscribe = useCallback(async () => {
     setIsLoading(true);
@@ -197,17 +200,10 @@ export function usePushSubscription(userId: string) {
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.getSubscription();
       if (sub) {
+        // Only this device — the user's other devices keep their notifications
+        await deleteSubscription(sub.endpoint);
         await sub.unsubscribe();
       }
-
-      // Clear from Supabase
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({ push_subscription: null })
-        .eq("id", userId);
-
-      if (error) throw error;
 
       setState("unsubscribed");
     } catch (err) {
@@ -215,7 +211,7 @@ export function usePushSubscription(userId: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   return { state, isLoading, subscribe, unsubscribe };
 }

@@ -16,10 +16,8 @@ interface ShareRow {
   habit_id: string;
   shared_with: string;
   profiles: {
-    push_subscription: {
-      endpoint: string;
-      keys: { p256dh: string; auth: string };
-    } | null;
+    /** Only checked for being non-empty — send-push loads the devices itself. */
+    push_subscriptions: Array<{ endpoint: string }>;
     notification_prefs: {
       quiet_start?: string; // "HH:MM"
       quiet_end?: string; // "HH:MM"
@@ -66,11 +64,8 @@ function isInQuietHours(
 /** Invoke send-push; resolves true only when the push was delivered. */
 async function sendPush(
   supabaseUrl: string,
-  subscription: ShareRow["profiles"]["push_subscription"],
-  payload: { title: string; body: string; url: string; type: string; user_id?: string },
+  payload: { title: string; body: string; url: string; type: string; user_id: string },
 ): Promise<boolean> {
-  if (!subscription) return false;
-
   try {
     const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: "POST",
@@ -79,7 +74,6 @@ async function sendPush(
         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       },
       body: JSON.stringify({
-        subscription,
         title: payload.title,
         body: payload.body,
         url: payload.url,
@@ -166,7 +160,7 @@ Deno.serve(async (req) => {
   const { data: allShares } = await supabase
     .from("habit_shares")
     .select(
-      "habit_id, shared_with, profiles!shared_with(push_subscription, notification_prefs, timezone)",
+      "habit_id, shared_with, profiles!shared_with(notification_prefs, timezone, push_subscriptions(endpoint))",
     )
     .in("habit_id", habitIds)
     .eq("notify_miss", true);
@@ -192,13 +186,13 @@ Deno.serve(async (req) => {
       if (profile.notification_prefs?.enabled === false) continue;
 
       // Skip if no push subscription
-      if (!profile.push_subscription) continue;
+      if (!profile.push_subscriptions?.length) continue;
 
       // Skip if in quiet hours
       if (isInQuietHours(profile.notification_prefs, profile.timezone)) continue;
 
       pushTasks.push(() =>
-        sendPush(supabaseUrl, profile.push_subscription, {
+        sendPush(supabaseUrl, {
           title: `${habit.emoji} ${habit.user_name} missed ${habit.title}`,
           body: "Send some encouragement!",
           url: `/main/feed/${habit.user_id}`,
