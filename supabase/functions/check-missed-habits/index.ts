@@ -63,15 +63,16 @@ function isInQuietHours(
   }
 }
 
+/** Invoke send-push; resolves true only when the push was delivered. */
 async function sendPush(
   supabaseUrl: string,
   subscription: ShareRow["profiles"]["push_subscription"],
   payload: { title: string; body: string; url: string; type: string; user_id?: string },
-): Promise<void> {
-  if (!subscription) return;
+): Promise<boolean> {
+  if (!subscription) return false;
 
   try {
-    await fetch(`${supabaseUrl}/functions/v1/send-push`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -86,8 +87,13 @@ async function sendPush(
         user_id: payload.user_id,
       }),
     });
+    if (!res.ok) {
+      console.error(`send-push failed (${res.status}): ${await res.text()}`);
+    }
+    return res.ok;
   } catch (err) {
     console.error("Failed to invoke send-push:", err);
+    return false;
   }
 }
 
@@ -174,7 +180,7 @@ Deno.serve(async (req) => {
   }
 
   // Collect all push payloads, then send in batches
-  const pushTasks: Array<() => Promise<void>> = [];
+  const pushTasks: Array<() => Promise<boolean>> = [];
 
   for (const habit of habits) {
     const shares = sharesByHabit.get(habit.id) ?? [];
@@ -209,7 +215,7 @@ Deno.serve(async (req) => {
   for (let i = 0; i < pushTasks.length; i += BATCH_SIZE) {
     const batch = pushTasks.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(batch.map((fn) => fn()));
-    sent += results.filter((r) => r.status === "fulfilled").length;
+    sent += results.filter((r) => r.status === "fulfilled" && r.value).length;
   }
 
   return new Response(
