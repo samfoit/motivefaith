@@ -74,7 +74,7 @@ export default function DmcaPage() {
           <p>MotiveFaith</p>
           <p>
             Email:{" "}
-            <span className="font-medium">dmca@motivefaith.app</span>
+            <span className="font-medium">dmca@motivefaith.com</span>
           </p>
         </div>
       </section>
