@@ -18,7 +18,6 @@ import {
 } from "@/lib/utils/schedule";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { cn } from "@/lib/utils/cn";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import type { MoveLabels } from "@/lib/types/habit";
 import type { CheckInAction } from "@/lib/constants/check-in";
@@ -28,6 +27,9 @@ import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 import { DashboardContentSkeleton } from "./DashboardSkeleton";
+import { ViewMenu } from "./ViewMenu";
+import { TopBarActions, TopBarTitle } from "@/components/layout/TopBarSlots";
+import { TOP_BAR_TITLE_CLASS, TOP_BAR_TITLE_STYLE } from "@/components/layout/topBarStyles";
 import { OfflinePanel } from "@/components/pwa/OfflinePanel";
 import {
   persistDashboardView,
@@ -158,15 +160,6 @@ function getGreeting(timeZone: string): string {
   return "Good evening";
 }
 
-function formatToday(timeZone: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    timeZone,
-  }).format(new Date());
-}
-
 const STREAK_MILESTONES = [7, 14, 21, 30, 50, 100] as const;
 
 const MILESTONE_MESSAGES: Record<number, string> = {
@@ -199,7 +192,7 @@ type PendingCompletion = {
 
 interface DashboardClientProps {
   /**
-   * Rendered beside the greeting. Passed down from the page so the link stays
+   * Rendered in the TopBar beside the view menu. Passed down from the page so the link stays
    * in the Server Component — it is the same markup for every user, which is
    * the point of the shell.
    */
@@ -460,6 +453,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     [todayHabits, completionMap],
   );
 
+
   const handleCompletion = async ({
     type,
     evidenceUrl,
@@ -684,30 +678,27 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         This document is cached by the service worker and replayed to whoever
         opens the app next, including tomorrow and including offline. A
         time-of-day greeting or the user's name baked in at request time would
-        be both stale and a data leak. The height is reserved so filling it in
-        after hydration shifts nothing below it (the dashboard's CLS is
-        0.0000 and must stay there), and the h1 is single-line so a long
-        display name cannot reflow the header either.
+        be both stale and a data leak. It goes into the TopBar, whose height is
+        fixed, so filling it in after hydration shifts nothing (the
+        dashboard's CLS is 0.0000 and must stay there), and the h1 is
+        single-line so a long display name cannot reflow the bar either.
+        No date under it: the phone already shows one, and two lines left the
+        56px bar no room to breathe.
       */}
-      <div className="flex items-center justify-between min-h-[3.25rem]">
-        <div className="min-w-0">
-          {isClient && (
-            <>
-              <h1
-                className="font-display font-bold text-text-primary truncate"
-                style={{ fontSize: "var(--text-2xl)" }}
-              >
-                {getGreeting(timezone)}
-                {firstName ? `, ${firstName}` : ""}
-              </h1>
-              <p className="text-sm text-text-secondary mt-1">
-                {formatToday(timezone)}
-              </p>
-            </>
-          )}
-        </div>
+      {isClient && (
+        <TopBarTitle>
+          <h1 className={TOP_BAR_TITLE_CLASS} style={TOP_BAR_TITLE_STYLE}>
+            {getGreeting(timezone)}
+            {firstName ? `, ${firstName}` : ""}
+          </h1>
+        </TopBarTitle>
+      )}
+      <TopBarActions>
+        {showData && habits.length > 0 && (
+          <ViewMenu value={viewMode} onChange={handleViewModeChange} />
+        )}
         {headerAction}
-      </div>
+      </TopBarActions>
 
       {isPending && <DashboardContentSkeleton />}
 
@@ -719,27 +710,6 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       */}
       {isError && !data && (
         <OfflinePanel what="Your habits" onRetry={() => void refetch()} />
-      )}
-
-      {/* View Toggle */}
-      {showData && habits.length > 0 && (
-        <div className="flex gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)]">
-          {(["day", "week", "month"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => handleViewModeChange(mode)}
-              className={cn(
-                "flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize",
-                viewMode === mode
-                  ? "bg-brand text-white"
-                  : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
-              )}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
       )}
 
       {/* Views */}

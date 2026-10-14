@@ -463,6 +463,17 @@ body {
   animation: install-prompt-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Dashboard view menu: grows from the trigger's corner, so it reads as
+   coming out of the icon that opened it. */
+@keyframes view-menu-enter {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+}
+
+.view-menu {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+  animation: view-menu-enter 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* ── Reduced motion ──────────────────────────────────────────────────────
    Honour prefers-reduced-motion across every animation in the app. The
    skeleton delay is deliberately preserved — it is timing hygiene, not
@@ -485,6 +496,7 @@ body {
   .auth-card-enter,
   .fr-stagger-container > *,
   .install-prompt-enter,
+  .view-menu,
   .nav-progress-bar,
   .landing-animate-on-scroll,
   .landing-checkmark,

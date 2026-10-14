@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
+import { TOP_BAR_PRIMARY_ACTION_CLASS } from "@/components/layout/topBarStyles";
 import { DashboardClient } from "./dashboard-client";
 
 /**
@@ -39,9 +40,9 @@ export default function DashboardPage() {
           <Link
             href="/main/habits/new"
             aria-label="Create new habit"
-            className="flex items-center justify-center w-9 h-9 rounded-full bg-brand text-text-primary hover:bg-brand-hover transition-colors"
+            className={TOP_BAR_PRIMARY_ACTION_CLASS}
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" strokeWidth={2.5} />
           </Link>
         }
       />

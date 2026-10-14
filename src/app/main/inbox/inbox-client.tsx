@@ -109,14 +109,6 @@ export function InboxClient({
   return (
     <div>
       <div className="max-w-2xl mx-auto px-3 pt-4 space-y-4">
-        {/* Header */}
-        <h1
-          className="font-display font-bold text-[var(--color-text-primary)]"
-          style={{ fontSize: "var(--text-2xl)" }}
-        >
-          Inbox
-        </h1>
-
         {/* Partnership decisions come first — they are the only thing here
             that is waiting on the user, and they do not expire at midnight
             the way a missed-habit nudge does. */}

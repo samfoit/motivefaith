@@ -1,0 +1,61 @@
+"use client";
+
+import { useEffect, useCallback } from "react";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { Bell } from "lucide-react";
+import { TOP_BAR_ICON_BUTTON_CLASS } from "./topBarStyles";
+import { useMissedHabitCount } from "@/lib/hooks/useMissedHabits";
+import { usePartnerInbox, PARTNER_INBOX_KEY } from "@/lib/hooks/usePartnerInbox";
+import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+
+/**
+ * Inbox link with its unread badge.
+ *
+ * Always the last thing in the TopBar, in the same place on every screen.
+ */
+export function InboxBell() {
+  const userId = useAuthUserId();
+  const queryClient = useQueryClient();
+  const { data: missedCount = 0 } = useMissedHabitCount(userId);
+  // Unanswered invitations and requests belong on the same badge: both are
+  // things the inbox is holding for you. A missed-habit nudge clears itself at
+  // midnight; a partnership question does not, so it is worth the dot.
+  const { data: partnerItems = [] } = usePartnerInbox(userId);
+  const unreadCount = missedCount + partnerItems.length;
+
+  // Invalidate missed-habits count on tab focus / visibility change
+  // instead of maintaining a separate realtime channel.
+  // The feed page's realtime channel already listens for completions;
+  // this covers the case where the user returns to the app.
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["missed-habits-count"] });
+    queryClient.invalidateQueries({ queryKey: PARTNER_INBOX_KEY });
+  }, [queryClient]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") invalidate();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [invalidate]);
+
+  return (
+    <Link
+      href="/main/inbox"
+      className={TOP_BAR_ICON_BUTTON_CLASS}
+      aria-label={unreadCount > 0 ? `Inbox, ${unreadCount} unread` : "Inbox"}
+    >
+      <Bell className="w-5 h-5" />
+      {unreadCount > 0 && (
+        <span
+          aria-hidden
+          className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-miss rounded-full"
+        >
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
+    </Link>
+  );
+}

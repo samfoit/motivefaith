@@ -90,7 +90,7 @@ test.describe("Offline dashboard", () => {
     }
 
     const before = await page.locator("body").innerText();
-    const progressBefore = before.match(/Today's progress\s+(\d+)\/(\d+)/);
+    const progressBefore = before.match(/(\d+)\/(\d+)/);
     await complete.click();
 
     // Past the 6s undo window, so the check-in is actually committed/queued.
@@ -107,7 +107,7 @@ test.describe("Offline dashboard", () => {
     await page.goto("/main/dashboard", { waitUntil: "load" });
     await page.waitForTimeout(2000);
     const after = await page.locator("body").innerText();
-    const progressAfter = after.match(/Today's progress\s+(\d+)\/(\d+)/);
+    const progressAfter = after.match(/(\d+)\/(\d+)/);
 
     if (progressBefore && progressAfter) {
       expect(Number(progressAfter[1])).toBe(Number(progressBefore[1]) + 1);

@@ -13,6 +13,8 @@ import { useFeedStaleStore } from "@/lib/stores/feed-stale-store";
 import { cn } from "@/lib/utils/cn";
 import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
+import { TopBarActions } from "@/components/layout/TopBarSlots";
+import { TOP_BAR_PRIMARY_ACTION_CLASS } from "@/components/layout/topBarStyles";
 
 // ---------------------------------------------------------------------------
 // Animation helpers
@@ -242,22 +244,16 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
   return (
     <div>
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1
-            className="font-display font-bold text-[var(--color-text-primary)]"
-            style={{ fontSize: "var(--text-2xl)" }}
-          >
-            Feed
-          </h1>
+        {/* The title is the TopBar's; the action goes into it. */}
+        <TopBarActions>
           <Link
             href="/main/feed/new-group"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-hover transition-colors"
+            className={TOP_BAR_PRIMARY_ACTION_CLASS}
           >
             <Plus className="w-4 h-4" />
             <span>New Group</span>
           </Link>
-        </div>
+        </TopBarActions>
 
         {/* Filter tabs (only show if user has both friends and groups) */}
         {hasGroups && effectiveFriends.length > 0 && (

@@ -5,8 +5,8 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 /**
  * Route-level loading geometry for `/main/friends`.
  *
- * The boxes mirror what `FriendsClient` actually renders — title, search
- * field, tab pill, then friend rows at the card's real size (32px avatar in
+ * The boxes mirror what `FriendsClient` actually renders — search field,
+ * tab pill, then friend rows at the card's real size (32px avatar in
  * a `p-3` row, not a 48px one in `px-4 py-3`). The old copy was taller than
  * the screen it stood in for, so the content visibly jumped up when it
  * arrived.
@@ -17,7 +17,6 @@ export default function FriendsLoading() {
       label="Loading friends"
       className="max-w-2xl mx-auto px-4 pt-4 space-y-4 sm:pt-6 sm:space-y-6"
     >
-      <Skeleton variant="text" width="30%" height={32} />
       <Skeleton variant="rect" width="100%" height={44} className="rounded-lg" />
       <div>
         <Skeleton variant="rect" width="100%" height={48} className="rounded-lg mb-4" />

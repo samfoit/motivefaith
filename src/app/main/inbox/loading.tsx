@@ -6,7 +6,6 @@ export default function InboxLoading() {
   return (
     <div className="min-h-screen">
       <SkeletonScreen label="Loading inbox" className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
-        <Skeleton variant="text" width={80} height={32} />
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
             <div

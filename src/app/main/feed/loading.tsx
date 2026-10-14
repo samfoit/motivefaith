@@ -24,7 +24,6 @@ export default function FeedLoading() {
   return (
     <div className="min-h-screen">
       <SkeletonScreen label="Loading your feed" className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
-        <Skeleton variant="text" width={80} height={32} />
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
             <FriendRowSkeleton key={i} />
