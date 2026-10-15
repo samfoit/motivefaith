@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
 import { Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useAudioPlayback } from "@/lib/hooks/useAudioPlayback";
 
-function formatClock(seconds: number): string {
+export function formatClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
@@ -19,60 +19,7 @@ function formatClock(seconds: number): string {
  * bubble that sizes itself to its contents still has room for the track.
  */
 export function AudioPlayer({ src, className }: { src: string; className?: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
-  /** True while forcing Chrome to work out a recorder file's length. */
-  const probingRef = useRef(false);
-
-  // A file straight from MediaRecorder (Chrome's webm) has no duration in its
-  // header, so the element reports Infinity until it has read to the end.
-  // Seeking far past the end makes it do that up front; the timeupdate that
-  // follows carries the real length, and the playhead goes back to 0.
-  const readDuration = useCallback(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (Number.isFinite(el.duration)) {
-      setDuration(el.duration);
-      return;
-    }
-    probingRef.current = true;
-    el.currentTime = 1e101;
-  }, []);
-
-  const handleTimeUpdate = useCallback(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (probingRef.current) {
-      if (!Number.isFinite(el.duration)) return;
-      probingRef.current = false;
-      setDuration(el.duration);
-      el.currentTime = 0;
-      return;
-    }
-    setCurrent(el.currentTime);
-  }, []);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    return () => el?.pause();
-  }, []);
-
-  const toggle = useCallback(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (el.paused) void el.play().catch(() => setPlaying(false));
-    else el.pause();
-  }, []);
-
-  const seek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const el = audioRef.current;
-    if (!el) return;
-    const t = Number(e.target.value);
-    el.currentTime = t;
-    setCurrent(t);
-  }, []);
+  const { audioProps, playing, current, duration, toggle, seek } = useAudioPlayback();
 
   const progress = duration > 0 ? Math.min(1, current / duration) : 0;
   // The length before it plays, the position once it has started.
@@ -80,23 +27,7 @@ export function AudioPlayer({ src, className }: { src: string; className?: strin
 
   return (
     <div className={cn("flex w-56 max-w-full items-center gap-2.5", className)}>
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="metadata"
-        onLoadedMetadata={readDuration}
-        onDurationChange={() => {
-          const d = audioRef.current?.duration;
-          if (d && Number.isFinite(d) && !probingRef.current) setDuration(d);
-        }}
-        onTimeUpdate={handleTimeUpdate}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => {
-          setPlaying(false);
-          setCurrent(0);
-        }}
-      />
+      <audio src={src} {...audioProps} />
 
       <button
         type="button"
@@ -134,7 +65,7 @@ export function AudioPlayer({ src, className }: { src: string; className?: strin
           max={duration || 0}
           step={0.1}
           value={Math.min(current, duration || 0)}
-          onChange={seek}
+          onChange={(e) => seek(Number(e.target.value))}
           disabled={!duration}
           aria-label="Seek"
           aria-valuetext={`${formatClock(current)} of ${formatClock(duration)}`}

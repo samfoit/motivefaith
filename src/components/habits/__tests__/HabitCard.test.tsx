@@ -222,14 +222,16 @@ describe("HabitCard", () => {
     expect(onPress).toHaveBeenCalledWith("habit-1");
   });
 
-  it("shows last completion time", () => {
-    const recentTime = new Date(Date.now() - 3600 * 1000).toISOString(); // 1 hour ago
+  it("says when the habit was last done, in calendar days", () => {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    threeDaysAgo.setHours(12, 0, 0, 0);
 
     render(
       <HabitCard
         habit={makeHabit({
           completions: [
-            { id: "c-1", completed_at: recentTime, completion_type: "quick" },
+            { id: "c-1", completed_at: threeDaysAgo.toISOString(), completion_type: "quick" },
           ],
         })}
         completedToday={false}
@@ -237,8 +239,31 @@ describe("HabitCard", () => {
       />,
     );
 
-    // formatDistanceToNow will render something like "about 1 hour ago"
-    expect(screen.getByText(/hour ago/i)).toBeInTheDocument();
+    expect(screen.getByText("Last done 3 days ago")).toBeInTheDocument();
+  });
+
+  it("does not count a rain check as the last time it was done", () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(12, 0, 0, 0);
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    lastWeek.setHours(12, 0, 0, 0);
+
+    render(
+      <HabitCard
+        habit={makeHabit({
+          completions: [
+            { id: "c-1", completed_at: lastWeek.toISOString(), completion_type: "quick" },
+            { id: "c-2", completed_at: yesterday.toISOString(), completion_type: "rain_check" },
+          ],
+        })}
+        completedToday={false}
+        onQuickComplete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Last done 7 days ago")).toBeInTheDocument();
   });
 
   it("opens the check-in drawer from the chevron and reports the choice", async () => {

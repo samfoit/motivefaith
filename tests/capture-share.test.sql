@@ -66,9 +66,11 @@ WHERE id = 'c1000000-0000-4000-8000-000000000001';
 
 -- notification_prefs = '{}' so the default quiet hours cannot hold a push back.
 UPDATE public.profiles SET display_name = 'Friend', username = 'cs_friend', timezone = 'UTC',
-  push_subscription = '{"endpoint":"https://push.test/friend","keys":{"p256dh":"x","auth":"y"}}'::jsonb,
   notification_prefs = '{}'::jsonb
 WHERE id = 'c2000000-0000-4000-8000-000000000002';
+
+INSERT INTO public.push_subscriptions (endpoint, user_id, p256dh, auth)
+VALUES ('https://push.test/friend', 'c2000000-0000-4000-8000-000000000002', 'x', 'y');
 
 INSERT INTO public.friendships (register_id, addressee_id, status) VALUES
   ('c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000002', 'accepted');

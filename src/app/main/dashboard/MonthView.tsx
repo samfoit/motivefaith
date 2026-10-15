@@ -1,102 +1,13 @@
 "use client";
 
 import { memo, useState, useMemo } from "react";
-import {
-  format,
-  eachDayOfInterval,
-  startOfMonth,
-  endOfMonth,
-  isSameDay,
-  isToday,
-  isFuture,
-} from "date-fns";
-import { Flame, Check } from "lucide-react";
+import { format, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
+import { Flame } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { toDateKey, getDayOfWeek } from "@/lib/utils/timezone";
-import { isHabitDueOn } from "@/lib/utils/schedule";
+import { toDateKey, todayDateKey, getDayOfWeek } from "@/lib/utils/timezone";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
-
-// Memoized day cell to avoid re-computing per-day data for the entire grid
-const MonthDayCell = memo(function MonthDayCell({
-  day,
-  habits,
-  timezone,
-  isSelected,
-  onSelect,
-  dayKey,
-  completionKeys,
-}: {
-  day: Date;
-  habits: HabitWithCompletions[];
-  timezone: string;
-  isSelected: boolean;
-  onSelect: (day: Date) => void;
-  dayKey: string;
-  completionKeys: Map<string, Set<string>>;
-}) {
-  const td = isToday(day);
-  const future = isFuture(day) && !td;
-  const scheduled = habits.filter((h) => isHabitDueOn(h, day, dayKey, timezone));
-  const completedHabits = scheduled.filter(
-    (h) => completionKeys.get(h.id)?.has(dayKey) ?? false,
-  );
-  const allDone =
-    scheduled.length > 0 &&
-    completedHabits.length === scheduled.length &&
-    !future;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(day)}
-      className={cn(
-        "aspect-square rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors relative",
-        isSelected && "bg-brand/10 ring-1 ring-brand-ink",
-        !isSelected && td && "bg-[var(--color-bg-elevated)]",
-        !isSelected && !td && "hover:bg-[var(--color-surface-hover)]",
-      )}
-    >
-      <span
-        className={cn(
-          "text-xs font-medium leading-none",
-          td && "text-brand-ink",
-          !td && !future && "text-[var(--color-text-primary)]",
-          future && "text-[var(--color-text-tertiary)]",
-          allDone && "text-success",
-        )}
-      >
-        {format(day, "d")}
-      </span>
-
-      {/* Habit dots */}
-      {scheduled.length > 0 && (
-        <div className="flex gap-[2px] items-center">
-          {scheduled.slice(0, 4).map((h) => (
-            <span
-              key={h.id}
-              className={cn(
-                "w-[5px] h-[5px] rounded-full shrink-0",
-                future
-                  ? "opacity-25"
-                  : (completionKeys.get(h.id)?.has(dayKey) ?? false)
-                    ? ""
-                    : "opacity-30",
-              )}
-              style={{
-                backgroundColor: h.color ?? "var(--color-brand)",
-              }}
-            />
-          ))}
-          {scheduled.length > 4 && (
-            <span className="text-[7px] text-[var(--color-text-tertiary)] leading-none">
-              +{scheduled.length - 4}
-            </span>
-          )}
-        </div>
-      )}
-    </button>
-  );
-});
+import { habitDayState, indexHabitDays, type DayState } from "./day-state";
+import { DayMark } from "./DayMark";
 
 interface MonthViewProps {
   habits: HabitWithCompletions[];
@@ -104,155 +15,287 @@ interface MonthViewProps {
   onHabitPress: (habitId: string) => void;
 }
 
+interface DaySummary {
+  date: Date;
+  key: string;
+  /** Each habit's state on this day, in `habits` order. */
+  states: DayState[];
+  /** Habits this day asks for — done, rain-checked, missed or still to come. */
+  due: number;
+  done: number;
+  rain: number;
+}
+
+const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
+
+/**
+ * The month as a grid of progress rings.
+ *
+ * It used to give every day an 80px square with a row of habit-coloured dots
+ * and a "+4" — but habits mostly share the brand colour, so every day showed
+ * the same dots and nothing could be read off the month. Now each date sits
+ * in a ring that fills green with the share of that day's habits done (blue
+ * for rain checks) and turns solid when the day was finished: the shape of
+ * the month is readable at a glance, and the grid is short enough that the
+ * selected day's habits are on the same screen.
+ */
 export const MonthView = memo(function MonthView({
   habits,
   timezone,
   onHabitPress,
 }: MonthViewProps) {
-  const [selectedDay, setSelectedDay] = useState<Date>(new Date());
+  const todayKey = todayDateKey(timezone);
+  const [selectedKey, setSelectedKey] = useState(todayKey);
 
-  const monthDays = useMemo(() => {
-    const now = new Date();
-    return eachDayOfInterval({
-      start: startOfMonth(now),
-      end: endOfMonth(now),
-    });
-  }, []);
+  const monthStart = useMemo(() => startOfMonth(new Date()), []);
 
-  const monthStartOffset = useMemo(
-    () => (getDayOfWeek(startOfMonth(new Date()), timezone) + 6) % 7,
-    [timezone],
+  const days = useMemo<DaySummary[]>(() => {
+    const indexes = habits.map((h) => indexHabitDays(h, timezone));
+    return eachDayOfInterval({ start: monthStart, end: endOfMonth(monthStart) }).map(
+      (date) => {
+        const key = toDateKey(date, timezone);
+        const states = habits.map((h, i) =>
+          habitDayState(h, indexes[i], date, key, todayKey, timezone),
+        );
+        return {
+          date,
+          key,
+          states,
+          due: states.filter((s) => s !== "off").length,
+          done: states.filter((s) => s === "done").length,
+          rain: states.filter((s) => s === "rain").length,
+        };
+      },
+    );
+  }, [habits, timezone, todayKey, monthStart]);
+
+  const leadingBlanks = (getDayOfWeek(monthStart, timezone) + 6) % 7;
+
+  // Month so far: only days that have happened can be done or missed.
+  const monthDone = days.reduce((n, d) => n + (d.key <= todayKey ? d.done : 0), 0);
+  const monthDue = days.reduce(
+    (n, d) => n + (d.key <= todayKey ? d.due : 0),
+    0,
   );
 
-  // Pre-compute date keys for all month days and completion date keys per habit.
-  // Reduces O(habits × days × completions) toDateKey calls to O(days + total completions).
-  const dayKeyMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const day of monthDays) m.set(day.toISOString(), toDateKey(day, timezone));
-    return m;
-  }, [monthDays, timezone]);
-
-  const completionKeys = useMemo(() => {
-    const m = new Map<string, Set<string>>();
-    for (const h of habits)
-      m.set(h.id, new Set(h.completions.map((c) => toDateKey(c.completed_at, timezone))));
-    return m;
-  }, [habits, timezone]);
-
-  const selectedDayHabits = useMemo(
-    () =>
-      habits.filter((h) =>
-        isHabitDueOn(h, selectedDay, toDateKey(selectedDay, timezone), timezone),
-      ),
-    [habits, selectedDay, timezone],
-  );
-
-  const selectedDayKey = useMemo(
-    () => toDateKey(selectedDay, timezone),
-    [selectedDay, timezone],
-  );
+  const selected = days.find((d) => d.key === selectedKey) ?? days[0];
+  const selectedHabits = habits
+    .map((habit, i) => ({ habit, state: selected.states[i] }))
+    .filter(({ state }) => state !== "off");
+  const selectedIsFuture = selected.key > todayKey;
 
   return (
     <div className="space-y-4">
-      {/* Month header */}
-      <h2
-        className="text-center font-display font-medium text-[var(--color-text-primary)]"
-        style={{ fontSize: "var(--text-lg)" }}
-      >
-        {format(monthDays[0], "MMMM yyyy")}
-      </h2>
+      <div className="rounded-lg bg-bg-secondary px-2 pt-3 pb-2">
+        <div className="flex items-baseline justify-between gap-3 px-2 mb-2">
+          <h2 className="font-display font-medium text-text-primary text-base">
+            {format(monthStart, "MMMM yyyy")}
+          </h2>
+          {monthDue > 0 && (
+            <p className="text-xs text-text-secondary tabular-nums">
+              {monthDone} of {monthDue} done so far
+            </p>
+          )}
+        </div>
 
-      {/* Calendar grid */}
-      <div className="rounded-xl bg-[var(--color-bg-secondary)] p-3">
-        {/* Day-of-week headers */}
-        <div className="grid grid-cols-7 mb-1">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+        <div className="grid grid-cols-7" aria-hidden>
+          {WEEKDAYS.map((d, i) => (
             <span
-              key={d}
-              className="text-[10px] font-medium text-[var(--color-text-tertiary)] text-center py-1"
+              key={i}
+              className="text-[10px] font-medium text-text-secondary text-center py-1"
             >
               {d}
             </span>
           ))}
         </div>
 
-        {/* Day cells */}
-        <div className="grid grid-cols-7 gap-px">
-          {/* Offset cells */}
-          {Array.from({ length: monthStartOffset }).map((_, i) => (
-            <div key={`empty-${i}`} className="aspect-square" />
+        <div className="grid grid-cols-7">
+          {Array.from({ length: leadingBlanks }).map((_, i) => (
+            <div key={`blank-${i}`} />
           ))}
-
-          {monthDays.map((day) => (
-            <MonthDayCell
-              key={day.toISOString()}
+          {days.map((day) => (
+            <DayCell
+              key={day.key}
               day={day}
-              habits={habits}
-              timezone={timezone}
-              isSelected={isSameDay(day, selectedDay)}
-              onSelect={setSelectedDay}
-              dayKey={dayKeyMap.get(day.toISOString()) ?? ""}
-              completionKeys={completionKeys}
+              isToday={day.key === todayKey}
+              isFuture={day.key > todayKey}
+              isSelected={day.key === selected.key}
+              onSelect={setSelectedKey}
             />
           ))}
         </div>
       </div>
 
-      {/* Selected day habit list */}
-      <div>
-        <h3 className="text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-          {isToday(selectedDay)
-            ? "Today"
-            : format(selectedDay, "EEEE, MMMM d")}
-        </h3>
-        <div
-          key={selectedDay.toISOString()}
-          className="space-y-2 mv-day-list"
-        >
-          {selectedDayHabits.map((habit) => {
-            const completed = completionKeys.get(habit.id)?.has(selectedDayKey) ?? false;
-            const isPast = !isFuture(selectedDay) || isToday(selectedDay);
-            return (
-              <div key={habit.id}>
-                <button
-                  type="button"
-                  onClick={() => onHabitPress(habit.id)}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-[var(--color-bg-elevated)] hover:bg-[var(--color-surface-hover)] transition-colors text-left"
-                  style={{
-                    borderLeft: `3px solid ${habit.color ?? "var(--color-brand)"}`,
-                  }}
-                >
-                  <span className="text-lg">{habit.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-[var(--color-text-primary)] truncate block">
-                      {habit.title}
-                    </span>
-                    {(habit.streak_current ?? 0) > 0 && (
-                      <span className="text-xs text-streak flex items-center gap-0.5 mt-0.5">
-                        <Flame className="w-3 h-3" />
-                        {habit.streak_current} {habit.frequency === "weekly" ? "week" : "day"} streak
-                      </span>
-                    )}
-                  </div>
-                  {isPast &&
-                    (completed ? (
-                      <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5 text-on-brand" />
-                      </div>
-                    ) : (
-                      <div className="w-6 h-6 rounded-full border-2 border-[var(--color-text-tertiary)] shrink-0" />
-                    ))}
-                </button>
-              </div>
-            );
-          })}
-          {selectedDayHabits.length === 0 && (
-            <p className="text-sm text-[var(--color-text-tertiary)] text-center py-4">
-              No habits scheduled
+      {/* The selected day, in the week grid's row style. */}
+      <section aria-live="polite">
+        <div className="flex items-baseline justify-between gap-3 mb-2 px-1">
+          <h3 className="text-sm font-medium text-text-secondary">
+            {selected.key === todayKey ? "Today" : format(selected.date, "EEEE, MMMM d")}
+          </h3>
+          {selected.due > 0 && !selectedIsFuture && (
+            <p className="text-xs text-text-secondary tabular-nums">
+              {selected.done} of {selected.due} done
             </p>
           )}
         </div>
-      </div>
+
+        {selectedHabits.length > 0 ? (
+          <ul
+            key={selected.key}
+            className="rounded-lg bg-bg-secondary overflow-hidden divide-y divide-bg-primary mv-day-list"
+          >
+            {selectedHabits.map(({ habit, state }) => (
+              <li key={habit.id}>
+                <button
+                  type="button"
+                  onClick={() => onHabitPress(habit.id)}
+                  className="w-full min-h-12 flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-hover transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+                >
+                  <span className="text-base shrink-0" aria-hidden>
+                    {habit.emoji}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">
+                      {habit.title}
+                    </p>
+                    {(habit.streak_current ?? 0) > 0 && (
+                      <p className="flex items-center gap-0.5 text-streak text-xs font-mono font-semibold">
+                        <Flame className="w-3 h-3" aria-hidden />
+                        {habit.streak_current}
+                      </p>
+                    )}
+                  </div>
+                  <span className="sr-only">{STATE_LABELS[state]}</span>
+                  <span className="w-7 flex justify-center shrink-0" aria-hidden>
+                    <DayMark state={state} />
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-text-secondary text-center py-6">
+            Nothing scheduled this day
+          </p>
+        )}
+      </section>
     </div>
+  );
+});
+
+const STATE_LABELS: Record<DayState, string> = {
+  done: "Done",
+  rain: "Rain check",
+  missed: "Missed",
+  today: "Not done yet",
+  upcoming: "Scheduled",
+  off: "Not scheduled",
+};
+
+const RING_SIZE = 34;
+const RING_STROKE = 3;
+const RING_R = (RING_SIZE - RING_STROKE) / 2;
+const RING_C = 2 * Math.PI * RING_R;
+
+const DayCell = memo(function DayCell({
+  day,
+  isToday,
+  isFuture,
+  isSelected,
+  onSelect,
+}: {
+  day: DaySummary;
+  isToday: boolean;
+  isFuture: boolean;
+  isSelected: boolean;
+  onSelect: (key: string) => void;
+}) {
+  const { due, done, rain } = day;
+  const showRing = !isFuture && due > 0;
+  const complete = showRing && done === due;
+  const doneArc = showRing ? (done / due) * RING_C : 0;
+  const rainArc = showRing ? (rain / due) * RING_C : 0;
+
+  const label = `${format(day.date, "MMMM d")}: ${
+    due === 0
+      ? "nothing scheduled"
+      : isFuture
+        ? `${due} scheduled`
+        : `${done} of ${due} done`
+  }`;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(day.key)}
+      aria-label={label}
+      aria-pressed={isSelected}
+      className={cn(
+        "h-12 flex items-center justify-center rounded-lg transition-colors",
+        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand",
+        isSelected ? "bg-surface-hover" : "hover:bg-surface-hover/60",
+      )}
+    >
+      <span
+        className="relative flex items-center justify-center"
+        style={{ width: RING_SIZE, height: RING_SIZE }}
+      >
+        {showRing && !complete && (
+          <svg
+            className="absolute inset-0 -rotate-90"
+            width={RING_SIZE}
+            height={RING_SIZE}
+            aria-hidden
+          >
+            <circle
+              cx={RING_SIZE / 2}
+              cy={RING_SIZE / 2}
+              r={RING_R}
+              fill="none"
+              strokeWidth={RING_STROKE}
+              className="stroke-text-tertiary/25"
+            />
+            {doneArc > 0 && (
+              <circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_R}
+                fill="none"
+                strokeWidth={RING_STROKE}
+                strokeDasharray={`${doneArc} ${RING_C}`}
+                className="stroke-success"
+              />
+            )}
+            {rainArc > 0 && (
+              <circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_R}
+                fill="none"
+                strokeWidth={RING_STROKE}
+                strokeDasharray={`${rainArc} ${RING_C}`}
+                strokeDashoffset={-doneArc}
+                style={{ stroke: "var(--color-rain)" }}
+              />
+            )}
+          </svg>
+        )}
+        {complete && <span className="absolute inset-0 rounded-full bg-brand" />}
+        <span
+          className={cn(
+            "relative text-xs tabular-nums leading-none",
+            complete
+              ? "text-on-brand font-bold"
+              : isToday
+                ? "text-brand-ink font-bold"
+                : isFuture || due === 0
+                  ? "text-text-tertiary"
+                  : "text-text-primary font-medium",
+          )}
+        >
+          {format(day.date, "d")}
+        </span>
+      </span>
+    </button>
   );
 });

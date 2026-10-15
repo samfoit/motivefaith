@@ -8,10 +8,6 @@ interface ProfileRow {
   id: string;
   display_name: string;
   timezone: string;
-  push_subscription: {
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-  } | null;
   notification_prefs: {
     quiet_start?: string;
     quiet_end?: string;
@@ -90,22 +86,19 @@ function getLocalSundayInfo(
   }
 }
 
+/** Invoke send-push; resolves true only when the push was delivered. */
 async function sendPush(
   supabaseUrl: string,
-  subscription: ProfileRow["push_subscription"],
   payload: { title: string; body: string; url: string; type: string; user_id: string },
-): Promise<void> {
-  if (!subscription) return;
-
+): Promise<boolean> {
   try {
-    await fetch(`${supabaseUrl}/functions/v1/send-push`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       },
       body: JSON.stringify({
-        subscription,
         title: payload.title,
         body: payload.body,
         url: payload.url,
@@ -113,8 +106,13 @@ async function sendPush(
         user_id: payload.user_id,
       }),
     });
+    if (!res.ok) {
+      console.error(`send-push failed (${res.status}): ${await res.text()}`);
+    }
+    return res.ok;
   } catch (err) {
     console.error("Failed to invoke send-push:", err);
+    return false;
   }
 }
 
@@ -186,11 +184,11 @@ Deno.serve(async (req) => {
     serviceRoleKey,
   );
 
-  // Fetch all profiles with push subscriptions
+  // Fetch all profiles with at least one push subscription (the inner join
+  // drops the rest; send-push loads the devices itself)
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
-    .select("id, display_name, timezone, push_subscription, notification_prefs, last_weekly_summary_date")
-    .not("push_subscription", "is", null);
+    .select("id, display_name, timezone, notification_prefs, last_weekly_summary_date, push_subscriptions!inner(endpoint)");
 
   if (profilesError) {
     console.error("Failed to fetch profiles:", profilesError);
@@ -201,7 +199,6 @@ Deno.serve(async (req) => {
   // single-hour Sunday window, and not already sent today.
   const eligible: Array<{ profile: ProfileRow; localDate: string }> = [];
   for (const profile of (profiles ?? []) as ProfileRow[]) {
-    if (!profile.push_subscription) continue;
     if (profile.notification_prefs?.enabled === false) continue;
     const info = getLocalSundayInfo(profile.timezone);
     if (!info || !info.isSundayEveningHour) continue;
@@ -309,7 +306,7 @@ Deno.serve(async (req) => {
     }
 
     // Compute stats and collect push tasks for this chunk
-    const pushTasks: Array<{ userId: string; run: () => Promise<void> }> = [];
+    const pushTasks: Array<{ userId: string; run: () => Promise<boolean> }> = [];
 
     for (const profile of chunk) {
       const thisWeekCompletions = thisWeekByUser.get(profile.id) ?? [];
@@ -371,7 +368,7 @@ Deno.serve(async (req) => {
       pushTasks.push({
         userId: profile.id,
         run: () =>
-          sendPush(supabaseUrl, profile.push_subscription, {
+          sendPush(supabaseUrl, {
             title: "📊 Your Weekly Summary",
             body,
             url: "/main/dashboard/weekly",
@@ -389,7 +386,8 @@ Deno.serve(async (req) => {
       const batch = pushTasks.slice(i, i + PUSH_BATCH_SIZE);
       const results = await Promise.allSettled(batch.map((t) => t.run()));
       for (let j = 0; j < results.length; j++) {
-        if (results[j].status !== "fulfilled") continue;
+        const result = results[j];
+        if (result.status !== "fulfilled" || !result.value) continue;
         sent += 1;
         const userId = batch[j].userId;
         const localDate = localDateByUser.get(userId);

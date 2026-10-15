@@ -134,7 +134,7 @@ export default function PrivacyPage() {
         <p>
           To exercise these rights, contact us at{" "}
           <span className="font-medium text-[var(--color-text-primary)]">
-            privacy@motivefaith.app
+            privacy@motivefaith.com
           </span>
           .
         </p>
@@ -176,7 +176,7 @@ export default function PrivacyPage() {
           You can delete your account and all associated data through your
           profile settings. You may also request data deletion by contacting{" "}
           <span className="font-medium text-[var(--color-text-primary)]">
-            privacy@motivefaith.app
+            privacy@motivefaith.com
           </span>
           . We will process deletion requests within 30 days.
         </p>
@@ -201,7 +201,7 @@ export default function PrivacyPage() {
         <p>
           For privacy-related questions, contact us at{" "}
           <span className="font-medium text-[var(--color-text-primary)]">
-            privacy@motivefaith.app
+            privacy@motivefaith.com
           </span>
           .
         </p>

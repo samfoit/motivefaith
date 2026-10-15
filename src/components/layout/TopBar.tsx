@@ -1,64 +1,66 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
-import { Bell } from "lucide-react";
-import { useMissedHabitCount } from "@/lib/hooks/useMissedHabits";
-import { usePartnerInbox, PARTNER_INBOX_KEY } from "@/lib/hooks/usePartnerInbox";
-import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+import { usePathname } from "next/navigation";
+import { InboxBell } from "./InboxBell";
+import { registerActionsSlot, registerTitleSlot } from "./TopBarSlots";
+import { TOP_BAR_TITLE_CLASS, TOP_BAR_TITLE_STYLE } from "./topBarStyles";
+
+/**
+ * Screens whose title the bar shows in place of the wordmark.
+ *
+ * These pages used to draw the wordmark bar and then their own title row
+ * under it — two headers, ~150px of chrome before any content on a phone.
+ * Now the bar is the header: it names the screen, and the page puts its own
+ * buttons into it (see `TopBarActions`). `null` means the page supplies the
+ * title itself (`TopBarTitle`) — the dashboard's greeting, which can only be
+ * rendered on the client.
+ *
+ * Titles are known from the path alone, so they are server-rendered and in
+ * the first paint; only page-specific buttons arrive after hydration.
+ */
+const SCREEN_TITLES: Record<string, string | null> = {
+  "/main/dashboard": null,
+  "/main/feed": "Feed",
+  "/main/friends": "Friends",
+  "/main/inbox": "Inbox",
+  "/main/profile": "Profile",
+};
 
 export function TopBar() {
-  const userId = useAuthUserId();
-  const queryClient = useQueryClient();
-  const { data: missedCount = 0 } = useMissedHabitCount(userId);
-  // Unanswered invitations and requests belong on the same badge: both are
-  // things the inbox is holding for you. A missed-habit nudge clears itself at
-  // midnight; a partnership question does not, so it is worth the dot.
-  const { data: partnerItems = [] } = usePartnerInbox(userId);
-  const unreadCount = missedCount + partnerItems.length;
-
-  // Invalidate missed-habits count on tab focus / visibility change
-  // instead of maintaining a separate realtime channel.
-  // The feed page's realtime channel already listens for completions;
-  // this covers the case where the user returns to the app.
-  const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["missed-habits-count"] });
-    queryClient.invalidateQueries({ queryKey: PARTNER_INBOX_KEY });
-  }, [queryClient]);
-
-  useEffect(() => {
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") invalidate();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [invalidate]);
+  const pathname = usePathname();
+  const isScreen = pathname in SCREEN_TITLES;
+  const title = SCREEN_TITLES[pathname];
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-14 bg-header border-b border-border">
-      <Link
-        href="/main/dashboard"
-        className="font-display text-xl font-medium tracking-[-0.01em] text-[var(--color-text-primary)]"
-      >
-        MotiveFaith
-      </Link>
+    <header className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 h-14 bg-header border-b border-border">
+      {isScreen ? (
+        <div ref={registerTitleSlot} className="min-w-0">
+          {title && (
+            <h1 className={TOP_BAR_TITLE_CLASS} style={TOP_BAR_TITLE_STYLE}>
+              {title}
+            </h1>
+          )}
+        </div>
+      ) : (
+        <Link
+          href="/main/dashboard"
+          className="font-display text-lg font-medium text-[var(--color-text-primary)]"
+        >
+          MotiveFaith
+        </Link>
+      )}
 
-      <Link
-        href="/main/inbox"
-        className="relative p-2 rounded-full transition-colors hover:bg-[var(--color-surface-hover)]"
-        aria-label={unreadCount > 0 ? `Inbox, ${unreadCount} unread` : "Inbox"}
-      >
-        <Bell className="w-5 h-5 text-[var(--color-text-secondary)]" />
-        {unreadCount > 0 && (
-          <span
-            aria-hidden
-            className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-miss rounded-full"
-          >
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
+      {/* -mr-2: the bell's icon, not its padded box, lines up with the 16px
+          gutter, matching the title's left edge. */}
+      <div className="flex items-center gap-2 shrink-0 -mr-2">
+        {isScreen && (
+          <div ref={registerActionsSlot} className="flex items-center gap-2 empty:hidden" />
         )}
-      </Link>
+        {/* The bell on the inbox itself would only link to where you are. */}
+        {pathname !== "/main/inbox" && <InboxBell />}
+      </div>
+
     </header>
   );
 }

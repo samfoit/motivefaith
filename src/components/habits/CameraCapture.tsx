@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { useCamera } from "@/lib/hooks/useCamera";
 import { useCameraGestures } from "@/lib/hooks/useCameraGestures";
 import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
+import { VoiceMeter } from "@/components/habits/VoiceMeter";
+import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { getSupportedMimeType } from "@/lib/utils/media-recorder";
 import { MIME_TO_EXT } from "@/lib/utils/media-types";
 import { MAX_AUDIO_DURATION_S } from "@/lib/constants/limits";
@@ -123,75 +125,6 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-const METER_BARS = 24;
-
-/**
- * Bars that follow the mic's level, so a voice take visibly hears you. Drawn
- * straight onto the bars' styles each frame rather than through state, which
- * would re-render the whole camera sixty times a second.
- */
-function VoiceMeter({
-  analyserRef,
-  active,
-}: {
-  analyserRef: React.RefObject<AnalyserNode | null>;
-  active: boolean;
-}) {
-  const barsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const bars = barsRef.current?.children;
-    if (!bars) return;
-    const reset = () => {
-      for (const bar of Array.from(bars)) (bar as HTMLElement).style.transform = "scaleY(0.08)";
-    };
-    if (!active) {
-      reset();
-      return;
-    }
-
-    let frame: number;
-    const data = new Uint8Array(128);
-    const half = METER_BARS / 2;
-    const draw = () => {
-      const analyser = analyserRef.current;
-      if (analyser) {
-        analyser.getByteFrequencyData(data);
-        // Mirrored from the middle out: the lowest bins, where speech is
-        // loudest, drive the centre bars and higher ones the edges, so the
-        // shape is even rather than piled up at one end.
-        for (let i = 0; i < bars.length; i++) {
-          const band = Math.floor(Math.abs(i - (half - 0.5)));
-          const bin = 1 + band * 2;
-          const level = Math.min(1, ((data[bin] ?? 0) + (data[bin + 1] ?? 0)) / 2 / 190);
-          (bars[i] as HTMLElement).style.transform = `scaleY(${Math.max(0.08, level)})`;
-        }
-      }
-      frame = requestAnimationFrame(draw);
-    };
-    frame = requestAnimationFrame(draw);
-    return () => {
-      cancelAnimationFrame(frame);
-      reset();
-    };
-  }, [analyserRef, active]);
-
-  return (
-    <div ref={barsRef} className="flex items-center gap-1 h-16" aria-hidden>
-      {Array.from({ length: METER_BARS }, (_, i) => (
-        <span
-          key={i}
-          className={cn(
-            "block w-1.5 h-full rounded-full origin-center transition-[transform,background-color] duration-75",
-            active ? "bg-red-500" : "bg-white/30",
-          )}
-          style={{ transform: "scaleY(0.08)" }}
-        />
-      ))}
-    </div>
-  );
 }
 
 /**
@@ -998,16 +931,8 @@ export function CameraCapture({
       >
         {stage === "review" && previewUrl ? (
           isVoiceCapture ? (
-            <div className="flex flex-col items-center gap-6 px-6 w-full">
-              <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center">
-                <Mic className="w-10 h-10 text-white/70" />
-              </div>
-              <audio
-                src={previewUrl}
-                controls
-                preload="metadata"
-                className="w-full max-w-xs"
-              />
+            <div className="flex w-full justify-center px-6">
+              <VoicePlayback src={previewUrl} />
             </div>
           ) : isPhotoCapture ? (
             // eslint-disable-next-line @next/next/no-img-element

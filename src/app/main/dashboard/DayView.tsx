@@ -83,6 +83,12 @@ export const DayView = memo(function DayView({
     );
   }
 
+  // The card that demonstrates the check-in drawer: the first one on screen
+  // that still has a drawer to show.
+  const peekHabitId = TIME_GROUP_ORDER.flatMap((g) => groupedHabits[g]).find(
+    (h) => !completionMap.get(h.id),
+  )?.id;
+
   const progressRatio = todayHabits.length > 0
     ? completedCount / todayHabits.length
     : 0;
@@ -92,19 +98,25 @@ export const DayView = memo(function DayView({
       {/* Progress Bar */}
       {todayHabits.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-text-secondary">
-              Today&apos;s progress
-            </span>
+          {/* No visible label — a bar and a count read as today's progress on
+              their own — so the bar carries one for screen readers. */}
+          <div className="flex items-center gap-3">
+            <div
+              role="progressbar"
+              aria-label="Today's progress"
+              aria-valuemin={0}
+              aria-valuemax={todayHabits.length}
+              aria-valuenow={completedCount}
+              className="flex-1 h-2 rounded-full bg-bg-secondary overflow-hidden"
+            >
+              <div
+                className="h-full rounded-full bg-brand shadow-[var(--lamp-glow-bar)] dv-progress-bar"
+                style={{ transform: `scaleX(${progressRatio})` }}
+              />
+            </div>
             <span className="text-sm font-mono font-medium text-text-primary">
               {completedCount}/{todayHabits.length}
             </span>
-          </div>
-          <div className="h-2 rounded-full bg-bg-secondary overflow-hidden">
-            <div
-              className="h-full rounded-full bg-brand shadow-[var(--lamp-glow-bar)] dv-progress-bar"
-              style={{ transform: `scaleX(${progressRatio})` }}
-            />
           </div>
           {completedCount === todayHabits.length &&
             todayHabits.length > 0 && (
@@ -179,6 +191,7 @@ export const DayView = memo(function DayView({
                         onQuickComplete={onQuickComplete}
                         onPress={onHabitPress}
                         onCheckIn={onCheckIn}
+                        peek={habit.id === peekHabitId}
                       />
                     </div>
                   ))}

@@ -2,9 +2,10 @@
 
 import React, { useRef, useCallback, useEffect, useId } from "react";
 import { ChevronRight, Clock, CloudRain, CornerDownRight } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
+import { isRainCheck } from "@/lib/constants/completion";
 import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
 import {
   HabitCircle,
@@ -32,10 +33,47 @@ const DIRECTION_LOCK_PX = 8;
 const OPEN_RATIO = 0.4;
 
 /**
+ * The one-time peek: how far the card slides on its own to show what is
+ * behind it — enough to uncover "Quick check-in" and the edge of the next
+ * option, so it reads as a row of choices rather than a single button.
+ */
+const PEEK_PX = 72;
+/** Lets the list's entrance stagger finish before anything else moves. */
+const PEEK_DELAY_MS = 1200;
+const PEEK_DURATION_MS = 1700;
+const PEEK_SEEN_KEY = "motive-drawer-peek-seen";
+
+/** Per device: someone who has seen the drawer does not need it shown again. */
+function hasSeenDrawerPeek(): boolean {
+  try {
+    return localStorage.getItem(PEEK_SEEN_KEY) === "1";
+  } catch {
+    // Storage blocked: treat as seen rather than replay it on every visit.
+    return true;
+  }
+}
+
+function markDrawerPeekSeen() {
+  try {
+    localStorage.setItem(PEEK_SEEN_KEY, "1");
+  } catch {
+    // Nothing to do — it simply may play again next time.
+  }
+}
+
+/**
  * Resolved by the browser against the card's own width, so no measurement is
  * needed for the resting state — only the live drag clamps in pixels.
  */
 const OPEN_TRANSFORM = `translate3d(min(${REVEAL_PX}px, calc(100% - ${MIN_CARD_VISIBLE}px)), 0, 0)`;
+
+/** Calendar days, not 24-hour periods: last night at 11pm is "yesterday". */
+function formatLastDone(at: Date): string {
+  const days = differenceInCalendarDays(new Date(), at);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
+}
 
 type CompletionSlice = {
   id: string;
@@ -78,6 +116,13 @@ interface HabitCardProps {
     action: CheckInAction,
     origin?: { x: number; y: number },
   ) => void;
+  /**
+   * Slide open a little and back once, the first time this device shows the
+   * dashboard, so people learn the check-in drawer exists. Without it the
+   * photo, voice and note options sit behind a gesture nobody has reason to
+   * try. DayView sets it on one card only.
+   */
+  peek?: boolean;
   className?: string;
 }
 
@@ -90,19 +135,20 @@ export const HabitCard = React.memo(function HabitCard({
   onQuickComplete,
   onPress,
   onCheckIn,
+  peek = false,
   className,
 }: HabitCardProps) {
-  const latestCompletion = habit.completions.length
-    ? habit.completions.reduce((latest, c) =>
-      new Date(c.completed_at) > new Date(latest.completed_at) ? c : latest,
-    )
-    : null;
+  // "Last done", spelled out: a bare "11 days ago" did not say what happened
+  // then. A rain check is not doing it, so it does not count. Hidden once the
+  // habit is done today — the filled circle already says so.
+  const lastDone = habit.completions.reduce<Date | null>((latest, c) => {
+    if (isRainCheck(c.completion_type)) return latest;
+    const at = new Date(c.completed_at);
+    return !latest || at > latest ? at : latest;
+  }, null);
 
-  const lastCompletionLabel = latestCompletion
-    ? formatDistanceToNow(new Date(latestCompletion.completed_at), {
-      addSuffix: true,
-    })
-    : null;
+  const lastCompletionLabel =
+    lastDone && !completedToday ? `Last done ${formatLastDone(lastDone)}` : null;
 
   const timeWindow = habit.time_window as { start?: string; end?: string } | null;
   const scheduledTime = timeWindow?.start
@@ -140,6 +186,8 @@ export const HabitCard = React.memo(function HabitCard({
 
   const trackRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const peekAnimationsRef = useRef<Animation[]>([]);
 
   const toggleDrawer = useCallback(() => {
     if (isOpen) closeDrawer(habit.id);
@@ -168,6 +216,62 @@ export const HabitCard = React.memo(function HabitCard({
     node.style.transform = isOpen && drawerEnabled ? OPEN_TRANSFORM : "";
   }, [isOpen, drawerEnabled]);
 
+  // Opening the drawer by hand teaches more than the peek would.
+  useEffect(() => {
+    if (isOpen) markDrawerPeekSeen();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!peek || !drawerEnabled || hasSeenDrawerPeek()) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = setTimeout(() => {
+      const node = surfaceRef.current;
+      const drawer = drawerRef.current;
+      if (!node || !drawer || typeof node.animate !== "function") return;
+      // Not while the user is busy with a card or the page is in the background.
+      if (
+        document.visibilityState !== "visible" ||
+        dragRef.current.active ||
+        useHabitDrawerStore.getState().openHabitId
+      ) {
+        return;
+      }
+      markDrawerPeekSeen();
+      const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
+      const timing: KeyframeAnimationOptions = { duration: PEEK_DURATION_MS };
+      const slide = node.animate(
+        [
+          { transform: "translate3d(0, 0, 0)", easing: ease },
+          { transform: `translate3d(${PEEK_PX}px, 0, 0)`, offset: 0.25 },
+          { transform: `translate3d(${PEEK_PX}px, 0, 0)`, offset: 0.7, easing: ease },
+          { transform: "translate3d(0, 0, 0)" },
+        ],
+        timing,
+      );
+      // The icons are invisible while the drawer is shut; show them for the
+      // length of the peek, the way they appear when it opens for real.
+      const icons = [...drawer.querySelectorAll<HTMLElement>(".hc-option")].map(
+        (icon, i) =>
+          icon.animate(
+            [
+              { opacity: 0, transform: "scale(0.6)" },
+              { opacity: 1, transform: "scale(1)", offset: 0.25 + i * 0.03 },
+              { opacity: 1, transform: "scale(1)", offset: 0.7 },
+              { opacity: 0, transform: "scale(0.6)", offset: 0.85 },
+              { opacity: 0, transform: "scale(0.6)" },
+            ],
+            timing,
+          ),
+      );
+      peekAnimationsRef.current = [slide, ...icons];
+    }, PEEK_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      for (const a of peekAnimationsRef.current) a.cancel();
+      peekAnimationsRef.current = [];
+    };
+  }, [peek, drawerEnabled]);
+
   // An open drawer is a transient mode: Escape or a tap anywhere else ends it.
   useEffect(() => {
     if (!isOpen) return;
@@ -187,6 +291,9 @@ export const HabitCard = React.memo(function HabitCard({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      // Touching the card mid-peek hands it straight back to the user.
+      for (const a of peekAnimationsRef.current) a.cancel();
+      peekAnimationsRef.current = [];
       if (!drawerEnabled) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
       const track = trackRef.current;
@@ -305,6 +412,7 @@ export const HabitCard = React.memo(function HabitCard({
       {/* Check-in drawer, revealed as the card slides off it */}
       {drawerEnabled && (
         <div
+          ref={drawerRef}
           id={drawerId}
           inert={!isOpen}
           className="absolute inset-y-0 left-0 flex items-center"
@@ -378,8 +486,9 @@ export const HabitCard = React.memo(function HabitCard({
                 ? `Hide check-in options for ${habit.title}`
                 : `Show check-in options for ${habit.title}`
             }
+            // 28px wide to keep the title close; the tap area reaches 44px.
             className={cn(
-              "shrink-0 -my-1 w-7 h-11 flex items-center justify-center rounded-md",
+              "relative shrink-0 -my-1 w-7 h-11 flex items-center justify-center rounded-md after:absolute after:-inset-x-2 after:inset-y-0",
               "text-text-tertiary hover:text-text-secondary",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
             )}
@@ -407,7 +516,7 @@ export const HabitCard = React.memo(function HabitCard({
 
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             {scheduledTime && (
-              <span className="text-xs text-text-tertiary flex items-center gap-0.5">
+              <span className="text-xs text-text-secondary flex items-center gap-0.5">
                 <Clock className="w-3 h-3" />
                 {scheduledTime}
               </span>
@@ -454,7 +563,7 @@ export const HabitCard = React.memo(function HabitCard({
               </span>
             )}
             {lastCompletionLabel && (
-              <span className="text-xs text-text-tertiary">
+              <span className="text-xs text-text-secondary">
                 {lastCompletionLabel}
               </span>
             )}
@@ -467,7 +576,8 @@ export const HabitCard = React.memo(function HabitCard({
           onPointerDown={(e) => e.stopPropagation()}
           disabled={completedToday}
           className={cn(
-            "group shrink-0 rounded-full",
+            // after: stretches the 40px circle's tap area to 48px.
+            "group relative shrink-0 rounded-full after:absolute after:-inset-1",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-ink",
             !completedToday && "active:scale-90 transition-transform",
           )}

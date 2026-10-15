@@ -124,7 +124,7 @@ export default function TermsPage() {
           within 48 hours of receiving a valid request. To submit a removal
           request, email{" "}
           <span className="font-medium text-[var(--color-text-primary)]">
-            legal@motivefaith.app
+            legal@motivefaith.com
           </span>{" "}
           with the subject line &quot;TAKE IT DOWN Removal Request.&quot;
         </p>
@@ -194,7 +194,7 @@ export default function TermsPage() {
         <p>
           For questions about these Terms, contact us at{" "}
           <span className="font-medium text-[var(--color-text-primary)]">
-            legal@motivefaith.app
+            legal@motivefaith.com
           </span>
           .
         </p>

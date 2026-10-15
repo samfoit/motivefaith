@@ -77,21 +77,23 @@ VALUES
 
 UPDATE public.profiles SET
   display_name = 'Owner', username = 'pn_owner', timezone = 'UTC',
-  push_subscription = '{"endpoint":"https://push.test/owner","keys":{"p256dh":"x","auth":"y"}}'::jsonb,
   notification_prefs = '{}'::jsonb
 WHERE id = 'f1000000-0000-4000-8000-000000000001';
 
 UPDATE public.profiles SET
   display_name = 'Pal', username = 'pn_pal', timezone = 'UTC',
-  push_subscription = '{"endpoint":"https://push.test/pal","keys":{"p256dh":"x","auth":"y"}}'::jsonb,
   notification_prefs = '{}'::jsonb
 WHERE id = 'f2000000-0000-4000-8000-000000000002';
 
 UPDATE public.profiles SET
   display_name = 'Mute', username = 'pn_mute', timezone = 'UTC',
-  push_subscription = '{"endpoint":"https://push.test/mute","keys":{"p256dh":"x","auth":"y"}}'::jsonb,
   notification_prefs = '{"partner_alerts": false}'::jsonb
 WHERE id = 'f3000000-0000-4000-8000-000000000003';
+
+INSERT INTO public.push_subscriptions (endpoint, user_id, p256dh, auth) VALUES
+  ('https://push.test/owner', 'f1000000-0000-4000-8000-000000000001', 'x', 'y'),
+  ('https://push.test/pal',   'f2000000-0000-4000-8000-000000000002', 'x', 'y'),
+  ('https://push.test/mute',  'f3000000-0000-4000-8000-000000000003', 'x', 'y');
 
 INSERT INTO public.friendships (register_id, addressee_id, status) VALUES
   ('f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000002', 'accepted'),
@@ -296,8 +298,10 @@ END $$;
 
 -- (b) no push subscription at all
 RESET role;
-UPDATE public.profiles SET notification_prefs = '{}'::jsonb, push_subscription = NULL
+UPDATE public.profiles SET notification_prefs = '{}'::jsonb
  WHERE id = 'f3000000-0000-4000-8000-000000000003';
+DELETE FROM public.push_subscriptions
+ WHERE user_id = 'f3000000-0000-4000-8000-000000000003';
 DELETE FROM public.habit_shares
  WHERE habit_id = 'e1000000-0000-4000-8000-000000000001'
    AND shared_with = 'f3000000-0000-4000-8000-000000000003';
@@ -316,8 +320,9 @@ END $$;
 
 -- (c) quiet hours — a window an hour either side of now
 RESET role;
+INSERT INTO public.push_subscriptions (endpoint, user_id, p256dh, auth)
+VALUES ('https://push.test/mute', 'f3000000-0000-4000-8000-000000000003', 'x', 'y');
 UPDATE public.profiles SET
-  push_subscription = '{"endpoint":"https://push.test/mute","keys":{"p256dh":"x","auth":"y"}}'::jsonb,
   notification_prefs = jsonb_build_object(
     'quiet_start', to_char(now() - interval '1 hour', 'HH24:MI'),
     'quiet_end',   to_char(now() + interval '1 hour', 'HH24:MI')

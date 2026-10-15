@@ -9,10 +9,6 @@ interface HabitDue {
   title: string;
   emoji: string;
   user_id: string;
-  push_subscription: {
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-  } | null;
   notification_prefs: {
     quiet_start?: string;
     quiet_end?: string;
@@ -56,22 +52,31 @@ function isInQuietHours(
   }
 }
 
+/**
+ * Today's date (YYYY-MM-DD) in the given timezone — the same local date
+ * get_habits_due_for_reminder compares last_reminder_date against.
+ */
+function localDateKey(timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/** Invoke send-push; resolves true only when the push was delivered. */
 async function sendPush(
   supabaseUrl: string,
-  subscription: HabitDue["push_subscription"],
   payload: { title: string; body: string; url: string; type: string; user_id: string },
-): Promise<void> {
-  if (!subscription) return;
-
+): Promise<boolean> {
   try {
-    await fetch(`${supabaseUrl}/functions/v1/send-push`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-push`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       },
       body: JSON.stringify({
-        subscription,
         title: payload.title,
         body: payload.body,
         url: payload.url,
@@ -79,8 +84,13 @@ async function sendPush(
         user_id: payload.user_id,
       }),
     });
+    if (!res.ok) {
+      console.error(`send-push failed (${res.status}): ${await res.text()}`);
+    }
+    return res.ok;
   } catch (err) {
     console.error("Failed to invoke send-push:", err);
+    return false;
   }
 }
 
@@ -143,17 +153,20 @@ Deno.serve(async (req) => {
   }
 
   // Collect push tasks, respecting quiet hours
-  const pushTasks: Array<{ habitId: string; userId: string; fn: () => Promise<void> }> = [];
+  const pushTasks: Array<{
+    habitId: string;
+    timezone: string;
+    fn: () => Promise<boolean>;
+  }> = [];
 
   for (const habit of dueHabits) {
-    if (!habit.push_subscription) continue;
     if (isInQuietHours(habit.notification_prefs, habit.timezone)) continue;
 
     pushTasks.push({
       habitId: habit.id,
-      userId: habit.user_id,
+      timezone: habit.timezone,
       fn: () =>
-        sendPush(supabaseUrl, habit.push_subscription, {
+        sendPush(supabaseUrl, {
           title: `${habit.emoji} Time for ${habit.title}`,
           body: "Tap to log your completion",
           url: "/main/dashboard",
@@ -163,29 +176,34 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Send in batches of 50 concurrent requests, tracking which succeeded
+  // Send in batches of 50 concurrent requests, tracking which were delivered.
+  // A failed push is neither counted nor recorded in last_reminder_date.
   const BATCH_SIZE = 50;
   let sent = 0;
-  const sentHabitIds: string[] = [];
+  // Delivered habit IDs, grouped by their owner's local date
+  const sentByDate = new Map<string, string[]>();
 
   for (let i = 0; i < pushTasks.length; i += BATCH_SIZE) {
     const batch = pushTasks.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(batch.map((t) => t.fn()));
     for (let j = 0; j < results.length; j++) {
-      if (results[j].status === "fulfilled") {
+      const result = results[j];
+      if (result.status === "fulfilled" && result.value) {
         sent++;
-        sentHabitIds.push(batch[j].habitId);
+        const date = localDateKey(batch[j].timezone);
+        sentByDate.set(date, [...(sentByDate.get(date) ?? []), batch[j].habitId]);
       }
     }
   }
 
-  // Update last_reminder_date only for successfully sent habits
-  if (sentHabitIds.length > 0) {
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  // Record the reminder under the user's local date, not UTC — the RPC
+  // dedups against the local date, so a UTC date that has already rolled
+  // over (evenings in the Americas) would suppress the next day's reminder.
+  for (const [date, habitIds] of sentByDate) {
     await supabase
       .from("habits")
-      .update({ last_reminder_date: today })
-      .in("id", sentHabitIds);
+      .update({ last_reminder_date: date })
+      .in("id", habitIds);
   }
 
   return new Response(

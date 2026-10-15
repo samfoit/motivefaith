@@ -78,8 +78,8 @@ export function ShareCardSheet({
   const photoUrlRef = useRef<string | null>(null);
 
   const inviteUrl = username
-    ? `${typeof window !== "undefined" ? window.location.host : "motivefaith.app"}${invitePath(username)}`
-    : "motivefaith.app";
+    ? `${typeof window !== "undefined" ? window.location.host : "motivefaith.com"}${invitePath(username)}`
+    : "motivefaith.com";
 
   const layout: CardLayout = photo ? photoLayout : "default";
 

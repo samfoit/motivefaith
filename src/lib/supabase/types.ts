@@ -805,6 +805,41 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          p256dh?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -870,6 +905,10 @@ export type Database = {
               user_name: string
             }[]
           }
+      delete_push_subscription: {
+        Args: { p_endpoint: string }
+        Returns: undefined
+      }
       get_own_notification_settings: {
         Args: never
         Returns: {
@@ -948,6 +987,10 @@ export type Database = {
       }
       is_habit_owner: { Args: { h_id: string }; Returns: boolean }
       is_valid_schedule: { Args: { schedule: Json }; Returns: boolean }
+      save_push_subscription: {
+        Args: { p_endpoint: string; p_p256dh: string; p_auth: string }
+        Returns: undefined
+      }
       update_own_profile: {
         Args: { p_avatar_url?: string; p_display_name?: string }
         Returns: undefined

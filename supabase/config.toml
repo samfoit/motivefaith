@@ -323,6 +323,21 @@ skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
 
+# Google sign-in. The login page uses Google's own button and exchanges its ID
+# token here (signInWithIdToken), so client_id must be the same OAuth client as
+# NEXT_PUBLIC_GOOGLE_CLIENT_ID. The secret is only used by the redirect flow,
+# which the installed app falls back to.
+[auth.external.google]
+enabled = true
+client_id = "158999157458-k1rusccj6kmgq4k0fedo20ngmemf64rl.apps.googleusercontent.com"
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+# The login page sends a nonce with every Google token, so keep the check on.
+skip_nonce_check = false
+email_optional = false
+
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
 [auth.web3.solana]
