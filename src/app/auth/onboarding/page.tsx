@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils/cn";
+import { AvatarCropper } from "@/components/ui/AvatarCropper";
+import { uploadAvatar } from "@/lib/utils/avatar-upload";
 
 const DEFAULT_AVATARS = ["😊", "😎", "🚀", "🌟", "🎯", "🔥", "💎", "🌈"];
 
-import { MAX_AVATAR_SIZE_BYTES } from "@/lib/constants/limits";
+import { MAX_AVATAR_SOURCE_BYTES } from "@/lib/constants/limits";
 import { destinationAfterAuth } from "@/lib/constants/pending-invite";
 
 const ALLOWED_AVATAR_TYPES = [
@@ -27,11 +29,15 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
 
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  /** The cropped square, uploaded when onboarding finishes. */
+  const [avatarFile, setAvatarFile] = useState<Blob | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    // Cleared so picking the same photo again still opens the cropper.
+    e.target.value = "";
     if (!file) return;
     if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
       show({
@@ -41,14 +47,19 @@ export default function OnboardingPage() {
       });
       return;
     }
-    if (file.size > MAX_AVATAR_SIZE_BYTES) {
+    if (file.size > MAX_AVATAR_SOURCE_BYTES) {
       show({
         title: "File too large",
-        description: "Avatar must be under 5 MB.",
+        description: "Choose a photo under 25 MB.",
         variant: "error",
       });
       return;
     }
+    setCropFile(file);
+  }
+
+  function handleCropped(file: Blob) {
+    setCropFile(null);
     setAvatarFile(file);
     setSelectedEmoji(null);
     const reader = new FileReader();
@@ -72,30 +83,15 @@ export default function OnboardingPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        const ext =
-          {
-            "image/jpeg": "jpg",
-            "image/png": "png",
-            "image/webp": "webp",
-            "image/gif": "gif",
-          }[avatarFile.type] ?? "jpg";
-        const path = `${user.id}/avatar.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(path, avatarFile, { upsert: true });
-
-        if (uploadError) {
-          console.error("Avatar upload failed:", uploadError.message);
+        try {
+          avatarUrl = await uploadAvatar(supabase, "avatars", user.id, avatarFile);
+        } catch (err) {
+          console.error("Avatar upload failed:", err);
           show({
             title: "Avatar upload failed",
             description: "Could not upload your avatar. Please try again.",
             variant: "error",
           });
-        } else {
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from("avatars").getPublicUrl(path);
-          avatarUrl = publicUrl;
         }
       }
     } else if (selectedEmoji) {
@@ -192,6 +188,11 @@ export default function OnboardingPage() {
           </Button>
         </div>
       </div>
+      <AvatarCropper
+        file={cropFile}
+        onConfirm={handleCropped}
+        onCancel={() => setCropFile(null)}
+      />
       {ToastElements}
     </motion.div>
   );

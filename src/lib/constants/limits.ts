@@ -8,6 +8,13 @@ export const MAX_IMAGE_SIZE_MB = 5;
 export const MAX_VIDEO_SIZE_MB = 10;
 export const MAX_AUDIO_SIZE_MB = 5;
 export const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+/**
+ * Largest photo that can be picked for an avatar or group photo. It is
+ * cropped and shrunk to a small square before upload, so this only guards
+ * against a file too big to open, not against storage size — a phone's own
+ * camera photos are often over 5 MB.
+ */
+export const MAX_AVATAR_SOURCE_BYTES = 25 * 1024 * 1024;
 
 // --- Recording limits ---
 export const MAX_AUDIO_DURATION_S = 120;

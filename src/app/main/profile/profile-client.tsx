@@ -26,7 +26,10 @@ import { NotificationPreferences } from "@/components/social/NotificationPrefere
 import { usePushSubscription } from "@/lib/hooks/usePushSubscription";
 import { createClient } from "@/lib/supabase/client";
 import type { Json, Tables } from "@/lib/supabase/types";
-import { ALLOWED_IMAGE_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
+import { ALLOWED_IMAGE_TYPES } from "@/lib/utils/media-types";
+import { uploadAvatar } from "@/lib/utils/avatar-upload";
+import { MAX_AVATAR_SOURCE_BYTES } from "@/lib/constants/limits";
+import { AvatarCropper } from "@/components/ui/AvatarCropper";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
 import { ShareInviteSheet } from "@/components/social/ShareInviteSheet";
 
@@ -98,6 +101,7 @@ export function ProfileClient({
     profile?.display_name ?? "User",
   );
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -137,11 +141,13 @@ export function ProfileClient({
     setIsEditingName(false);
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // A picked photo goes to the cropper first; only the square chosen there is
+  // uploaded.
+  const handleAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Cleared so picking the same photo again still opens the cropper.
+    e.target.value = "";
     if (!file) return;
-
-    const MAX_AVATAR_SIZE = 5 * 1024 * 1024; // 5 MB
 
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
       showToast({
@@ -152,26 +158,28 @@ export function ProfileClient({
       return;
     }
 
-    if (file.size > MAX_AVATAR_SIZE) {
+    if (file.size > MAX_AVATAR_SOURCE_BYTES) {
       showToast({
         variant: "error",
         title: "File too large",
-        description: "Avatar must be under 5 MB.",
+        description: "Choose a photo under 25 MB.",
       });
       return;
     }
 
+    setCropFile(file);
+  };
+
+  const handleAvatarCropped = async (blob: Blob) => {
+    setCropFile(null);
     setIsUploadingAvatar(true);
     const supabase = createClient();
-    const ext = MIME_TO_EXT[file.type] ?? "jpg";
-    const path = `${userId}/avatar.${ext}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(path, file, { upsert: true });
-
-    if (uploadError) {
-      console.error("Avatar upload failed:", uploadError.message);
+    let publicUrl: string;
+    try {
+      publicUrl = await uploadAvatar(supabase, "avatars", userId, blob);
+    } catch (err) {
+      console.error("Avatar upload failed:", err);
       showToast({
         variant: "error",
         title: "Upload failed",
@@ -180,10 +188,6 @@ export function ProfileClient({
       setIsUploadingAvatar(false);
       return;
     }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("avatars").getPublicUrl(path);
 
     const { error: updateError } = await supabase.rpc("update_own_profile", {
       p_avatar_url: publicUrl,
@@ -225,7 +229,7 @@ export function ProfileClient({
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="hidden"
-              onChange={handleAvatarUpload}
+              onChange={handleAvatarPick}
             />
           </div>
           <div className="flex-1 min-w-0">
@@ -720,6 +724,11 @@ export function ProfileClient({
         displayName={profile?.display_name ?? null}
       />
 
+      <AvatarCropper
+        file={cropFile}
+        onConfirm={handleAvatarCropped}
+        onCancel={() => setCropFile(null)}
+      />
       {ToastElements}
     </div>
   );
