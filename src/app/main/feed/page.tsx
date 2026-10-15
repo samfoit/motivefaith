@@ -156,7 +156,7 @@ export default async function FeedPage() {
 /** Async component — fetches friends, then streams groups via nested Suspense. */
 async function FeedData({ userId }: { userId: string }) {
   const supabase = await createServerSupabase();
-  const cutoff = Date.now() - FEED_WINDOW_MS;
+  const cutoff = new Date().getTime() - FEED_WINDOW_MS;
 
   const [
     { data: rpcRows },
