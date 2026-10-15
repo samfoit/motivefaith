@@ -1,23 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Lamplight's night lamp: the flame-over-cross mark in lamp gold on the
+       night ground. Source for icon-lamp-192/512.png and favicon.ico
+       (regenerate with scripts/build-icons.mjs). -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#818CF8"/>
-      <stop offset="100%" stop-color="#4F46E5"/>
+    <!-- The night sky, deepening toward the bottom -->
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E2540"/>
+      <stop offset="100%" stop-color="#12151F"/>
+    </linearGradient>
+    <!-- The lamp's glow behind the flame -->
+    <radialGradient id="halo" cx="256" cy="178" r="170" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E9B44C" stop-opacity="0.34"/>
+      <stop offset="100%" stop-color="#E9B44C" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Flame: paler at the tip, the lamp's gold at the base -->
+    <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F6D892"/>
+      <stop offset="100%" stop-color="#E9B44C"/>
     </linearGradient>
   </defs>
-  <!-- Rounded background -->
-  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
-  <!-- Cross + flame combined mark -->
-  <!-- Vertical beam of cross / flame body -->
-  <path d="
-    M256 80
-    C256 80 208 140 208 190
-    C208 216 230 240 256 240
-    C282 240 304 216 304 190
-    C304 140 256 80 256 80Z
-  " fill="white" opacity="0.95"/>
-  <!-- Cross horizontal beam -->
-  <rect x="176" y="248" width="160" height="48" rx="24" fill="white" opacity="0.95"/>
-  <!-- Cross vertical lower beam -->
-  <rect x="232" y="248" width="48" height="184" rx="24" fill="white" opacity="0.95"/>
+  <rect width="512" height="512" rx="108" fill="url(#ground)"/>
+  <circle cx="256" cy="178" r="170" fill="url(#halo)"/>
+  <path d="M256 80C256 80 208 140 208 190C208 216 230 240 256 240C282 240 304 216 304 190C304 140 256 80 256 80Z" fill="url(#flame)"/>
+  <!-- Cross, one shape so the beams don't double up where they meet -->
+  <path d="M200 248H312A24 24 0 0 1 312 296H280V408A24 24 0 0 1 232 408V296H200A24 24 0 0 1 200 248Z" fill="#E9B44C"/>
 </svg>

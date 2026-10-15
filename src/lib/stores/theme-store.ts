@@ -2,11 +2,15 @@ import { create } from "zustand";
 import { ALL_VARS, PINNED_HOUR, hourOf, palette } from "@/lib/lamplight/palette";
 
 /**
- * "day" is Lamplight's default: the colors and the sky follow the local hour.
- * Light and Dark pin a clear midday or a lamplit night; System picks one of
- * those two from the OS setting.
+ * "day" (shown as Auto) is Lamplight's default: the colors and the sky follow
+ * the local hour. Light and Dark pin a clear midday or a lamplit night.
+ *
+ * There is no "system" choice. Auto already answers "do the sensible thing",
+ * and following the OS would mean a pinned midday or night out of step with
+ * the actual hour. A "system" stored before Lamplight is not a valid value
+ * any more, so it reads as Auto like any other unknown one.
  */
-export type ThemePreference = "day" | "light" | "dark" | "system";
+export type ThemePreference = "day" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 
 const STORAGE_KEY = "motive-theme";
@@ -24,20 +28,17 @@ const PINNED_THEME_COLOR: Record<ResolvedTheme, string> = {
 };
 
 function isPreference(v: unknown): v is ThemePreference {
-  return v === "day" || v === "light" || v === "dark" || v === "system";
-}
-
-function getSystemTheme(): ResolvedTheme {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return v === "day" || v === "light" || v === "dark";
 }
 
 function getStoredPreference(): ThemePreference {
   if (typeof window === "undefined") return "day";
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return isPreference(stored) ? stored : "day";
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return isPreference(stored) ? stored : "day";
+  } catch {
+    return "day";
+  }
 }
 
 function currentHour(): number {
@@ -63,8 +64,7 @@ function resolve(pref: ThemePreference): Applied {
     const hour = currentHour();
     return { resolved: palette(hour).light ? "light" : "dark", hour };
   }
-  const resolved = pref === "system" ? getSystemTheme() : pref;
-  return { resolved, hour: PINNED_HOUR[resolved] };
+  return { resolved: pref, hour: PINNED_HOUR[pref] };
 }
 
 function setThemeColor(color: string) {
@@ -73,10 +73,33 @@ function setThemeColor(color: string) {
     .forEach((meta) => meta.setAttribute("content", color));
 }
 
+/** How long the crossfade class stays on: the 450ms fade plus a margin. */
+const SHIFT_MS = 600;
+let shiftTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Crossfade the whole screen when the family flips: at sunrise and nightfall
+ * in Auto mode, or on a switch between Light and Dark. Inside a family the
+ * palette moves a little each minute and needs no help; across families every
+ * surface and text color jumps at once, so for that moment alone everything
+ * transitions its colors (`.theme-shift` in globals.css). Only for that
+ * moment: a standing transition on every element would tax every repaint.
+ */
+function crossfade(root: HTMLElement) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  root.classList.add("theme-shift");
+  clearTimeout(shiftTimer);
+  shiftTimer = setTimeout(() => root.classList.remove("theme-shift"), SHIFT_MS);
+}
+
 function applyToDOM(pref: ThemePreference): Applied {
   const applied = resolve(pref);
   if (typeof document === "undefined") return applied;
   const root = document.documentElement;
+
+  // Added before the colors change, so the transition is in place when they do.
+  const wasDark = root.getAttribute("data-theme") === "dark";
+  if (wasDark !== (applied.resolved === "dark")) crossfade(root);
 
   if (pref === "day") {
     // The hour's blend, written inline so it wins over the pinned blocks in
@@ -130,8 +153,8 @@ function refresh() {
 }
 
 /**
- * Initialize theme on mount — syncs store with DOM, follows the clock in
- * "day" mode and the OS in "system" mode.
+ * Initialize theme on mount — syncs store with DOM and follows the clock in
+ * "day" mode.
  * Call this once from the Providers component.
  */
 export function initializeTheme() {
@@ -146,11 +169,6 @@ export function initializeTheme() {
   }, 60_000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") refresh();
-  });
-
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  mediaQuery.addEventListener("change", () => {
-    if (useThemeStore.getState().preference === "system") refresh();
   });
 
   // Sync on storage events (cross-tab) — validate incoming value

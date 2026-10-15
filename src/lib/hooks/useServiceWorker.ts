@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { useUpdateStore } from "@/lib/stores/update-store";
 
 /**
  * Registers the service worker on mount and listens for updates.
- * When a new version is installed, prompts the user to reload.
+ * When a new version is installed, hands it to UpdatePrompt, which offers a
+ * refresh in an in-app banner.
  * Safe to call multiple times — the browser deduplicates registrations.
  */
 export function useServiceWorker() {
@@ -25,29 +27,24 @@ export function useServiceWorker() {
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {
+        const { setWaiting } = useUpdateStore.getState();
+
+        // A worker left waiting from an earlier visit ("Later", or a tab
+        // closed before refreshing) is still an update to offer.
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          setWaiting(registration.waiting);
+        }
+
         registration.addEventListener("updatefound", () => {
           const newWorker = registration.installing;
           if (!newWorker) return;
 
           newWorker.addEventListener("statechange", () => {
-            // Only prompt when there's an existing controller (i.e. not first install)
-            if (
-              newWorker.state === "installed" &&
-              navigator.serviceWorker.controller &&
-              // Never interrupt an auth flow. The confirm() blocks the page
-              // and the reload restarts it, which on the reset-password page
-              // landed the user on "link expired" mid-reset. The new worker
-              // waits and takes over once the app's tabs are closed.
-              !window.location.pathname.startsWith("/auth/")
-            ) {
-              // A new version is ready — prompt the user to reload
-              if (window.confirm("A new version of MotiveFaith is available. Reload to update?")) {
-                // Tell the waiting SW to activate, then reload once it takes control.
-                newWorker.postMessage({ type: "SKIP_WAITING" });
-                navigator.serviceWorker.addEventListener("controllerchange", () => {
-                  window.location.reload();
-                });
-              }
+            // Only offer it when there's an existing controller (i.e. not
+            // first install). UpdatePrompt decides when to show the offer;
+            // it stays out of auth flows.
+            if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+              setWaiting(newWorker);
             }
           });
         });

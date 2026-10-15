@@ -6,9 +6,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 beforeEach(() => {
   // Clear localStorage
   localStorage.clear();
-  // Remove data-theme attribute and any inline palette
+  // Remove data-theme attribute, any inline palette and a leftover crossfade
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("style");
+  document.documentElement.classList.remove("theme-shift");
   // Reset module registry so Zustand store re-initializes
   vi.resetModules();
 });
@@ -30,14 +31,20 @@ describe("useThemeStore", () => {
     expect(useThemeStore.getState().preference).toBe("day");
   });
 
-  it.each(["light", "dark", "system"] as const)(
-    "still loads a stored '%s' from before Lamplight",
+  it.each(["light", "dark"] as const)(
+    "keeps a deliberate '%s' from before Lamplight",
     async (pref) => {
       localStorage.setItem("motive-theme", pref);
       const { useThemeStore } = await getStore();
       expect(useThemeStore.getState().preference).toBe(pref);
     },
   );
+
+  it("reads a 'system' stored before Lamplight as 'day'", async () => {
+    localStorage.setItem("motive-theme", "system");
+    const { useThemeStore } = await getStore();
+    expect(useThemeStore.getState().preference).toBe("day");
+  });
 
   it("setTheme('dark') stores in localStorage and sets data-theme='dark'", async () => {
     const { useThemeStore } = await getStore();
@@ -66,12 +73,6 @@ describe("useThemeStore", () => {
     expect(useThemeStore.getState().resolved).toBe("dark");
   });
 
-  it("resolves 'system' to 'light' when prefers-color-scheme is light", async () => {
-    // matchMedia is mocked to return matches: false in setup
-    const { useThemeStore } = await getStore();
-    useThemeStore.getState().setTheme("system");
-    expect(useThemeStore.getState().resolved).toBe("light");
-  });
 });
 
 describe("initializeTheme", () => {
@@ -126,6 +127,37 @@ describe("'day' mode", () => {
     }
   });
 
+  it("crossfades for a moment when the family flips at nightfall", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 14, 19, 59, 30));
+    try {
+      const { initializeTheme } = await getStore();
+      initializeTheme();
+      expect(root().classList.contains("theme-shift")).toBe(false);
+      vi.advanceTimersByTime(60_000);
+      expect(root().getAttribute("data-theme")).toBe("dark");
+      expect(root().classList.contains("theme-shift")).toBe(true);
+      vi.advanceTimersByTime(600);
+      expect(root().classList.contains("theme-shift")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not crossfade a minute's drift inside one family", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 14, 13, 0, 0));
+    try {
+      const { initializeTheme } = await getStore();
+      initializeTheme();
+      root().classList.remove("theme-shift");
+      vi.advanceTimersByTime(60_000);
+      expect(root().classList.contains("theme-shift")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("a pin clears the inline palette and shows its own sky hour", async () => {
     localStorage.setItem("motive-sky-hour", "13");
     const { initializeTheme, useThemeStore } = await getStore();
@@ -157,6 +189,13 @@ describe("THEME_INIT_SCRIPT", () => {
       expect(root.getAttribute("data-theme") === "dark").toBe(!light);
     },
   );
+
+  it("paints a 'system' stored before Lamplight as Auto", async () => {
+    localStorage.setItem("motive-theme", "system");
+    localStorage.setItem("motive-sky-hour", "13");
+    const root = await run();
+    expect(root.style.getPropertyValue("--color-bg-primary")).not.toBe("");
+  });
 
   it("leaves a pinned choice to tokens.css", async () => {
     localStorage.setItem("motive-theme", "dark");

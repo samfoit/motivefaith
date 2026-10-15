@@ -7,7 +7,7 @@ import { QuickCaptureFlow } from "@/components/habits/QuickCaptureFlow";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
-import { SkyScene } from "@/components/layout/SkyScene";
+import { SkyScene, SkyClearance } from "@/components/layout/SkyScene";
 
 /**
  * Validates auth and profile completeness before any of `/main/*` renders.
@@ -81,14 +81,13 @@ export default function MainLayout({
           was both short of that on a notched phone and 16px of dead scroll
           on every other one.
 
-          Plus 11rem for the sky: the hills and water are fixed above the nav
-          and a long list scrolls over them, so scrolling to the end of any
-          list always lifts the last card clear of the whole scene. A list
-          short enough to fit never scrolls at all. */}
-      <main className="pb-[calc(16rem+env(safe-area-inset-bottom))]">
+          The sky's own room at the end of a list is SkyClearance, which
+          knows which screens draw the hills. */}
+      <main className="pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <Suspense fallback={null}>
           <AuthGate>{children}</AuthGate>
         </Suspense>
+        <SkyClearance />
       </main>
       <BottomNav />
       <QuickCaptureFlow />

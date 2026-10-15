@@ -16,7 +16,7 @@ export const buttonVariants = cva(
         secondary:
           "bg-transparent text-brand-ink border border-brand-ink/30 hover:bg-brand-light focus-visible:ring-brand-ink/50",
         ghost:
-          "bg-transparent text-brand-ink hover:bg-brand-light border-transparent",
+          "bg-transparent text-brand-ink hover:bg-surface-hover border-transparent",
       },
       size: {
         sm: "px-3 py-1.5 text-sm rounded-md",

@@ -69,13 +69,10 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/icon-:size.png",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
-      {
-        source: "/icon-maskable.png",
+        // Every app icon (icon-lamp-192, icon-lamp-512, icon-lamp-maskable).
+        // Immutable, so a new design must ship under new names — see
+        // scripts/build-icons.mjs.
+        source: "/icon-:name.png",
         headers: [
           { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],

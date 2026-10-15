@@ -127,11 +127,11 @@ export const DayView = memo(function DayView({
         </div>
       )}
 
-      {/* Streak Summary Row: each kept streak is a lamp kept lit */}
+      {/* Streak Summary Row: plain words, the lamp in the look (flame in its glow) */}
       {topStreaks.length > 0 && (
         <div>
           <h2 className="text-sm font-medium text-text-secondary mb-3">
-            Lamps kept lit
+            Active Streaks
           </h2>
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
             {topStreaks.map((habit) => (

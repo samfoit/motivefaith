@@ -277,7 +277,7 @@ export function InstallPrompt() {
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-brand flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-lg font-bold">H</span>
+                  <span className="text-on-brand text-lg font-bold">H</span>
                 </div>
                 <div>
                   <h3 className="font-display font-medium text-[var(--color-text-primary)] text-sm">

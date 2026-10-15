@@ -495,6 +495,36 @@ body {
   animation-delay: -3s;
 }
 
+/* The update offer on a chat screen comes down from under the top bar, since
+   the composer owns the bottom there (UpdatePrompt). */
+@keyframes update-prompt-drop {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.update-prompt-drop {
+  animation: update-prompt-drop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Crossfade at a family flip: sunrise and nightfall in Auto mode, or a
+   switch between Light and Dark. The theme store puts this class on <html>
+   for 600ms only — a standing color transition on every element would tax
+   every repaint for a moment that comes twice a day. `!important` because
+   for that moment it must win over each element's own transition. The
+   reduced-motion block below drops it; the store also never adds it then. */
+html.theme-shift,
+html.theme-shift *,
+html.theme-shift *::before,
+html.theme-shift *::after {
+  transition:
+    background-color 0.45s ease,
+    color 0.45s ease,
+    border-color 0.45s ease,
+    fill 0.45s ease,
+    stroke 0.45s ease,
+    box-shadow 0.45s ease !important;
+}
+
 /* Dashboard view menu: grows from the trigger's corner, so it reads as
    coming out of the icon that opened it. */
 @keyframes view-menu-enter {
@@ -521,6 +551,13 @@ body {
     animation: motive-skeleton-reveal 1ms linear var(--skeleton-delay) both;
   }
 
+  html.theme-shift,
+  html.theme-shift *,
+  html.theme-shift *::before,
+  html.theme-shift *::after {
+    transition: none !important;
+  }
+
   .sky-enter,
   .sky-twinkle,
   .dv-stagger-container > *,
@@ -530,6 +567,7 @@ body {
   .auth-card-enter,
   .fr-stagger-container > *,
   .install-prompt-enter,
+  .update-prompt-drop,
   .view-menu,
   .nav-progress-bar,
   .landing-animate-on-scroll,

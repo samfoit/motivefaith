@@ -5,6 +5,7 @@ import { QueryClient, type Query } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { usePathname } from "next/navigation";
 import { useServiceWorker } from "@/lib/hooks/useServiceWorker";
+import { UpdatePrompt } from "@/components/pwa/UpdatePrompt";
 import { useOutboxDrain } from "@/lib/hooks/useOutboxDrain";
 import { initializeTheme } from "@/lib/stores/theme-store";
 import { getBrowserTimezone } from "@/lib/utils/timezone";
@@ -221,6 +222,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
       <AuthHooksGate />
       {children}
+      <UpdatePrompt />
     </PersistQueryClientProvider>
   );
 }

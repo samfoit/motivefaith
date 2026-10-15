@@ -11,7 +11,7 @@ import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
  *
  * Boxes match what `DayView` actually renders:
  *   progress bar + count, one row             → 20px row
- *   "Lamps kept lit" + horizontal cards       → 16px label + 54px cards
+ *   "Active Streaks" + horizontal cards       → 16px label + 54px cards
  *   time-group heading + habit cards          → 16px label + 76px cards
  */
 function HabitCardSkeleton() {
@@ -39,7 +39,7 @@ export function DashboardContentSkeleton() {
         <Skeleton variant="text" width={32} height={20} />
       </div>
 
-      {/* Lamps kept lit */}
+      {/* Active streaks */}
       <div className="space-y-3">
         <Skeleton variant="text" width={100} height={16} />
         <div className="flex gap-3">

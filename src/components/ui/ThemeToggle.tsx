@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Sun, Moon, Monitor, SunMoon } from "lucide-react";
+import { Sun, Moon, SunMoon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import {
   useThemeStore,
@@ -14,7 +14,6 @@ const OPTIONS: { value: ThemePreference; icon: React.ElementType; label: string 
   { value: "day", icon: SunMoon, label: "Auto" },
   { value: "light", icon: Sun, label: "Light" },
   { value: "dark", icon: Moon, label: "Dark" },
-  { value: "system", icon: Monitor, label: "System" },
 ];
 
 interface ThemeToggleProps {

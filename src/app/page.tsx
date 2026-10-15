@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { LandingInteractive, FactCarousel } from "./landing-client";
+import type React from "react";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
+import { palette } from "@/lib/lamplight/palette";
+import { HeroSky } from "@/components/sky/HeroSky";
+import { SkyBand, SkyStarField } from "@/components/sky/SkyDrawing";
 
 export const dynamic = "force-static";
 
@@ -66,6 +70,18 @@ const STEPS = [
 
 const WEEK_DAYS = ["M", "T", "W", "T", "F", "S", "S"] as const;
 
+/**
+ * The five hours the app's colors and sky pass through, each drawn in its own
+ * palette. Verses are NIV, like the fact carousel's.
+ */
+const HOURS = [
+  { hour: 5, name: "Before dawn", time: "5:00 AM", verse: "\u201C\u2026and the bright Morning Star.\u201D", ref: "Revelation 22:16" },
+  { hour: 6.5, name: "Sunrise", time: "6:30 AM", verse: "\u201CFrom the rising of the sun\u2026\u201D", ref: "Psalm 113:3" },
+  { hour: 13, name: "Midday", time: "1:00 PM", verse: "\u201CLook at the birds of the air.\u201D", ref: "Matthew 6:26" },
+  { hour: 19.5, name: "Dusk", time: "7:30 PM", verse: "\u201CAnd there was evening\u2026\u201D", ref: "Genesis 1:5" },
+  { hour: 21.5, name: "Night", time: "9:30 PM", verse: "\u201C\u2026the moon and the stars, which you have set in place.\u201D", ref: "Psalm 8:3" },
+] as const;
+
 /* ── Page (Server Component — zero motion/react JS shipped) ── */
 
 export default function LandingPage() {
@@ -110,8 +126,11 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ── Hero ── */}
-      <section className="pt-32 pb-16 sm:pt-40 sm:pb-24 px-4 sm:px-6 lg:px-8">
+      {/* ── Hero ── the live sky behind it, hills along its foot */}
+      <section className="relative isolate overflow-hidden pt-32 pb-60 sm:pt-40 sm:pb-64 lg:pb-80 px-4 sm:px-6 lg:px-8">
+        <div className="absolute inset-0 -z-10">
+          <HeroSky />
+        </div>
         <div className="mx-auto max-w-6xl flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
           <div className="flex-1 text-center lg:text-left landing-hero-text">
             <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-medium leading-tight tracking-tight mb-6">
@@ -139,11 +158,71 @@ export default function LandingPage() {
                 See how it works
               </Link>
             </div>
+            <p
+              className="mt-10 font-display text-lg italic max-w-md mx-auto lg:mx-0"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              &ldquo;Your word is a lamp for my feet, a light on my path.&rdquo;
+              <span className="block mt-1 not-italic font-sans text-sm" style={{ color: "var(--color-text-tertiary)" }}>
+                Psalm 119:105
+              </span>
+            </p>
           </div>
 
           <div className="flex-1 max-w-sm w-full landing-hero-mockup">
             <HeroMockup />
           </div>
+        </div>
+      </section>
+
+      {/* ── It changes with your day: the five hours, each in its own palette ── */}
+      <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="text-center mb-12 landing-animate-on-scroll landing-section-header">
+            <h2 className="font-display text-3xl sm:text-4xl font-medium mb-4">
+              It changes with your day
+            </h2>
+            <p
+              className="text-lg max-w-2xl mx-auto"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              MotiveFaith&apos;s colors and quiet sky move from before dawn to
+              nightfall, so the app always feels like the hour you&apos;re in.
+            </p>
+          </div>
+
+          <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-2 lg:grid lg:grid-cols-5 lg:overflow-visible lg:mx-0 lg:px-0 landing-animate-on-scroll landing-feature-list">
+            {HOURS.map(({ hour, name, time, verse, ref }, i) => (
+              <li
+                key={name}
+                className="w-64 shrink-0 snap-start lg:w-auto rounded-xl overflow-hidden border"
+                // This card wears its own hour's palette, whatever the page shows.
+                style={{ ...palette(hour).vars, borderColor: "var(--color-border)" } as React.CSSProperties}
+              >
+                <div
+                  className="relative aspect-[390/220] overflow-hidden"
+                  style={{ background: "linear-gradient(to bottom, var(--color-header), var(--color-bg-primary))" }}
+                >
+                  <SkyStarField hour={hour} idPrefix={`hours-${i}`} className="absolute inset-0 h-full w-full" />
+                  <SkyBand hour={hour} idPrefix={`hours-${i}`} className="absolute inset-0 h-full w-full" />
+                </div>
+                <div className="p-4 h-full" style={{ background: "var(--color-bg-elevated)" }}>
+                  <p className="text-xs tabular-nums" style={{ color: "var(--color-text-secondary)" }}>
+                    {time}
+                  </p>
+                  <h3 className="font-display font-medium text-lg mb-1" style={{ color: "var(--color-text-primary)" }}>
+                    {name}
+                  </h3>
+                  <p className="text-sm italic" style={{ color: "var(--color-text-secondary)" }}>
+                    {verse}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: "var(--color-text-tertiary)" }}>
+                    {ref}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -339,8 +418,8 @@ export default function LandingPage() {
 function HeroMockup() {
   return (
     <div
-      className="bg-bg-elevated rounded-lg shadow-lg p-5 border"
-      style={{ borderColor: "var(--color-bg-secondary)" }}
+      className="bg-bg-elevated rounded-xl shadow-lg p-5 border"
+      style={{ borderColor: "var(--color-border)" }}
     >
       {/* Habit card header */}
       <div className="flex items-center gap-3 mb-4">
@@ -364,7 +443,7 @@ function HeroMockup() {
         </div>
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 landing-checkmark"
-          style={{ backgroundColor: "var(--color-brand)" }}
+          style={{ backgroundColor: "var(--color-brand)", boxShadow: "var(--lamp-glow-done)" }}
         >
           <svg
             className="w-4 h-4 text-on-brand"
@@ -382,13 +461,18 @@ function HeroMockup() {
         </div>
       </div>
 
-      {/* Streak */}
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm">{"\u{1F525}"}</span>
+      {/* Streak, drawn as the dashboard draws it: the flame in its glow */}
+      <div className="flex items-center gap-2.5 mb-3">
         <span
-          className="font-mono font-bold text-sm"
-          style={{ color: "var(--color-streak)" }}
+          aria-hidden
+          className="w-7 h-7 rounded-full flex items-center justify-center"
+          style={{ background: "var(--lamp-halo)", color: "var(--color-streak)" }}
         >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2.5c1.2 3.6 5.5 5.6 5.5 10.6a5.5 5.5 0 0 1-11 0c0-2.8 1.6-4.4 2.7-5.5.3 1.8 1.1 2.8 2.2 3.3 0-3.3-.9-5.8.6-8.4z" />
+          </svg>
+        </span>
+        <span className="text-sm font-medium">
           14 day streak
         </span>
       </div>
