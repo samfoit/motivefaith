@@ -757,6 +757,37 @@ describe("CameraCapture voice mode", () => {
 
     expect(screen.getByRole("button", { name: "Start recording" })).toBeInTheDocument();
   });
+
+  it("offers no voice mode where voice has its own way in", async () => {
+    render(
+      <CameraCapture
+        onCapture={vi.fn()}
+        onClose={vi.fn()}
+        onFallback={vi.fn()}
+        allowVoice={false}
+      />,
+    );
+    await act(async () => {});
+
+    expect(screen.queryByRole("radio", { name: "Voice" })).not.toBeInTheDocument();
+  });
+
+  it("offers no voice note on a denied camera when voice is off", async () => {
+    const err = Object.assign(new Error("denied"), { name: "NotAllowedError" });
+    camera.getUserMedia.mockRejectedValueOnce(err);
+    render(
+      <CameraCapture
+        onCapture={vi.fn()}
+        onClose={vi.fn()}
+        onFallback={vi.fn()}
+        allowVoice={false}
+      />,
+    );
+    await act(async () => {});
+
+    expect(screen.getByText("Camera Access Denied")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /voice note instead/i })).not.toBeInTheDocument();
+  });
 });
 
 describe("CameraCapture first-opens tip and mode swipes", () => {

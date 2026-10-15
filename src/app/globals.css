@@ -38,6 +38,19 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Padding that clears the notch and the home indicator on a phone, for
+   full-screen layers (camera, voice recorder, photo cropper). Tailwind has
+   no such utility of its own, so until these existed `pb-safe` silently did
+   nothing. Zero wherever there is no inset. Needs `viewportFit: "cover"`,
+   set in the root layout. */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* ── DayView CSS animations (replaces motion/react on critical path) ── */
 
 @keyframes dv-fade-in-up {

@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { motion } from "motion/react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
+import { FEED_WINDOW_MS } from "@/lib/constants/limits";
 import { CompletionBubble, slideVariant } from "@/components/social/CompletionBubble";
 import { ReportSheet } from "@/components/social/ReportSheet";
 import { MessageMedia } from "@/components/social/MessageMedia";
@@ -49,7 +50,7 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
   );
 
   // Only show the last 24 hours of activity
-  const [cutoff] = useState(() => Date.now() - 24 * 60 * 60 * 1000);
+  const [cutoff] = useState(() => Date.now() - FEED_WINDOW_MS);
 
   // Optimistic heart tracking (additions and removals)
   const [optimisticHearts, setOptimisticHearts] = useState(new Set<string>());

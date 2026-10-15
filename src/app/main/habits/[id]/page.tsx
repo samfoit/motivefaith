@@ -3,6 +3,11 @@ import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { HabitDetailClient } from "./habit-detail-client";
 import { DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 import { computeEffectiveStreak } from "@/lib/utils/streak";
+import {
+  HABIT_ACTIVITY_DAYS,
+  HABIT_ACTIVITY_MAX_ROWS,
+  HISTORY_PAGE_SIZE,
+} from "@/lib/constants/limits";
 
 export const revalidate = 60;
 
@@ -20,13 +25,21 @@ export default async function HabitDetailPage({ params }: Props) {
 
   const supabase = await createServerSupabase();
 
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const activitySince = new Date();
+  activitySince.setDate(activitySince.getDate() - HABIT_ACTIVITY_DAYS);
 
-  // Parallelize all independent queries (profile, habit, completions, shares, group shares, friendships)
+  // Parallelize all independent queries (profile, habit, activity, history,
+  // shares, group shares, friendships).
+  //
+  // Two reads of completions, because they answer different questions. The
+  // heatmap, streak and "done today" need every day in the recent window, but
+  // only its dates. The History tab needs whole rows, but only one page of
+  // them at a time, reaching as far back as the habit goes — years of
+  // logging is never fetched in one go.
   const [
     { data: profileTz },
     { data: habit },
+    { data: activity },
     { data: completions },
     { data: shares },
     { data: groupShares },
@@ -41,11 +54,18 @@ export default async function HabitDetailPage({ params }: Props) {
       .single(),
     supabase
       .from("completions")
+      .select("id, completion_type, completed_at, rain_check_moved_to")
+      .eq("habit_id", id)
+      .gte("completed_at", activitySince.toISOString())
+      .order("completed_at", { ascending: false })
+      .limit(HABIT_ACTIVITY_MAX_ROWS),
+    supabase
+      .from("completions")
       .select("id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to")
       .eq("habit_id", id)
-      .gte("completed_at", ninetyDaysAgo.toISOString())
       .order("completed_at", { ascending: false })
-      .limit(50),
+      .order("id", { ascending: false })
+      .limit(HISTORY_PAGE_SIZE),
     supabase
       .from("habit_shares")
       .select("id, shared_with, notify_complete, notify_miss, created_at, status, initiated_by")
@@ -68,8 +88,11 @@ export default async function HabitDetailPage({ params }: Props) {
   const validatedCompletions = (completions ?? []).filter(
     (c): c is typeof c & { completed_at: string } => c.completed_at != null,
   );
+  const validatedActivity = (activity ?? []).filter(
+    (c): c is typeof c & { completed_at: string } => c.completed_at != null,
+  );
 
-  const effectiveStreak = computeEffectiveStreak(habit, validatedCompletions, timeZone);
+  const effectiveStreak = computeEffectiveStreak(habit, validatedActivity, timeZone);
 
   // Resolve dependent lookups in parallel.
   //
@@ -130,6 +153,7 @@ export default async function HabitDetailPage({ params }: Props) {
     <HabitDetailClient
       habit={{ ...habit, streak_current: effectiveStreak }}
       completions={validatedCompletions}
+      activity={validatedActivity}
       partnerRows={partnerRows}
       availableFriends={availableFriends}
       sharedGroups={sharedGroups}

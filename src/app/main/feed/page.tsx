@@ -7,6 +7,7 @@ import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
 import { isRainCheck } from "@/lib/constants/completion";
 import { messagePreviewText } from "@/lib/utils/message-preview";
+import { FEED_WINDOW_MS } from "@/lib/constants/limits";
 
 // --------------------------------------------------------------------------
 // Types for the RPC result
@@ -40,10 +41,14 @@ interface FeedFriendRow {
 // Helpers
 // --------------------------------------------------------------------------
 
+/** Shown once a feed's latest activity has expired out of its timeline. */
+const EXPIRED_PREVIEW = "Nothing in the last 24 hours";
+
 function buildFriendRows(
   rows: FeedFriendRow[],
   userId: string,
   unreadFriendIds: Set<string>,
+  cutoff: number,
 ): FriendFeedRow[] {
   const friendRows: FriendFeedRow[] = [];
 
@@ -55,16 +60,23 @@ function buildFriendRows(
       username: row.username,
     };
 
-    const comp = row.latest_completion;
-    const enc = row.latest_encouragement;
+    // Only what the journey still shows: anything older has expired.
+    const compTime = row.latest_completion
+      ? new Date(row.latest_completion.completed_at).getTime()
+      : 0;
+    const encTime = row.latest_encouragement
+      ? new Date(row.latest_encouragement.created_at).getTime()
+      : 0;
+    const comp = compTime >= cutoff ? row.latest_completion : null;
+    const enc = encTime >= cutoff ? row.latest_encouragement : null;
 
-    const compTime = comp ? new Date(comp.completed_at).getTime() : 0;
-    const encTime = enc ? new Date(enc.created_at).getTime() : 0;
-
-    let previewText = "No shared activity yet";
+    let previewText =
+      row.latest_completion || row.latest_encouragement
+        ? EXPIRED_PREVIEW
+        : "No shared activity yet";
     let latestActivity: string | null = null;
 
-    if (compTime >= encTime && comp) {
+    if (comp && (!enc || compTime >= encTime)) {
       const isMe = comp.user_id === userId;
       const actor = isMe ? "You" : profile.display_name.split(" ")[0];
       previewText = isRainCheck(comp.completion_type)
@@ -144,6 +156,7 @@ export default async function FeedPage() {
 /** Async component — fetches friends, then streams groups via nested Suspense. */
 async function FeedData({ userId }: { userId: string }) {
   const supabase = await createServerSupabase();
+  const cutoff = new Date().getTime() - FEED_WINDOW_MS;
 
   const [
     { data: rpcRows },
@@ -164,7 +177,8 @@ async function FeedData({ userId }: { userId: string }) {
       .from("encouragements")
       .select("user_id")
       .eq("recipient_id", userId)
-      .eq("is_read", false),
+      .eq("is_read", false)
+      .gte("created_at", new Date(cutoff).toISOString()),
   ]);
 
   const cursorMap = new Map<string, string>();
@@ -181,6 +195,7 @@ async function FeedData({ userId }: { userId: string }) {
     (rpcRows ?? []) as unknown as FeedFriendRow[],
     userId,
     unreadFriendIds,
+    cutoff,
   );
 
   // Stream: render friends immediately, groups load in nested Suspense
@@ -191,6 +206,7 @@ async function FeedData({ userId }: { userId: string }) {
         friendRows={friendRows}
         memberships={myGroupMemberships ?? []}
         cursorMap={cursorMap}
+        cutoff={cutoff}
       />
     </Suspense>
   );
@@ -202,11 +218,13 @@ async function FeedWithGroups({
   friendRows,
   memberships,
   cursorMap,
+  cutoff,
 }: {
   userId: string;
   friendRows: FriendFeedRow[];
   memberships: { group_id: string; role: string | null }[];
   cursorMap: Map<string, string>;
+  cutoff: number;
 }) {
   if (memberships.length === 0) {
     return <FeedClient userId={userId} friends={friendRows} />;
@@ -227,6 +245,7 @@ async function FeedWithGroups({
       .from("group_messages")
       .select("group_id, content, media_type, user_id, created_at, profiles!user_id(display_name)")
       .in("group_id", groupIds)
+      .gte("created_at", new Date(cutoff).toISOString())
       .order("created_at", { ascending: false })
       .limit(Math.max(groupIds.length * 2, 10)),
     untypedRpc<
@@ -257,6 +276,7 @@ async function FeedWithGroups({
     }
   >();
   for (const row of latestComps ?? []) {
+    if (new Date(row.completed_at).getTime() < cutoff) continue;
     latestCompMap.set(row.group_id, {
       user_id: row.user_id,
       completed_at: row.completed_at,
@@ -297,7 +317,7 @@ async function FeedWithGroups({
   for (const g of groups ?? []) {
     const latestMsg = latestMsgMap.get(g.id);
     const latestComp = latestCompMap.get(g.id);
-    let previewText = "No activity yet";
+    let previewText = EXPIRED_PREVIEW;
     let latestActivity: string | null = null;
 
     const msgTime = latestMsg ? new Date(latestMsg.created_at).getTime() : 0;

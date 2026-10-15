@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "motion/react";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -36,6 +36,9 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
 import { EvidenceAudio } from "@/components/ui/EvidenceAudio";
+import { MediaLightbox } from "@/components/ui/MediaLightbox";
+import { useNearViewport } from "@/lib/hooks/useNearViewport";
+import { HISTORY_PAGE_SIZE } from "@/lib/constants/limits";
 import { FriendPicker } from "@/components/social/FriendPicker";
 import { CalendarHeatmap } from "@/components/habits/CalendarHeatmap";
 import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
@@ -87,6 +90,19 @@ type Completion = {
   rain_check_moved_to?: Tables<"completions">["rain_check_moved_to"];
 };
 
+/**
+ * A completion as the heatmap, streak and "done today" see it: just when, and
+ * what kind. Covers the recent window in full, independent of how far back
+ * the History tab has been paged.
+ */
+type ActivityRow = Pick<
+  Completion,
+  "id" | "completion_type" | "completed_at" | "rain_check_moved_to"
+>;
+
+const COMPLETION_COLUMNS =
+  "id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to";
+
 type Partner = {
   id: string;
   display_name: string;
@@ -117,7 +133,10 @@ type SharedGroup = {
 
 interface HabitDetailClientProps {
   habit: Habit;
+  /** The first page of the History tab, newest first. */
   completions: Completion[];
+  /** Every completion in the heatmap's window, dates only. */
+  activity: ActivityRow[];
   partnerRows: PartnerRow[];
   availableFriends?: Partner[];
   sharedGroups?: SharedGroup[];
@@ -183,6 +202,7 @@ const TAB_TRIGGER_CLASS = cn(
 export function HabitDetailClient({
   habit: initialHabit,
   completions: initialCompletions,
+  activity: initialActivity,
   partnerRows,
   availableFriends = [],
   sharedGroups = [],
@@ -195,9 +215,12 @@ export function HabitDetailClient({
   const { show: showToast, ToastElements } = useToast();
   const [habit, setHabit] = useState(initialHabit);
   const [completions, setCompletions] = useState(initialCompletions);
+  const [activity, setActivity] = useState(initialActivity);
   const [completionOpen, setCompletionOpen] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(initialCompletions.length >= 50);
+  const [hasMore, setHasMore] = useState(initialCompletions.length >= HISTORY_PAGE_SIZE);
+  /** A page failed: stop loading on scroll until the button is pressed. */
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -235,38 +258,77 @@ export function HabitDetailClient({
 
   const dismissConfetti = useCallback(() => setShowConfetti(false), []);
 
+  // Pages are keyed on (completed_at, id), not completed_at alone: an offline
+  // batch is written in one transaction, so its rows share a timestamp, and a
+  // page boundary falling among them would otherwise skip the rest.
   const loadMoreCompletions = useCallback(async () => {
     if (loadingMore || !hasMore) return;
+    const oldest = completions.findLast((c) => !c.id.startsWith("temp-"));
+    if (!oldest) return;
     setLoadingMore(true);
+    setLoadFailed(false);
     const supabase = createClient();
-    const oldest = completions[completions.length - 1]?.completed_at;
-    if (!oldest) { setLoadingMore(false); return; }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("completions")
-      .select("id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to")
+      .select(COMPLETION_COLUMNS)
       .eq("habit_id", habit.id)
-      .lt("completed_at", oldest)
+      .or(
+        `completed_at.lt."${oldest.completed_at}",and(completed_at.eq."${oldest.completed_at}",id.lt.${oldest.id})`,
+      )
       .order("completed_at", { ascending: false })
-      .limit(50);
+      .order("id", { ascending: false })
+      .limit(HISTORY_PAGE_SIZE);
+    if (error) {
+      console.error("Failed to load history:", error.message);
+      setLoadFailed(true);
+      setLoadingMore(false);
+      return;
+    }
     const more = (data ?? []).filter(
       (c): c is typeof c & { completed_at: string } => c.completed_at != null,
     );
     setCompletions((prev) => [...prev, ...more]);
-    setHasMore(more.length >= 50);
+    setHasMore(more.length >= HISTORY_PAGE_SIZE);
     setLoadingMore(false);
   }, [completions, habit.id, hasMore, loadingMore]);
+
+  // The next page loads as the end of the list nears, so years of history
+  // scroll through without a tap per fifty entries. The button stays for
+  // when that cannot run, or a page failed.
+  //
+  // A callback ref, because the History tab's content mounts only while the
+  // tab is open. Observing again after each page (completions.length) is what
+  // keeps going when a page was too short to push the end off screen: a fresh
+  // observer always reports where the element is now.
+  const [historyEnd, setHistoryEnd] = useState<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef(loadMoreCompletions);
+  useEffect(() => {
+    loadMoreRef.current = loadMoreCompletions;
+  }, [loadMoreCompletions]);
+  useEffect(() => {
+    if (!historyEnd || !hasMore || loadFailed) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void loadMoreRef.current();
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(historyEnd);
+    return () => observer.disconnect();
+  }, [historyEnd, hasMore, loadFailed, completions.length]);
 
   // --- Derived data ---
 
   const heatmapData = useMemo(() => {
     const map: Record<string, number> = {};
-    completions.forEach((c) => {
+    activity.forEach((c) => {
       if (isRainCheck(c.completion_type)) return;
       const key = toDateKey(c.completed_at, timezone);
       map[key] = (map[key] ?? 0) + 1;
     });
     return map;
-  }, [completions, timezone]);
+  }, [activity, timezone]);
 
   // Days held by a rain check rather than done — drawn apart in the chain.
   //
@@ -277,12 +339,12 @@ export function HabitDetailClient({
   const rainCheckDates = useMemo(() => {
     const today = todayDateKey(timezone);
     const realDates = new Set(
-      completions
+      activity
         .filter((c) => !isRainCheck(c.completion_type))
         .map((c) => toDateKey(c.completed_at, timezone)),
     );
     const set = new Set<string>();
-    completions.forEach((c) => {
+    activity.forEach((c) => {
       if (!isRainCheck(c.completion_type)) return;
       const movedTo = c.rain_check_moved_to ?? null;
       const holds =
@@ -290,27 +352,27 @@ export function HabitDetailClient({
       if (holds) set.add(toDateKey(c.completed_at, timezone));
     });
     return set;
-  }, [completions, timezone]);
+  }, [activity, timezone]);
 
   // The day today's rain check promised to make this habit up on, if any.
   const rainCheckMovedToToday = useMemo(() => {
     const today = todayDateKey(timezone);
-    for (const c of completions) {
+    for (const c of activity) {
       if (!isRainCheck(c.completion_type)) continue;
       if (toDateKey(c.completed_at, timezone) !== today) continue;
       if (c.rain_check_moved_to) return c.rain_check_moved_to;
     }
     return null;
-  }, [completions, timezone]);
+  }, [activity, timezone]);
 
   const completedToday = useMemo(() => {
     const today = todayDateKey(timezone);
-    return completions.some(
+    return activity.some(
       (c) =>
         !isRainCheck(c.completion_type) &&
         toDateKey(c.completed_at, timezone) === today,
     );
-  }, [completions, timezone]);
+  }, [activity, timezone]);
 
   const rainCheckedToday = useMemo(
     () => rainCheckDates.has(todayDateKey(timezone)),
@@ -386,6 +448,7 @@ export function HabitDetailClient({
       rain_check_moved_to: rainCheckMovedTo ?? null,
     };
     setCompletions((prev) => [tempCompletion, ...prev]);
+    setActivity((prev) => [tempCompletion, ...prev]);
     if (!rainCheck) {
       setHabit((h) => ({
         ...h,
@@ -406,7 +469,10 @@ export function HabitDetailClient({
       if (!rainCheck) checkMilestone(prevStreak + 1);
       router.refresh();
     } catch {
-      setCompletions(initialCompletions);
+      // Take back only this entry: resetting to the first page would also
+      // throw away every page already scrolled through.
+      setCompletions((prev) => prev.filter((c) => c.id !== tempCompletion.id));
+      setActivity((prev) => prev.filter((c) => c.id !== tempCompletion.id));
       setHabit(initialHabit);
       showToast({
         variant: "error",
@@ -772,14 +838,19 @@ export function HabitDetailClient({
                   <CompletionRow key={c.id} completion={c} />
                 ))}
                 {hasMore && (
-                  <div className="flex justify-center pt-2">
+                  <div ref={setHistoryEnd} className="flex flex-col items-center gap-1 pt-2">
+                    {loadFailed && (
+                      <p className="text-xs text-[var(--color-text-tertiary)]">
+                        Couldn&rsquo;t load older entries.
+                      </p>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
                       loading={loadingMore}
                       onClick={loadMoreCompletions}
                     >
-                      Load more
+                      {loadFailed ? "Try again" : "Load more"}
                     </Button>
                   </div>
                 )}
@@ -1196,15 +1267,39 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CompletionRow({ completion }: { completion: Completion }) {
+/**
+ * One entry in the History tab.
+ *
+ * A habit kept for years builds up thousands of these, many with media, so a
+ * row only mounts its photo, video or audio while it is near the screen, and
+ * gives the space back to a placeholder of the same size once it scrolls far
+ * away. `content-visibility` lets the browser skip laying out rows that are
+ * off screen entirely.
+ */
+export function CompletionRow({ completion }: { completion: Completion }) {
   const cType = completion.completion_type ?? "quick";
   const Icon = COMPLETION_ICONS[cType] ?? Zap;
   const label = COMPLETION_LABELS[cType] ?? "Completion";
   // A skip is not an achievement — it gets the rain hue, not success green.
   const accent = isRainCheck(cType) ? "var(--color-rain)" : "var(--color-success)";
 
+  const rowRef = useRef<HTMLDivElement>(null);
+  const near = useNearViewport(rowRef);
+  const [photoOpen, setPhotoOpen] = useState(false);
+
+  const evidence = completion.evidence_url;
+  const hasMedia =
+    !!evidence && (cType === "photo" || cType === "video" || cType === "voice");
+
   return (
-    <div className="flex items-start gap-3 rounded-lg bg-elevated p-4 shadow-sm">
+    <div
+      ref={rowRef}
+      className="flex items-start gap-3 rounded-lg bg-elevated p-4 shadow-sm"
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: `auto ${hasMedia && cType !== "voice" ? 260 : 96}px`,
+      }}
+    >
       <div
         className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
         style={{
@@ -1226,50 +1321,113 @@ function CompletionRow({ completion }: { completion: Completion }) {
         </div>
 
         {/* Content preview */}
-        {completion.completion_type === "photo" && completion.evidence_url && (
-          <div className="relative mt-2 rounded-md overflow-hidden bg-[var(--color-bg-secondary)] h-48">
-            <EvidenceMedia
-              path={completion.evidence_url}
-              type="photo"
-              alt="Photo proof"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+        {cType === "photo" && evidence && (
+          <>
+            <button
+              type="button"
+              onClick={() => setPhotoOpen(true)}
+              aria-label="View photo full size"
+              className="relative mt-2 block w-full rounded-md overflow-hidden bg-[var(--color-bg-secondary)] h-48 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink"
+            >
+              {near && (
+                <EvidenceMedia
+                  path={evidence}
+                  type="photo"
+                  alt="Photo proof"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )}
+            </button>
+            {photoOpen && (
+              <MediaLightbox
+                path={evidence}
+                open={photoOpen}
+                onOpenChange={setPhotoOpen}
+                alt="Photo proof"
+              />
+            )}
+          </>
+        )}
+        {cType === "video" && evidence && (
+          <div className="mt-2 rounded-md overflow-hidden bg-[var(--color-bg-secondary)] h-48">
+            {near && (
+              <EvidenceMedia
+                path={evidence}
+                type="video"
+                className="w-full h-full object-contain"
+              />
+            )}
           </div>
         )}
-        {completion.completion_type === "video" && completion.evidence_url && (
-          <div className="mt-2 rounded-md overflow-hidden bg-[var(--color-bg-secondary)]">
-            <EvidenceMedia
-              path={completion.evidence_url}
-              type="video"
-              className="w-full max-h-48"
-            />
+        {cType === "voice" && evidence && (
+          <div className="mt-2 h-9">
+            {near && <EvidenceAudio path={evidence} />}
           </div>
         )}
-        {completion.completion_type === "message" && completion.notes && (
-          <p className="mt-1 text-sm text-[var(--color-text-secondary)] line-clamp-3 italic">
-            &ldquo;{completion.notes}&rdquo;
-          </p>
+
+        {/* What was written with it: the message itself, or a caption */}
+        {!isRainCheck(cType) && completion.notes && (
+          <ClampedNote
+            text={completion.notes}
+            className={hasMedia ? "mt-2" : "mt-1"}
+          />
         )}
-        {isRainCheck(completion.completion_type) && (
+        {isRainCheck(cType) && (
           <div className="mt-1 space-y-1">
             <p className="text-sm text-[var(--color-text-secondary)]">
               {completion.rain_check_moved_to
                 ? `Moved to ${weekdayName(completion.rain_check_moved_to)} · ${rainCheckReasonLabel(completion.rain_check_reason)}`
                 : rainCheckReasonLabel(completion.rain_check_reason)}
             </p>
-            {completion.notes && (
-              <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 italic">
-                &ldquo;{completion.notes}&rdquo;
-              </p>
-            )}
-          </div>
-        )}
-        {completion.completion_type === "voice" && completion.evidence_url && (
-          <div className="mt-2">
-            <EvidenceAudio path={completion.evidence_url} />
+            {completion.notes && <ClampedNote text={completion.notes} />}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A note cut to three lines, with a toggle to read the rest — offered only
+ * when the clamp actually hides something.
+ */
+function ClampedNote({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || expanded) return;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text, expanded]);
+
+  return (
+    <div className={className}>
+      <p
+        ref={ref}
+        className={cn(
+          "text-sm text-[var(--color-text-secondary)] italic whitespace-pre-line break-words",
+          !expanded && "line-clamp-3",
+        )}
+      >
+        &ldquo;{text}&rdquo;
+      </p>
+      {(overflows || expanded) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          className="mt-1 text-xs font-medium text-brand-ink hover:underline"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
     </div>
   );
 }

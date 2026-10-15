@@ -20,6 +20,9 @@ import { Pill } from "@/components/ui/Badge";
 import { InviteLinkSheet } from "@/components/social/InviteLinkSheet";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
+import { AvatarCropper } from "@/components/ui/AvatarCropper";
+import { uploadAvatar } from "@/lib/utils/avatar-upload";
+import { MAX_AVATAR_SOURCE_BYTES } from "@/lib/constants/limits";
 import {
   useUpdateGroup,
   useDeleteGroup,
@@ -64,6 +67,7 @@ export function SettingsClient({
   const [avatarUrl, setAvatarUrl] = useState(group.avatar_url ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -92,21 +96,17 @@ export function SettingsClient({
     }
   }, [name, description, group.id, updateGroup, showToast, router]);
 
-  const handleAvatarUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // A picked photo goes to the cropper first; only the square chosen there is
+  // uploaded.
+  const handleAvatarPick = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
+      // Cleared so picking the same photo again still opens the cropper.
+      e.target.value = "";
       if (!file) return;
 
-      const ALLOWED_TYPES: Record<string, string> = {
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/webp": "webp",
-        "image/gif": "gif",
-      };
-      const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
-
-      const ext = ALLOWED_TYPES[file.type];
-      if (!ext) {
+      const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+      if (!ALLOWED_TYPES.has(file.type)) {
         showToast({
           variant: "error",
           title: "Unsupported file type",
@@ -114,32 +114,34 @@ export function SettingsClient({
         });
         return;
       }
-      if (file.size > MAX_SIZE) {
+      if (file.size > MAX_AVATAR_SOURCE_BYTES) {
         showToast({
           variant: "error",
           title: "File too large",
-          description: "Image must be under 5 MB.",
+          description: "Choose a photo under 25 MB.",
         });
         return;
       }
 
+      setCropFile(file);
+    },
+    [showToast],
+  );
+
+  const handleAvatarCropped = useCallback(
+    async (blob: Blob) => {
+      setCropFile(null);
       setIsUploadingAvatar(true);
       const supabase = createClient();
-      const path = `${group.id}/avatar.${ext}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("group-avatars")
-        .upload(path, file, { upsert: true });
-
-      if (uploadError) {
+      let publicUrl: string;
+      try {
+        publicUrl = await uploadAvatar(supabase, "group-avatars", group.id, blob);
+      } catch {
         showToast({ variant: "error", title: "Upload failed" });
         setIsUploadingAvatar(false);
         return;
       }
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("group-avatars").getPublicUrl(path);
 
       try {
         await updateGroup.mutateAsync({
@@ -273,7 +275,7 @@ export function SettingsClient({
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   className="hidden"
-                  onChange={handleAvatarUpload}
+                  onChange={handleAvatarPick}
                 />
               </div>
               <p className="text-xs text-text-tertiary">
@@ -437,6 +439,12 @@ export function SettingsClient({
         }}
       />
 
+      <AvatarCropper
+        file={cropFile}
+        onConfirm={handleAvatarCropped}
+        onCancel={() => setCropFile(null)}
+        title="Move and scale group photo"
+      />
       {ToastElements}
     </div>
   );

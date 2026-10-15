@@ -2,10 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { FEED_WINDOW_MS } from "@/lib/constants/limits";
 
 /**
  * Returns true if the user has any feed with unread activity.
- * Queries the same tables the feed page uses (through RLS) to stay consistent.
+ * Queries the same tables the feed page uses (through RLS) to stay consistent,
+ * within the same window: activity that has expired out of the feed is not
+ * unread, since there is nothing left to open.
  */
 export function useHasUnreadFeeds(userId: string | null) {
   return useQuery({
@@ -15,13 +18,15 @@ export function useHasUnreadFeeds(userId: string | null) {
     queryFn: async (): Promise<boolean> => {
       if (!userId) return false;
       const supabase = createClient();
+      const since = new Date(Date.now() - FEED_WINDOW_MS).toISOString();
 
       // 1. Unread encouragements (same check as feed page)
       const { count: unreadEnc } = await supabase
         .from("encouragements")
         .select("*", { count: "exact", head: true })
         .eq("recipient_id", userId)
-        .eq("is_read", false);
+        .eq("is_read", false)
+        .gte("created_at", since);
 
       if (unreadEnc && unreadEnc > 0) return true;
 
@@ -55,9 +60,11 @@ export function useHasUnreadFeeds(userId: string | null) {
           .eq("group_id", gid)
           .neq("user_id", userId);
 
-        if (cursor) {
-          query = query.gt("created_at", cursor);
-        }
+        const after =
+          cursor && new Date(cursor).getTime() > new Date(since).getTime()
+            ? cursor
+            : since;
+        query = query.gt("created_at", after);
 
         const { count } = await query;
         if (count && count > 0) return true;

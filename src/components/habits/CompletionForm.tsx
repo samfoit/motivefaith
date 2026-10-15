@@ -974,6 +974,7 @@ export function CompletionForm({
           onCapture={handleCameraCapture}
           onClose={handleCameraClose}
           onFallback={handleCameraFallback}
+          allowVoice={false}
         />
       )}
 
