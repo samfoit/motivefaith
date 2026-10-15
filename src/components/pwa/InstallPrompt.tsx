@@ -90,11 +90,11 @@ function getInstructions(platform: Platform): Instructions {
         title: "Install on iPhone / iPad",
         steps: [
           {
-            icon: <Share className="w-5 h-5 text-brand-ink" />,
+            icon: <Share className="w-4 h-4 text-brand-ink" />,
             text: "Tap the Share button in the toolbar",
           },
           {
-            icon: <PlusSquare className="w-5 h-5 text-brand-ink" />,
+            icon: <PlusSquare className="w-4 h-4 text-brand-ink" />,
             text: 'Scroll down and tap "Add to Home Screen"',
           },
           { text: 'Tap "Add" to confirm' },
@@ -106,11 +106,11 @@ function getInstructions(platform: Platform): Instructions {
         steps: [
           { text: "Open this page in Safari for the best experience" },
           {
-            icon: <Share className="w-5 h-5 text-brand-ink" />,
+            icon: <Share className="w-4 h-4 text-brand-ink" />,
             text: "Then tap the Share button",
           },
           {
-            icon: <PlusSquare className="w-5 h-5 text-brand-ink" />,
+            icon: <PlusSquare className="w-4 h-4 text-brand-ink" />,
             text: 'And tap "Add to Home Screen"',
           },
         ],
@@ -120,11 +120,11 @@ function getInstructions(platform: Platform): Instructions {
         title: "Install on Android",
         steps: [
           {
-            icon: <MoreVertical className="w-5 h-5 text-brand-ink" />,
+            icon: <MoreVertical className="w-4 h-4 text-brand-ink" />,
             text: "Tap the menu (three dots) in the top right",
           },
           {
-            icon: <Download className="w-5 h-5 text-brand-ink" />,
+            icon: <Download className="w-4 h-4 text-brand-ink" />,
             text: 'Tap "Install app" or "Add to Home screen"',
           },
           { text: 'Tap "Install" to confirm' },
@@ -136,11 +136,11 @@ function getInstructions(platform: Platform): Instructions {
         steps: [
           { text: "Open this page in Chrome for the best experience" },
           {
-            icon: <MoreVertical className="w-5 h-5 text-brand-ink" />,
+            icon: <MoreVertical className="w-4 h-4 text-brand-ink" />,
             text: "Then tap the three-dot menu",
           },
           {
-            icon: <Download className="w-5 h-5 text-brand-ink" />,
+            icon: <Download className="w-4 h-4 text-brand-ink" />,
             text: 'And tap "Install app"',
           },
         ],
@@ -150,7 +150,7 @@ function getInstructions(platform: Platform): Instructions {
         title: "Install on your computer",
         steps: [
           {
-            icon: <Download className="w-5 h-5 text-brand-ink" />,
+            icon: <Download className="w-4 h-4 text-brand-ink" />,
             text: "Click the install icon in the address bar",
           },
           { text: 'Or open the menu and click "Install MotiveFaith"' },
@@ -162,7 +162,7 @@ function getInstructions(platform: Platform): Instructions {
         title: "Install on your computer",
         steps: [
           {
-            icon: <Download className="w-5 h-5 text-brand-ink" />,
+            icon: <Download className="w-4 h-4 text-brand-ink" />,
             text: "Click the install icon in the address bar",
           },
           { text: "Or go to Settings (...) > Apps > Install this site" },
@@ -276,9 +276,12 @@ export function InstallPrompt() {
             {/* Header */}
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand flex items-center justify-center flex-shrink-0">
-                  <span className="text-on-brand text-lg font-bold">H</span>
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/apple-touch-icon-lamp.png"
+                  alt=""
+                  className="w-10 h-10 rounded-xl flex-shrink-0"
+                />
                 <div>
                   <h3 className="font-display font-medium text-[var(--color-text-primary)] text-sm">
                     {instructions.title}
@@ -302,19 +305,17 @@ export function InstallPrompt() {
             <ol className="space-y-3 mb-4">
               {instructions.steps.map((step, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <span
-                    className={cn(
-                      "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium",
-                      step.icon
-                        ? "bg-[var(--color-brand-light)]"
-                        : "bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]",
-                    )}
-                  >
-                    {step.icon ?? i + 1}
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]">
+                    {i + 1}
                   </span>
-                  <span className="text-sm text-[var(--color-text-primary)] pt-0.5 leading-snug">
+                  <span className="flex-1 text-sm text-[var(--color-text-primary)] pt-0.5 leading-snug">
                     {step.text}
                   </span>
+                  {step.icon && (
+                    <span className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center bg-[var(--color-brand-light)]">
+                      {step.icon}
+                    </span>
+                  )}
                 </li>
               ))}
             </ol>
