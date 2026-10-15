@@ -234,7 +234,7 @@ export function AvatarCropper({
         <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black" />
         <RadixDialog.Content
           aria-describedby={undefined}
-          className="fixed inset-0 z-50 flex flex-col text-white outline-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+          className="fixed inset-0 z-50 flex flex-col text-white outline-none pt-safe pb-safe"
         >
           <RadixDialog.Title className="shrink-0 pt-5 pb-3 text-center text-base font-semibold">
             {title}
