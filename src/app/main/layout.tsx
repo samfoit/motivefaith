@@ -7,6 +7,7 @@ import { QuickCaptureFlow } from "@/components/habits/QuickCaptureFlow";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
+import { SkyScene, SkyClearance } from "@/components/layout/SkyScene";
 
 /**
  * Validates auth and profile completeness before any of `/main/*` renders.
@@ -64,7 +65,12 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-dvh bg-[var(--color-bg-primary)]">
+    // `isolate` makes this root a stacking context, so the sky's negative
+    // z-index paints over the root's ground and under all of the content —
+    // without giving <main> a z-index of its own, which would trap every
+    // non-portaled overlay in a page beneath the nav.
+    <div className="relative isolate min-h-dvh bg-[var(--color-bg-primary)]">
+      <SkyScene />
       <NavigationProgress />
       <OfflineIndicator />
       {/* Persistent chrome: no data dependency, so it is always in the first
@@ -73,11 +79,15 @@ export default function MainLayout({
       {/* Clearance for the fixed bottom nav: its own 4rem plus the home-bar
           inset it pads itself by, and 1rem of breathing room. A flat `pb-24`
           was both short of that on a notched phone and 16px of dead scroll
-          on every other one. */}
+          on every other one.
+
+          The sky's own room at the end of a list is SkyClearance, which
+          knows which screens draw the hills. */}
       <main className="pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <Suspense fallback={null}>
           <AuthGate>{children}</AuthGate>
         </Suspense>
+        <SkyClearance />
       </main>
       <BottomNav />
       <QuickCaptureFlow />

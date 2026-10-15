@@ -83,7 +83,7 @@ export function CreateChallengeSheet({
     <Sheet open={open} onOpenChange={onOpenChange} size="lg" showHandle>
       <div className="px-4 py-2 space-y-4 overflow-y-auto max-h-[80vh]">
         <h2
-          className="font-display font-bold text-[var(--color-text-primary)]"
+          className="font-display font-medium text-[var(--color-text-primary)]"
           style={{ fontSize: "var(--text-lg)" }}
         >
           New Challenge
@@ -111,7 +111,7 @@ export function CreateChallengeSheet({
                 className={cn(
                   "w-8 h-8 flex items-center justify-center rounded-lg text-base transition-all",
                   form.emoji === emoji
-                    ? "bg-brand-light ring-2 ring-brand scale-110"
+                    ? "bg-brand-light ring-2 ring-brand-ink scale-110"
                     : "hover:bg-[var(--color-surface-hover)]",
                 )}
               >
@@ -153,7 +153,7 @@ export function CreateChallengeSheet({
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                   form.frequency === freq.value
-                    ? "bg-brand text-white"
+                    ? "bg-brand text-on-brand"
                     : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
                 )}
               >
@@ -177,7 +177,7 @@ export function CreateChallengeSheet({
                   className={cn(
                     "w-8 h-8 rounded-full text-xs font-medium transition-all flex items-center justify-center",
                     form.scheduleDays.includes(day.value)
-                      ? "bg-brand text-white"
+                      ? "bg-brand text-on-brand"
                       : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]",
                   )}
                 >

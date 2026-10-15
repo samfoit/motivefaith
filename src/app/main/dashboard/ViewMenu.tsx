@@ -71,7 +71,7 @@ export function ViewMenu({ value, onChange }: ViewMenuProps) {
                   <span className="block text-xs text-text-tertiary">{hint}</span>
                 </span>
                 <DropdownMenu.ItemIndicator>
-                  <Check className="w-4 h-4 text-brand" />
+                  <Check className="w-4 h-4 text-brand-ink" />
                 </DropdownMenu.ItemIndicator>
               </DropdownMenu.RadioItem>
             ))}

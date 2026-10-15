@@ -8,7 +8,7 @@ export default function DmcaPage() {
   return (
     <div className="space-y-8 text-[var(--color-text-primary)]">
       <header>
-        <h1 className="font-display text-3xl font-bold mb-2">DMCA Policy</h1>
+        <h1 className="font-display text-3xl font-medium mb-2">DMCA Policy</h1>
         <p className="text-sm text-[var(--color-text-tertiary)]">
           Last updated: February 23, 2026
         </p>
@@ -25,7 +25,7 @@ export default function DmcaPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           Filing a Takedown Notice
         </h2>
         <p>
@@ -63,7 +63,7 @@ export default function DmcaPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           Designated DMCA Agent
         </h2>
         <p>
@@ -80,7 +80,7 @@ export default function DmcaPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           Counter-Notification
         </h2>
         <p>
@@ -111,7 +111,7 @@ export default function DmcaPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           Repeat Infringer Policy
         </h2>
         <p>

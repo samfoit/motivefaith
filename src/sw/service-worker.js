@@ -18,7 +18,7 @@ var MAX_CACHE_ENTRIES = 100;
 // to paint it. Substituted at build time with the real hashed CSS/JS paths so
 // a repeat visit or an installed-PWA launch never waits on the network for
 // them. Falls back to the navigable routes alone if substitution didn't run.
-var SHELL_ROUTES = ["/", "/offline", "/manifest.webmanifest", "/icon-192.png"];
+var SHELL_ROUTES = ["/", "/offline", "/manifest.webmanifest", "/icon-lamp-192.png"];
 var CRITICAL_ASSETS = [];
 var INJECTED_ASSETS = "__MOTIVE_CRITICAL_ASSETS__";
 if (INJECTED_ASSETS.indexOf("__MOTIVE_") !== 0) {
@@ -404,7 +404,7 @@ self.addEventListener("push", function (event) {
 
   var options = {
     body: truncateText(data.body, 200),
-    icon: data.icon || "/icon-192.png",
+    icon: data.icon || "/icon-lamp-192.png",
     badge: data.badge || "/badge-96.png",
     tag: data.type || "default",
     data: { url: data.url || "/main/dashboard" },

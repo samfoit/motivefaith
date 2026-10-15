@@ -6,8 +6,8 @@ export function DayMark({ state }: { state: DayState }) {
   switch (state) {
     case "done":
       return (
-        <span className="w-5 h-5 rounded-full bg-success flex items-center justify-center">
-          <Check className="w-3 h-3 text-white" strokeWidth={3} />
+        <span className="w-5 h-5 rounded-full bg-brand flex items-center justify-center">
+          <Check className="w-3 h-3 text-on-brand" strokeWidth={3} />
         </span>
       );
     case "rain":
@@ -26,7 +26,7 @@ export function DayMark({ state }: { state: DayState }) {
     case "missed":
       return <span className="w-5 h-5 rounded-full border-[1.5px] border-text-tertiary" />;
     case "today":
-      return <span className="w-5 h-5 rounded-full border-2 border-brand" />;
+      return <span className="w-5 h-5 rounded-full border-2 border-brand-ink" />;
     case "upcoming":
       return (
         <span className="w-5 h-5 rounded-full border-[1.5px] border-text-tertiary opacity-35" />

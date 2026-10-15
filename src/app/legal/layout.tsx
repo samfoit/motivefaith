@@ -10,7 +10,7 @@ export default function LegalLayout({
       <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-16">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-sm text-[var(--color-brand)] hover:text-[var(--color-brand-hover)] mb-8 transition-colors"
+          className="inline-flex items-center gap-1 text-sm text-brand-ink hover:opacity-80 mb-8 transition-colors"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

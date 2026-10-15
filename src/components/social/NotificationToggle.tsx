@@ -88,7 +88,7 @@ export function NotificationToggle({
         )}
       >
         {isActive ? (
-          <Bell className="w-5 h-5 text-brand" />
+          <Bell className="w-5 h-5 text-brand-ink" />
         ) : (
           <BellOff className="w-5 h-5 text-[var(--color-text-tertiary)]" />
         )}

@@ -266,7 +266,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
                 className={cn(
                   "flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize",
                   filter === tab
-                    ? "bg-brand text-white"
+                    ? "bg-brand text-on-brand"
                     : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
                 )}
               >
@@ -322,7 +322,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
               <Users className="w-6 h-6 text-[var(--color-text-tertiary)]" />
             </div>
             <h2
-              className="font-display font-semibold text-[var(--color-text-primary)] mb-2"
+              className="font-display font-medium text-[var(--color-text-primary)] mb-2"
               style={{ fontSize: "var(--text-xl)" }}
             >
               No friends yet

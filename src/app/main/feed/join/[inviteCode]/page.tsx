@@ -31,7 +31,7 @@ export default async function JoinGroupPage({ params }: Props) {
             <Users className="w-6 h-6 text-text-tertiary" />
           </div>
           <h1
-            className="font-display font-bold text-text-primary mb-2"
+            className="font-display font-medium text-text-primary mb-2"
             style={{ fontSize: "var(--text-xl)" }}
           >
             Invite not found

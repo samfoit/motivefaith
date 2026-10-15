@@ -128,10 +128,10 @@ export function HabitCircle({
       className={cn(
         "w-10 h-10 rounded-full flex items-center justify-center",
         "transition-all duration-200 ease-bounce",
-        state === "done" && "bg-success text-white",
+        state === "done" && "bg-brand text-on-brand shadow-[var(--lamp-glow-done)]",
         state === "rain" && "border-2",
         state === "open" &&
-          "border-2 border-gray-300 group-hover:border-success group-hover:bg-success/10",
+          "border-2 border-text-tertiary group-hover:border-brand-ink group-hover:bg-brand/10",
       )}
       style={
         state === "rain"

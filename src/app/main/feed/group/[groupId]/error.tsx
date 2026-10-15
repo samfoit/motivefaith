@@ -14,7 +14,7 @@ export default function GroupError({
       <div className="text-center max-w-sm">
         <div className="text-4xl mb-4">😵</div>
         <h1
-          className="font-display font-bold text-[var(--color-text-primary)] mb-2"
+          className="font-display font-medium text-[var(--color-text-primary)] mb-2"
           style={{ fontSize: "var(--text-xl)" }}
         >
           Something went wrong

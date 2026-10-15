@@ -169,7 +169,7 @@ export const Sheet: React.FC<SheetProps> = ({
               <div className="flex-1 min-w-0">
                 <RadixDialog.Title
                   className={cn(
-                    "font-display text-lg font-semibold text-text-primary",
+                    "font-display text-lg font-medium text-text-primary",
                     !title && "sr-only",
                   )}
                 >

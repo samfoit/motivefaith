@@ -63,6 +63,15 @@ export function useKeyboardOffset(
       vv.addEventListener("scroll", reposition);
     }
 
+    // Write the resting position now, not only on the next event. The
+    // cleanup below clears the inline `bottom`, and an effect that is torn
+    // down and run again (React's dev double-invoke, a ref or defaultCSS
+    // change) would otherwise leave the bar with none until something
+    // fired. A fixed element with no `bottom` falls back to its place in the
+    // flow and floats mid-screen under the last message. Safe here: nothing
+    // is focused yet, so this is not the during-the-tap move iOS punishes.
+    reposition();
+
     return () => {
       el.removeEventListener("focusin", onFocusIn);
       el.removeEventListener("focusout", onFocusOut);

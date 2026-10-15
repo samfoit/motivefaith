@@ -168,7 +168,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="w-full max-w-sm auth-card-enter">
       <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-        <h1 className="font-display text-2xl font-bold text-center mb-2">
+        <h1 className="font-display text-2xl font-medium text-center mb-2">
           New password
         </h1>
         <p

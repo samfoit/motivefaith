@@ -121,7 +121,7 @@ export function DesktopFactsPanel() {
   return (
     <div className="hidden lg:flex flex-col justify-center w-full max-w-md xl:max-w-lg px-8">
       <div className="mb-6">
-        <h2 className="font-display text-xl font-bold mb-1 text-text-primary">
+        <h2 className="font-display text-xl font-medium mb-1 text-text-primary">
           Did you know?
         </h2>
         <p className="text-sm text-text-secondary">

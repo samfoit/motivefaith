@@ -126,7 +126,7 @@ function TimeSelect({
         onChange={(e) => onChange(e.target.value)}
         className={cn(
           "w-full min-w-0 rounded-md border bg-bg-elevated px-2 py-1 text-sm text-text-primary",
-          "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand",
+          "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
         )}
       />
     </label>
@@ -204,7 +204,7 @@ export function NotificationPreferences({
   return (
     <div className={cn("rounded-lg bg-elevated p-4 shadow-sm space-y-1", className)}>
       <div className="flex items-center gap-2 mb-2">
-        <Bell className="w-4 h-4 text-brand" />
+        <Bell className="w-4 h-4 text-brand-ink" />
         <span className="text-sm font-medium text-[var(--color-text-primary)]">
           Notification Settings
         </span>

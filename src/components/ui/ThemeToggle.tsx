@@ -1,17 +1,19 @@
 "use client";
 
 import React from "react";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon, SunMoon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import {
   useThemeStore,
   type ThemePreference,
 } from "@/lib/stores/theme-store";
 
+// "Auto" follows the hour: dawn, day, dusk and night in turn (Lamplight).
+// iOS uses the same word for its sunrise-to-sunset switch.
 const OPTIONS: { value: ThemePreference; icon: React.ElementType; label: string }[] = [
+  { value: "day", icon: SunMoon, label: "Auto" },
   { value: "light", icon: Sun, label: "Light" },
   { value: "dark", icon: Moon, label: "Dark" },
-  { value: "system", icon: Monitor, label: "System" },
 ];
 
 interface ThemeToggleProps {
@@ -28,7 +30,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
   }, []);
 
   // Use server default until mounted to avoid hydration mismatch
-  const activePreference = mounted ? preference : "system";
+  const activePreference = mounted ? preference : "day";
 
   return (
     <div

@@ -373,7 +373,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
             />
             <span className="min-w-0">
               <span className="flex items-center gap-1">
-                <span className="font-display font-bold text-text-primary text-base truncate">
+                <span className="font-display font-medium text-text-primary text-base truncate">
                   {friend.display_name}
                 </span>
                 <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
@@ -426,7 +426,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
               "flex-1 min-w-0 rounded-full px-4 py-2.5 text-base",
               "bg-bg-secondary text-text-primary",
               "placeholder:text-text-tertiary",
-              "focus:outline-none focus:ring-2 focus:ring-brand/40",
+              "focus:outline-none focus:ring-2 focus:ring-brand-ink/40",
               "transition-shadow",
             )}
           />
@@ -437,7 +437,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
               "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
               "transition-all",
               message.trim()
-                ? "bg-brand text-white active:scale-95"
+                ? "bg-brand text-on-brand active:scale-95"
                 : "bg-bg-secondary text-text-tertiary",
             )}
             aria-label="Send message"

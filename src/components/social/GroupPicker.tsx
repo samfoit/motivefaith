@@ -85,7 +85,7 @@ export function GroupPicker({
                 className={cn(
                   "w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left",
                   isSelected
-                    ? "bg-brand-light ring-2 ring-brand"
+                    ? "bg-brand-light ring-2 ring-brand-ink"
                     : "bg-[var(--color-bg-secondary)] hover:bg-[var(--color-surface-hover)]",
                 )}
               >
@@ -98,7 +98,7 @@ export function GroupPicker({
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-brand-light flex items-center justify-center flex-shrink-0">
-                    <Users className="w-4 h-4 text-brand" />
+                    <Users className="w-4 h-4 text-brand-ink" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -113,12 +113,12 @@ export function GroupPicker({
                   className={cn(
                     "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0",
                     isSelected
-                      ? "bg-brand border-brand"
+                      ? "bg-brand border-brand-ink"
                       : "border-gray-300",
                   )}
                 >
                   {isSelected && (
-                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    <Check className="w-3 h-3 text-on-brand" strokeWidth={3} />
                   )}
                 </div>
               </button>

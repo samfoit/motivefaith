@@ -59,7 +59,7 @@ export function InviteLinkSheet({
       {ToastElements}
       <div className="px-4 py-2 space-y-4">
         <h2
-          className="font-display font-bold text-[var(--color-text-primary)]"
+          className="font-display font-medium text-[var(--color-text-primary)]"
           style={{ fontSize: "var(--text-lg)" }}
         >
           Invite Link

@@ -378,7 +378,7 @@ export function QuickCaptureFlow() {
             >
               <ChevronLeft className="w-6 h-6 text-text-primary" />
             </button>
-            <h2 className="font-display text-lg font-semibold text-text-primary">
+            <h2 className="font-display text-lg font-medium text-text-primary">
               Send to…
             </h2>
           </div>
@@ -430,7 +430,7 @@ export function QuickCaptureFlow() {
                   "flex-1 min-w-0 rounded-lg border px-4 py-2.5 text-base transition-colors",
                   "bg-bg-secondary border-surface-hover",
                   "text-text-primary placeholder-text-tertiary",
-                  "focus:outline-none focus:ring-2 focus:ring-brand",
+                  "focus:outline-none focus:ring-2 focus:ring-brand-ink",
                 )}
               />
             </div>
@@ -473,7 +473,7 @@ export function QuickCaptureFlow() {
       {step === "uploading" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-3 rounded-xl bg-bg-elevated p-8 shadow-lg">
-            <Loader2 className="w-8 h-8 animate-spin text-brand" />
+            <Loader2 className="w-8 h-8 animate-spin text-brand-ink" />
             <p className="text-sm font-medium text-text-primary">
               Uploading...
             </p>

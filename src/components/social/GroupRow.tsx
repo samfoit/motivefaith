@@ -42,7 +42,7 @@ export const GroupRow = React.memo(function GroupRow({
           />
         ) : (
           <div className="w-12 h-12 rounded-full bg-brand-light flex items-center justify-center flex-shrink-0">
-            <Users className="w-5 h-5 text-brand" />
+            <Users className="w-5 h-5 text-brand-ink" />
           </div>
         )}
 

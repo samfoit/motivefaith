@@ -71,7 +71,7 @@ export function GroupChallenges({
                 className={cn(
                   "habit-tint shrink-0 flex items-center gap-1.5 rounded-full border",
                   "pl-2.5 pr-3 py-1.5 transition-transform active:scale-95",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
                 )}
                 style={{ ["--habit-color" as string]: challenge.color ?? undefined }}
               >

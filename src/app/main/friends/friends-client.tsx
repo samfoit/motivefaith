@@ -47,7 +47,7 @@ import { TOP_BAR_PRIMARY_ACTION_CLASS } from "@/components/layout/topBarStyles";
 const TAB_TRIGGER_CLASS = cn(
   "flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors text-center",
   "text-[var(--color-text-secondary)]",
-  "data-[state=active]:bg-brand data-[state=active]:text-white",
+  "data-[state=active]:bg-brand data-[state=active]:text-on-brand",
   "hover:text-[var(--color-text-primary)]",
 );
 
@@ -235,7 +235,7 @@ export function FriendsClient({
             className={cn(
               "w-full rounded-lg border bg-elevated pl-10 pr-4 py-2.5 text-base",
               "placeholder:text-[var(--color-text-tertiary)]",
-              "border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand",
+              "border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-ink focus:border-brand-ink",
               "transition-colors",
             )}
           />
@@ -543,7 +543,7 @@ function IncomingRequestCard({
   isAccepting: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm border-l-[3px] border-brand">
+    <div className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm border-l-[3px] border-brand-ink">
       <Avatar
         src={request.profile.avatar_url}
         name={request.profile.display_name}

@@ -71,7 +71,7 @@ export const WeekView = memo(function WeekView({
                   key={key}
                   className={cn(
                     "w-7 flex flex-col items-center leading-none",
-                    isToday ? "text-brand" : "text-text-secondary",
+                    isToday ? "text-brand-ink" : "text-text-secondary",
                   )}
                 >
                   <span className="text-[10px] font-medium">

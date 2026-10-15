@@ -90,11 +90,11 @@ function getInstructions(platform: Platform): Instructions {
         title: "Install on iPhone / iPad",
         steps: [
           {
-            icon: <Share className="w-5 h-5 text-brand" />,
+            icon: <Share className="w-5 h-5 text-brand-ink" />,
             text: "Tap the Share button in the toolbar",
           },
           {
-            icon: <PlusSquare className="w-5 h-5 text-brand" />,
+            icon: <PlusSquare className="w-5 h-5 text-brand-ink" />,
             text: 'Scroll down and tap "Add to Home Screen"',
           },
           { text: 'Tap "Add" to confirm' },
@@ -106,11 +106,11 @@ function getInstructions(platform: Platform): Instructions {
         steps: [
           { text: "Open this page in Safari for the best experience" },
           {
-            icon: <Share className="w-5 h-5 text-brand" />,
+            icon: <Share className="w-5 h-5 text-brand-ink" />,
             text: "Then tap the Share button",
           },
           {
-            icon: <PlusSquare className="w-5 h-5 text-brand" />,
+            icon: <PlusSquare className="w-5 h-5 text-brand-ink" />,
             text: 'And tap "Add to Home Screen"',
           },
         ],
@@ -120,11 +120,11 @@ function getInstructions(platform: Platform): Instructions {
         title: "Install on Android",
         steps: [
           {
-            icon: <MoreVertical className="w-5 h-5 text-brand" />,
+            icon: <MoreVertical className="w-5 h-5 text-brand-ink" />,
             text: "Tap the menu (three dots) in the top right",
           },
           {
-            icon: <Download className="w-5 h-5 text-brand" />,
+            icon: <Download className="w-5 h-5 text-brand-ink" />,
             text: 'Tap "Install app" or "Add to Home screen"',
           },
           { text: 'Tap "Install" to confirm' },
@@ -136,11 +136,11 @@ function getInstructions(platform: Platform): Instructions {
         steps: [
           { text: "Open this page in Chrome for the best experience" },
           {
-            icon: <MoreVertical className="w-5 h-5 text-brand" />,
+            icon: <MoreVertical className="w-5 h-5 text-brand-ink" />,
             text: "Then tap the three-dot menu",
           },
           {
-            icon: <Download className="w-5 h-5 text-brand" />,
+            icon: <Download className="w-5 h-5 text-brand-ink" />,
             text: 'And tap "Install app"',
           },
         ],
@@ -150,7 +150,7 @@ function getInstructions(platform: Platform): Instructions {
         title: "Install on your computer",
         steps: [
           {
-            icon: <Download className="w-5 h-5 text-brand" />,
+            icon: <Download className="w-5 h-5 text-brand-ink" />,
             text: "Click the install icon in the address bar",
           },
           { text: 'Or open the menu and click "Install MotiveFaith"' },
@@ -162,7 +162,7 @@ function getInstructions(platform: Platform): Instructions {
         title: "Install on your computer",
         steps: [
           {
-            icon: <Download className="w-5 h-5 text-brand" />,
+            icon: <Download className="w-5 h-5 text-brand-ink" />,
             text: "Click the install icon in the address bar",
           },
           { text: "Or go to Settings (...) > Apps > Install this site" },
@@ -277,10 +277,10 @@ export function InstallPrompt() {
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-brand flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-lg font-bold">H</span>
+                  <span className="text-on-brand text-lg font-bold">H</span>
                 </div>
                 <div>
-                  <h3 className="font-display font-semibold text-[var(--color-text-primary)] text-sm">
+                  <h3 className="font-display font-medium text-[var(--color-text-primary)] text-sm">
                     {instructions.title}
                   </h3>
                   <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">

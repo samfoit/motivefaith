@@ -237,7 +237,7 @@ export function EditHabitSheet({
                   className={cn(
                     "w-9 h-9 flex items-center justify-center rounded-lg text-lg transition-all",
                     form.emoji === emoji
-                      ? "bg-brand-light ring-2 ring-brand scale-110"
+                      ? "bg-brand-light ring-2 ring-brand-ink scale-110"
                       : "hover:bg-surface-hover",
                   )}
                 >
@@ -271,7 +271,7 @@ export function EditHabitSheet({
                 className={cn(
                   "px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
                   form.frequency === freq.value
-                    ? "bg-brand text-white shadow-sm"
+                    ? "bg-brand text-on-brand shadow-sm"
                     : "bg-bg-secondary text-text-primary hover:bg-surface-hover",
                 )}
               >
@@ -295,7 +295,7 @@ export function EditHabitSheet({
                     className={cn(
                       "w-10 h-10 rounded-full text-sm font-medium transition-all flex items-center justify-center",
                       form.scheduleDays.includes(day.value)
-                        ? "bg-brand text-white"
+                        ? "bg-brand text-on-brand"
                         : "bg-bg-secondary text-text-primary hover:bg-surface-hover",
                     )}
                   >

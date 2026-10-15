@@ -160,7 +160,7 @@ export function InviteClient({ state, username }: InviteClientProps) {
       case "anonymous":
         return (
           <Card
-            icon={<Sparkles className="w-8 h-8 text-brand" />}
+            icon={<Sparkles className="w-8 h-8 text-brand-ink" />}
             title={`@${username} invited you to Motive`}
             body="Track the habits that matter, with people who keep you honest. Make an account and we'll send them a friend request."
           >
@@ -202,7 +202,7 @@ export function InviteClient({ state, username }: InviteClientProps) {
       case "self":
         return (
           <Card
-            icon={<Sparkles className="w-8 h-8 text-brand" />}
+            icon={<Sparkles className="w-8 h-8 text-brand-ink" />}
             title="This is your own invite link"
             body="Send it to someone else and they'll land here with your name on it."
           >
@@ -334,7 +334,7 @@ function Card({
       )}
 
       <h1
-        className="font-display font-bold text-text-primary mb-2 text-balance"
+        className="font-display font-medium text-text-primary mb-2 text-balance"
         style={{ fontSize: "var(--text-xl)" }}
       >
         {title}

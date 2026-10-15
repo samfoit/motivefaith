@@ -211,7 +211,7 @@ export function ProfileClient({
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploadingAvatar}
               className={cn(
-                "absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand text-white",
+                "absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand text-on-brand",
                 "flex items-center justify-center shadow-sm",
                 "hover:bg-brand-hover transition-colors",
                 "disabled:opacity-50",
@@ -244,8 +244,8 @@ export function ProfileClient({
                   }}
                   autoFocus
                   className={cn(
-                    "flex-1 rounded-md border bg-bg-elevated px-2 py-1 text-base font-bold font-display",
-                    "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand",
+                    "flex-1 rounded-md border bg-bg-elevated px-2 py-1 text-base font-medium font-display",
+                    "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
                   )}
                 />
                 <button
@@ -269,7 +269,7 @@ export function ProfileClient({
               <div className="flex items-center gap-2">
                 {/* h2: the screen's h1 is "Profile", in the TopBar. */}
                 <h2
-                  className="font-display font-bold text-text-primary truncate"
+                  className="font-display font-medium text-text-primary truncate"
                   style={{ fontSize: "var(--text-xl)" }}
                 >
                   {displayName}
@@ -389,7 +389,7 @@ export function ProfileClient({
                       }}
                       className={cn(
                         "flex-1 rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary text-center font-mono tracking-widest",
-                        "border-surface-hover focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                        "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
                       )}
                     />
                     <Button
@@ -492,7 +492,7 @@ export function ProfileClient({
                       }}
                       className={cn(
                         "flex-1 rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary text-center font-mono tracking-widest",
-                        "border-surface-hover focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                        "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
                       )}
                     />
                     <Button

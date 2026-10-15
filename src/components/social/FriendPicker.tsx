@@ -119,11 +119,11 @@ export function FriendPicker({
                     </p>
                   </div>
                   {isLoading ? (
-                    <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <div className="w-4 h-4 border-2 border-brand-ink border-t-transparent rounded-full animate-spin flex-shrink-0" />
                   ) : isSelected ? (
                     <Check className="w-4 h-4 text-success flex-shrink-0" />
                   ) : (
-                    <UserPlus className="w-4 h-4 text-brand flex-shrink-0" />
+                    <UserPlus className="w-4 h-4 text-brand-ink flex-shrink-0" />
                   )}
                 </button>
               );
@@ -138,7 +138,7 @@ export function FriendPicker({
                 className={cn(
                   "w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left",
                   isSelected
-                    ? "bg-brand-light ring-2 ring-brand"
+                    ? "bg-brand-light ring-2 ring-brand-ink"
                     : "bg-[var(--color-bg-secondary)] hover:bg-[var(--color-surface-hover)]",
                 )}
               >
@@ -159,12 +159,12 @@ export function FriendPicker({
                   className={cn(
                     "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0",
                     isSelected
-                      ? "bg-brand border-brand"
+                      ? "bg-brand border-brand-ink"
                       : "border-gray-300",
                   )}
                 >
                   {isSelected && (
-                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    <Check className="w-3 h-3 text-on-brand" strokeWidth={3} />
                   )}
                 </div>
               </button>

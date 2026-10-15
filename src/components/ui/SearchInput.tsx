@@ -19,7 +19,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg bg-[var(--color-bg-secondary)] pl-9 pr-3 py-2.5 text-base text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-brand transition-shadow"
+        className="w-full rounded-lg bg-[var(--color-bg-secondary)] pl-9 pr-3 py-2.5 text-base text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-brand-ink transition-shadow"
       />
     </div>
   );

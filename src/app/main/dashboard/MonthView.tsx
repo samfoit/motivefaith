@@ -88,7 +88,7 @@ export const MonthView = memo(function MonthView({
     <div className="space-y-4">
       <div className="rounded-lg bg-bg-secondary px-2 pt-3 pb-2">
         <div className="flex items-baseline justify-between gap-3 px-2 mb-2">
-          <h2 className="font-display font-semibold text-text-primary text-base">
+          <h2 className="font-display font-medium text-text-primary text-base">
             {format(monthStart, "MMMM yyyy")}
           </h2>
           {monthDue > 0 && (
@@ -280,14 +280,14 @@ const DayCell = memo(function DayCell({
             )}
           </svg>
         )}
-        {complete && <span className="absolute inset-0 rounded-full bg-success" />}
+        {complete && <span className="absolute inset-0 rounded-full bg-brand" />}
         <span
           className={cn(
             "relative text-xs tabular-nums leading-none",
             complete
-              ? "text-white font-bold"
+              ? "text-on-brand font-bold"
               : isToday
-                ? "text-brand font-bold"
+                ? "text-brand-ink font-bold"
                 : isFuture || due === 0
                   ? "text-text-tertiary"
                   : "text-text-primary font-medium",

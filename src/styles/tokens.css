@@ -1,22 +1,58 @@
 :root {
-  /* —— Colors —— */
-  --color-bg-primary: #fafaf9; /* Warm off-white (Notion warmth) */
-  --color-bg-secondary: #f5f5f4; /* Card backgrounds */
-  --color-bg-elevated: #ffffff; /* Modals, popovers */
-  --color-surface-hover: #f0efed; /* Hover states */
-  --color-text-primary: #1c1917; /* Near-black, never pure #000 */
-  --color-text-secondary: #78716c; /* Muted labels */
-  --color-text-tertiary: #a8a29e; /* Timestamps, metadata */
-  --color-brand: #6366f1; /* Indigo — energetic but calm */
-  --color-brand-light: #eef2ff; /* Brand tint for backgrounds */
-  --color-brand-hover: #4f46e5;
-  --color-success: #22c55e; /* Completion green */
-  --color-streak: #f59e0b; /* Streak flame amber */
+  /* —— Colors: Lamplight ——
+     These two blocks are the Light and Dark pins (Profile → Theme) and the
+     no-JS fallback: a clear midday and a lamplit night. In the default
+     "Through the day" mode the theme store writes the hour's blend of the
+     same properties inline on <html>, which wins over both blocks. Every
+     value here must equal palette(12.5) / palette(22) in
+     src/lib/lamplight/palette.ts; palette.test.ts holds them to it. */
+  --color-bg-primary: #ECF2F7; /* ground */
+  --color-bg-secondary: #EAF1F7; /* tile */
+  --color-bg-elevated: #FFFFFF; /* card */
+  --color-surface-hover: #D8E2EB; /* track */
+  --color-text-primary: #1C2030; /* ink */
+  --color-text-secondary: #4D5A69; /* sub */
+  --color-text-tertiary: #5E6A7A;
+  --color-header: #D3E5F3;
+  --color-nav: #FFFFFF;
+  --color-nav-text: #56677B;
+  --color-border: #D9E3EC;
+  /* Gold is a fill. As text or an outline on a light ground it fails
+     contrast, so text, icons and rings use the darker brand-ink. */
+  --color-brand: #E9B44C; /* The lamp */
+  --color-brand-hover: #D9A23A;
+  --color-brand-ink: #875C0C;
+  --color-on-brand: #1A1405; /* Text and icons on a gold fill */
+  --color-brand-light: #FBF1DC; /* Gold wash for selected backgrounds */
+  --color-success: var(--color-brand-ink); /* Done: the lamp is lit */
+  --color-streak: #A87410; /* The flame */
   --color-miss: #ef4444; /* Missed habit red (used sparingly) */
   --color-rain: #3b82f6; /* Rain check blue — a deliberate skip, never an alarm */
-  --color-encourage: #8b5cf6; /* Encouragement purple */ /* —— Typography (Notion’s generous scale) —— */
-  --font-sans: "Inter", -apple-system, sans-serif;
-  --font-display: "DM Sans", var(--font-sans); /* Headings */
+  --color-encourage: #8b5cf6; /* Encouragement purple */
+  /* Check-in actions, each its own hue wherever it appears. They sit
+     behind white icons in both families, so they hold 3:1 against white
+     rather than following the hour. Quick is the lamp itself, deepened. */
+  --color-checkin-quick: #A87410;
+  --color-checkin-photo: #0F766E;
+  --color-checkin-note: #C2410C;
+  /* The sky behind the app (src/components/layout/SkyScene.tsx) */
+  --sky-sun: #F0C75E;
+  --sky-glow: #E3EEF7;
+  --sky-hill-far: #D5E1D7;
+  --sky-hill-near: #C4D5C8;
+  --sky-water: #DCE7EF;
+  --sky-line: #A9BCCD;
+  --sky-cloud: #FFFFFF;
+  --sky-cloud-line: #C6D5E2;
+  --sky-star: #FFFFFF;
+  /* The lamp's glow: faint by day, warm at night */
+  --lamp-glow-bar: 0 0 10px 1px rgba(233, 180, 76, 0.06);
+  --lamp-glow-done: 0 0 18px rgba(233, 180, 76, 0.05);
+  --lamp-glow-fab: 0 0 22px rgba(233, 180, 76, 0.04);
+  --lamp-halo: radial-gradient(circle, rgba(233, 180, 76, 0.17) 0%, rgba(233, 180, 76, 0) 70%);
+  /* —— Typography (Notion’s generous scale) —— */
+  --font-sans: "Figtree", -apple-system, sans-serif;
+  --font-display: "Newsreader", Georgia, serif; /* Headings */
   --font-mono: "JetBrains Mono", monospace; /* Stats/data */
   --text-xs: 0.75rem; /* 12px — metadata */
   --text-sm: 0.875rem; /* 14px — secondary */
@@ -47,19 +83,38 @@
   --duration-slow: 400ms;
 
   /* Skeleton shimmer */
-  --color-skeleton: #e2e8f0;
-  --color-skeleton-highlight: #f5f5f5;
+  --color-skeleton: var(--color-surface-hover);
+  --color-skeleton-highlight: var(--color-bg-secondary);
 }
 [data-theme="dark"] {
-  --color-bg-primary: #1a1a1e;
-  --color-bg-secondary: #242428;
-  --color-bg-elevated: #2c2c32;
-  --color-surface-hover: #34343a;
-  --color-text-primary: #ececec;
-  --color-text-secondary: #9ca3af;
-  --color-text-tertiary: #6b7280;
+  --color-bg-primary: #12151F;
+  --color-bg-secondary: #232838;
+  --color-bg-elevated: #1B1F2D;
+  --color-surface-hover: #232838;
+  --color-text-primary: #EDE6D6;
+  --color-text-secondary: #A9A190;
+  --color-text-tertiary: #8A8FA4;
+  --color-header: #12151F;
+  --color-nav: #12151F;
+  --color-nav-text: #8F897A;
+  --color-border: #232838;
+  --color-brand-ink: #E9B44C;
+  --color-brand-light: #2A2416;
+  --color-streak: #E9B44C;
   --color-rain: #60a5fa;
-  --color-brand-light: #1e1b4b;
-  --color-skeleton: #2c2c32;
-  --color-skeleton-highlight: #3a3a42;
+  --sky-sun: #EDE6D6;
+  --sky-glow: #1E2333;
+  --sky-hill-far: #0D1018;
+  --sky-hill-near: #080A10;
+  --sky-water: #171B28;
+  --sky-line: #2E3449;
+  --sky-cloud: #1B1F2D;
+  --sky-cloud-line: #2A3045;
+  --sky-star: #EDE6D6;
+  --lamp-glow-bar: 0 0 10px 1px rgba(233, 180, 76, 0.55);
+  --lamp-glow-done: 0 0 18px rgba(233, 180, 76, 0.47);
+  --lamp-glow-fab: 0 0 22px rgba(233, 180, 76, 0.36);
+  --lamp-halo: radial-gradient(circle, rgba(233, 180, 76, 0.39) 0%, rgba(233, 180, 76, 0) 70%);
+  --color-skeleton: #232838;
+  --color-skeleton-highlight: #2E3446;
 }

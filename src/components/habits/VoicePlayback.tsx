@@ -85,7 +85,7 @@ export function VoicePlayback({ src }: { src: string }) {
           onClick={handleToggle}
           aria-label={playing ? "Pause recording" : "Play recording"}
           className={cn(
-            "relative flex h-24 w-24 items-center justify-center rounded-full text-white",
+            "relative flex h-24 w-24 items-center justify-center rounded-full text-on-brand",
             "bg-[var(--color-brand)] shadow-lg shadow-[var(--color-brand)]/30",
             "transition-transform active:scale-95",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black",

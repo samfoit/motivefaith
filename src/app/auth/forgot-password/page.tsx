@@ -48,7 +48,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="w-full max-w-sm auth-card-enter">
       <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-        <h1 className="font-display text-2xl font-bold text-center mb-2">
+        <h1 className="font-display text-2xl font-medium text-center mb-2">
           Reset password
         </h1>
         <p
@@ -127,7 +127,7 @@ export default function ForgotPasswordPage() {
           Remember your password?{" "}
           <Link
             href="/auth/login"
-            className="text-brand font-medium hover:text-brand-hover"
+            className="text-brand-ink font-medium hover:text-brand-ink"
           >
             Sign in
           </Link>

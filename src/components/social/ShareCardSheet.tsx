@@ -256,7 +256,7 @@ export function ShareCardSheet({
       {ToastElements}
       <div className="px-4 py-2 space-y-4">
         <h2
-          className="font-display font-bold text-[var(--color-text-primary)]"
+          className="font-display font-medium text-[var(--color-text-primary)]"
           style={{ fontSize: "var(--text-lg)" }}
         >
           Share your streak
@@ -424,7 +424,7 @@ function Segmented<T extends string>({
             className={cn(
               "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
               value === option.value
-                ? "bg-brand text-white"
+                ? "bg-brand text-on-brand"
                 : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
             )}
           >

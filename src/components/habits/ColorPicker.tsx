@@ -205,7 +205,7 @@ export function ColorPicker({
     "relative shrink-0 w-11 h-11 rounded-full transition-transform",
     "flex items-center justify-center active:scale-90",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-    "focus-visible:ring-brand focus-visible:ring-offset-[var(--color-bg-elevated)]",
+    "focus-visible:ring-brand-ink focus-visible:ring-offset-[var(--color-bg-elevated)]",
   );
 
   return (

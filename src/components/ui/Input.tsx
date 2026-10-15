@@ -37,7 +37,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             "w-full rounded-md border bg-[var(--color-bg-elevated)] px-3 py-2 text-base text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-colors focus:outline-none",
             // default border + focus ring
-            "border-[var(--color-surface-hover)] focus:ring-2 focus:ring-indigo-500 focus:border-indigo-600",
+            "border-[var(--color-surface-hover)] focus:ring-2 focus:ring-brand-ink focus:border-brand-ink",
             // error state
             hasError &&
               "border-rose-400 focus:ring-2 focus:ring-rose-500 focus:border-rose-600",

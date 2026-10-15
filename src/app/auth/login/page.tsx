@@ -184,7 +184,7 @@ export default function LoginPage() {
 
       <div className="w-full max-w-sm shrink-0 auth-card-enter">
         <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-          <h1 className="font-display text-2xl font-bold text-center mb-2">
+          <h1 className="font-display text-2xl font-medium text-center mb-2">
             MotiveFaith
           </h1>
 
@@ -280,7 +280,7 @@ export default function LoginPage() {
                   <div className="flex justify-end mt-1.5">
                     <Link
                       href="/auth/forgot-password"
-                      className="text-xs text-brand hover:text-brand-hover font-medium"
+                      className="text-xs text-brand-ink hover:text-brand-ink font-medium"
                     >
                       Forgot password?
                     </Link>
@@ -364,7 +364,7 @@ export default function LoginPage() {
                 Don&apos;t have an account?{" "}
                 <Link
                   href="/auth/signup"
-                  className="text-brand font-medium hover:text-brand-hover"
+                  className="text-brand-ink font-medium hover:text-brand-ink"
                 >
                   Sign up
                 </Link>

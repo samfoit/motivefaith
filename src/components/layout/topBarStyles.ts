@@ -5,7 +5,7 @@
 
 /** Shared by every bar title, so they are the same size on every screen. */
 export const TOP_BAR_TITLE_CLASS =
-  "font-display font-bold text-text-primary truncate leading-tight tracking-tight";
+  "font-display font-medium text-text-primary truncate leading-tight tracking-tight";
 
 /**
  * Scales with the viewport so a phone keeps room for the bar's buttons: at a
@@ -34,4 +34,4 @@ export const TOP_BAR_ICON_BUTTON_CLASS =
  * row without outweighing the title. Icon-only where the title needs the room.
  */
 export const TOP_BAR_PRIMARY_ACTION_CLASS =
-  "relative flex items-center justify-center gap-1.5 h-8 min-w-9 px-2.5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-hover transition-colors after:absolute after:-inset-x-1 after:-inset-y-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+  "relative flex items-center justify-center gap-1.5 h-8 min-w-9 px-2.5 rounded-lg bg-brand text-on-brand text-sm font-medium hover:bg-brand-hover transition-colors after:absolute after:-inset-x-1 after:-inset-y-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";

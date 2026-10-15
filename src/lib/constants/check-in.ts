@@ -33,13 +33,13 @@ export const CHECK_IN_OPTIONS: readonly CheckInOption[] = [
     action: "quick",
     label: "Quick check-in",
     icon: Check,
-    color: "var(--color-success)",
+    color: "var(--color-checkin-quick)",
   },
   {
     action: "content",
     label: "Photo or video",
     icon: Camera,
-    color: "var(--color-brand)",
+    color: "var(--color-checkin-photo)",
   },
   {
     action: "voice",
@@ -51,7 +51,7 @@ export const CHECK_IN_OPTIONS: readonly CheckInOption[] = [
     action: "message",
     label: "Written note",
     icon: MessageSquare,
-    color: "var(--color-streak)",
+    color: "var(--color-checkin-note)",
   },
   {
     action: "rain_check",

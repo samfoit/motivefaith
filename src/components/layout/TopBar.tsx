@@ -33,7 +33,7 @@ export function TopBar() {
   const title = SCREEN_TITLES[pathname];
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 h-14 bg-[var(--color-bg-elevated)] border-b border-[var(--color-bg-secondary)]">
+    <header className="sticky top-0 z-40 flex items-center justify-between gap-2 px-4 h-14 bg-header border-b border-border">
       {isScreen ? (
         <div ref={registerTitleSlot} className="min-w-0">
           {title && (
@@ -45,7 +45,7 @@ export function TopBar() {
       ) : (
         <Link
           href="/main/dashboard"
-          className="font-display text-lg font-bold text-[var(--color-text-primary)]"
+          className="font-display text-lg font-medium text-[var(--color-text-primary)]"
         >
           MotiveFaith
         </Link>

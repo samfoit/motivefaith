@@ -78,7 +78,7 @@ export function ShareInviteSheet({
       {ToastElements}
       <div className="space-y-3">
         <h2
-          className="font-display font-bold text-[var(--color-text-primary)]"
+          className="font-display font-medium text-[var(--color-text-primary)]"
           style={{ fontSize: "var(--text-lg)" }}
         >
           Invite a friend

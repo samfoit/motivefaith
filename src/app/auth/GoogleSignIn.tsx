@@ -183,6 +183,14 @@ export function GoogleSignIn({ onSignedIn, onError, fallback }: GoogleSignInProp
       className={`flex justify-center min-h-10 transition-opacity ${
         busy ? "opacity-50 pointer-events-none" : ""
       }`}
+      // Google draws the button in an iframe whose page declares no dark
+      // color scheme. When an iframe's scheme differs from the one its
+      // <iframe> element gets from this page (dark, at night or on the Dark
+      // pin), the browser paints the frame with an opaque white backdrop
+      // instead of letting the page show through, leaving a white box
+      // around the pill. Declaring this slot light makes the two agree, so
+      // the frame stays transparent; the button keeps its own dark theme.
+      style={{ colorScheme: "light" }}
     />
   );
 }

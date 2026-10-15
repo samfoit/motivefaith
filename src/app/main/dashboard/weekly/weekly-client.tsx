@@ -139,7 +139,7 @@ export function WeeklySummaryClient({ userId }: { userId: string }) {
           </button>
           <div>
             <h1
-              className="font-display font-bold text-[var(--color-text-primary)]"
+              className="font-display font-medium text-[var(--color-text-primary)]"
               style={{ fontSize: "var(--text-2xl)" }}
             >
               Weekly Summary
@@ -161,7 +161,7 @@ export function WeeklySummaryClient({ userId }: { userId: string }) {
             Completion Rate
           </p>
           <p
-            className="font-display font-bold text-[var(--color-brand)]"
+            className="font-display font-medium text-brand-ink"
             style={{ fontSize: "var(--text-hero)" }}
           >
             {rate}%
