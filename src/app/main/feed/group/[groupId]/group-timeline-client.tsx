@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
+import { FEED_WINDOW_MS } from "@/lib/constants/limits";
 import { Avatar } from "@/components/ui/Avatar";
 import { Pill } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -150,7 +151,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
   } | null>(null);
 
   // 24-hour cutoff
-  const [cutoff] = useState(() => Date.now() - 24 * 60 * 60 * 1000);
+  const [cutoff] = useState(() => Date.now() - FEED_WINDOW_MS);
 
   // Leave group
   const removeGroupMember = useRemoveGroupMember();
