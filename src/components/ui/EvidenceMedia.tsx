@@ -96,6 +96,9 @@ export function EvidenceMedia({
       src={url}
       controls
       playsInline
+      // Only enough to show its length and first frame: a list of these must
+      // not start pulling down every clip before one is played.
+      preload="metadata"
       className={cn("select-none", className, videoClassName)}
       style={{ WebkitTouchCallout: "none" }}
     />

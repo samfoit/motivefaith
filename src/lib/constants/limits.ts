@@ -35,3 +35,14 @@ export const FRIEND_POLL_JITTER_MS = 30_000;
 
 // --- Fetch limits ---
 export const MAX_COMPLETIONS_FETCH = 500;
+
+// --- Habit history ---
+/** Completions fetched per page of a habit's History tab. */
+export const HISTORY_PAGE_SIZE = 50;
+/** Days of a habit's activity behind its heatmap, streak and "done today". */
+export const HABIT_ACTIVITY_DAYS = 90;
+/**
+ * Ceiling on that window's rows: a habit logged many times a day still caps
+ * out here, and only dates are fetched, so it stays a small read.
+ */
+export const HABIT_ACTIVITY_MAX_ROWS = 1000;
