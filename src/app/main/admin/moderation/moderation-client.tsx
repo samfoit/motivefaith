@@ -253,7 +253,7 @@ export function ModerationClient({ initialReports, initialTotal }: ModerationCli
             </p>
           )}
           {c.notes && <p className="line-clamp-2">{c.notes}</p>}
-          {c.evidence_url && <p className="text-[var(--color-brand)]">Has media</p>}
+          {c.evidence_url && <p className="text-brand-ink">Has media</p>}
         </div>
       );
     }
@@ -280,7 +280,7 @@ export function ModerationClient({ initialReports, initialTotal }: ModerationCli
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         {/* Header */}
         <h1
-          className="font-display font-bold text-[var(--color-text-primary)]"
+          className="font-display font-medium text-[var(--color-text-primary)]"
           style={{ fontSize: "var(--text-xl)" }}
         >
           Moderation

@@ -47,7 +47,7 @@ export const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(
           aria-describedby={helpId}
           className={cn(
             "w-full rounded-md border bg-[var(--color-bg-elevated)] px-3 py-2 text-base text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-colors focus:outline-none resize-vertical",
-            "border-[var(--color-surface-hover)] focus:ring-2 focus:ring-indigo-500 focus:border-indigo-600",
+            "border-[var(--color-surface-hover)] focus:ring-2 focus:ring-brand-ink focus:border-brand-ink",
             hasError &&
               "border-rose-400 focus:ring-2 focus:ring-rose-500 focus:border-rose-600",
             disabled && "opacity-60 cursor-not-allowed",

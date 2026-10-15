@@ -629,7 +629,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
             <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="font-display font-bold text-[var(--color-text-primary)] text-base truncate">
+            <h1 className="font-display font-medium text-[var(--color-text-primary)] text-base truncate">
               {group.name}
             </h1>
             <div className="flex items-center gap-2 mt-0.5">
@@ -694,7 +694,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2
-                className="font-display font-semibold text-[var(--color-text-primary)]"
+                className="font-display font-medium text-[var(--color-text-primary)]"
                 style={{ fontSize: "var(--text-lg)" }}
               >
                 Shared Habits
@@ -712,7 +712,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2
-                className="font-display font-semibold text-[var(--color-text-primary)]"
+                className="font-display font-medium text-[var(--color-text-primary)]"
                 style={{ fontSize: "var(--text-lg)" }}
               >
                 Challenges
@@ -746,7 +746,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
         {/* Timeline */}
         <section>
           <h2
-            className="font-display font-semibold text-[var(--color-text-primary)] mb-3"
+            className="font-display font-medium text-[var(--color-text-primary)] mb-3"
             style={{ fontSize: "var(--text-lg)" }}
           >
             Activity
@@ -835,7 +835,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
                         className={cn(
                           "min-w-0 rounded-xl px-3.5 py-2.5 space-y-1",
                           m.isMe
-                            ? "bg-brand text-white rounded-br-sm"
+                            ? "bg-brand text-on-brand rounded-br-sm"
                             : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] rounded-bl-sm",
                         )}
                       >
@@ -855,7 +855,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
                             className={cn(
                               "text-[10px]",
                               m.isMe
-                                ? "text-white/60"
+                                ? "text-on-brand/60"
                                 : "text-[var(--color-text-tertiary)]",
                             )}
                           >
@@ -933,7 +933,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
               "flex-1 min-w-0 rounded-full px-4 py-2.5 text-base",
               "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]",
               "placeholder:text-[var(--color-text-tertiary)]",
-              "focus:outline-none focus:ring-2 focus:ring-brand/40",
+              "focus:outline-none focus:ring-2 focus:ring-brand-ink/40",
               "transition-shadow",
             )}
           />
@@ -944,7 +944,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
               "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
               "transition-all",
               message.trim()
-                ? "bg-brand text-white active:scale-95"
+                ? "bg-brand text-on-brand active:scale-95"
                 : "bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)]",
             )}
             aria-label="Send message"
@@ -983,7 +983,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
               "animate-in fade-in-0 zoom-in-95",
             )}
           >
-            <RadixDialog.Title className="font-display text-base font-semibold text-[var(--color-text-primary)]">
+            <RadixDialog.Title className="font-display text-base font-medium text-[var(--color-text-primary)]">
               Leave group?
             </RadixDialog.Title>
             <RadixDialog.Description className="text-sm text-[var(--color-text-secondary)] mt-2">

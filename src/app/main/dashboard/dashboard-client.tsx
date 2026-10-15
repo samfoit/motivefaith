@@ -694,7 +694,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
           {isClient && (
             <>
               <h1
-                className="font-display font-bold text-text-primary truncate"
+                className="font-display font-medium text-text-primary truncate"
                 style={{ fontSize: "var(--text-2xl)" }}
               >
                 {getGreeting(timezone)}
@@ -732,7 +732,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
               className={cn(
                 "flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize",
                 viewMode === mode
-                  ? "bg-brand text-white"
+                  ? "bg-brand text-on-brand"
                   : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
               )}
             >

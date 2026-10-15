@@ -61,9 +61,9 @@ export function VisibilityPicker({
             onClick={() => onChange(option.value)}
             className={cn(
               "w-full flex items-start gap-3 p-4 rounded-lg text-left transition-all",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
               isSelected
-                ? "bg-brand-light ring-2 ring-brand"
+                ? "bg-brand-light ring-2 ring-brand-ink"
                 : "bg-[var(--color-bg-secondary)] hover:bg-[var(--color-surface-hover)]",
             )}
           >
@@ -71,7 +71,7 @@ export function VisibilityPicker({
               className={cn(
                 "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors",
                 isSelected
-                  ? "bg-brand text-white"
+                  ? "bg-brand text-on-brand"
                   : "bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)]",
               )}
             >
@@ -90,10 +90,10 @@ export function VisibilityPicker({
             <div
               className={cn(
                 "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
-                isSelected ? "bg-brand border-brand" : "border-gray-300",
+                isSelected ? "bg-brand border-brand-ink" : "border-gray-300",
               )}
             >
-              {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+              {isSelected && <Check className="w-3 h-3 text-on-brand" strokeWidth={3} />}
             </div>
           </button>
         );

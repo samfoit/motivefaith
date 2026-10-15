@@ -173,7 +173,7 @@ export function ShareTargetPicker({
           />
         ) : (
           <span className="w-8 h-8 rounded-full bg-brand-light flex items-center justify-center">
-            <Users className="w-4 h-4 text-brand" />
+            <Users className="w-4 h-4 text-brand-ink" />
           </span>
         ),
       })),
@@ -297,7 +297,7 @@ export function ShareTargetPicker({
                 <button
                   type="button"
                   onClick={() => setTab(kind)}
-                  className="mt-2 w-full min-h-11 rounded-lg text-sm font-medium text-brand hover:bg-surface-hover"
+                  className="mt-2 w-full min-h-11 rounded-lg text-sm font-medium text-brand-ink hover:bg-surface-hover"
                 >
                   Show all {rows.length} {plural}
                 </button>
@@ -388,7 +388,7 @@ function TabButton({
       className={cn(
         "shrink-0 min-h-9 px-4 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5",
         active
-          ? "bg-brand text-white"
+          ? "bg-brand text-on-brand"
           : "bg-bg-secondary text-text-secondary hover:bg-surface-hover",
       )}
     >
@@ -397,7 +397,7 @@ function TabButton({
         <span
           className={cn(
             "min-w-5 h-5 px-1 rounded-full text-xs flex items-center justify-center",
-            active ? "bg-white/25" : "bg-brand text-white",
+            active ? "bg-on-brand/15" : "bg-brand text-on-brand",
           )}
         >
           {count}
@@ -509,11 +509,11 @@ const TargetRow = memo(function TargetRow({
           aria-hidden
           className={cn(
             "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-            selected ? "bg-brand border-brand" : "border-text-tertiary",
+            selected ? "bg-brand border-brand-ink" : "border-text-tertiary",
             locked && "opacity-60",
           )}
         >
-          {selected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+          {selected && <Check className="w-3.5 h-3.5 text-on-brand" strokeWidth={3} />}
         </span>
       </button>
     </li>

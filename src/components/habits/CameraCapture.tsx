@@ -1142,7 +1142,7 @@ export function CameraCapture({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Add a caption..."
-            className="w-full rounded-lg bg-white/10 px-4 py-2.5 text-base text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand"
+            className="w-full rounded-lg bg-white/10 px-4 py-2.5 text-base text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand-ink"
           />
         </div>
       )}

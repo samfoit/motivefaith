@@ -94,7 +94,7 @@ export function SharedHabits({ habits, friendName }: SharedHabitsProps) {
               className={cn(
                 "habit-tint shrink-0 flex items-center gap-1.5 rounded-full border",
                 "pl-2.5 pr-3 py-1.5 transition-transform active:scale-95",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
               )}
               style={{ ["--habit-color" as string]: habit.color }}
             >
@@ -166,7 +166,7 @@ export function SharedHabits({ habits, friendName }: SharedHabitsProps) {
               />
               {selected.streak_best !== undefined && (
                 <Stat
-                  icon={<Trophy className="w-4 h-4 text-brand" />}
+                  icon={<Trophy className="w-4 h-4 text-brand-ink" />}
                   label="Best streak"
                   value={selected.streak_best}
                 />
@@ -178,7 +178,7 @@ export function SharedHabits({ habits, friendName }: SharedHabitsProps) {
                 href={`/main/habits/${selected.id}`}
                 className={cn(
                   "block w-full rounded-lg bg-brand px-4 py-2.5 text-center",
-                  "text-sm font-medium text-white transition-colors hover:bg-brand-hover",
+                  "text-sm font-medium text-on-brand transition-colors hover:bg-brand-hover",
                 )}
               >
                 Open habit

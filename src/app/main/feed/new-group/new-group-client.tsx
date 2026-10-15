@@ -69,7 +69,7 @@ export function NewGroupClient({ userId, friends }: NewGroupClientProps) {
             <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
           </button>
           <h1
-            className="font-display font-bold text-[var(--color-text-primary)]"
+            className="font-display font-medium text-[var(--color-text-primary)]"
             style={{ fontSize: "var(--text-xl)" }}
           >
             New Group

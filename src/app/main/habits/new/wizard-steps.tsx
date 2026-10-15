@@ -118,7 +118,7 @@ export function StepName({
     <div className="space-y-6">
       <div>
         <h2
-          className="font-display font-semibold text-[var(--color-text-primary)] mb-1"
+          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
           style={{ fontSize: "var(--text-lg)" }}
         >
           What habit do you want to build?
@@ -150,7 +150,7 @@ export function StepName({
               className={cn(
                 "w-9 h-9 flex items-center justify-center rounded-lg text-lg transition-all",
                 form.emoji === emoji
-                  ? "bg-brand-light ring-2 ring-brand scale-110"
+                  ? "bg-brand-light ring-2 ring-brand-ink scale-110"
                   : "hover:bg-[var(--color-surface-hover)]",
               )}
             >
@@ -214,7 +214,7 @@ export function StepSchedule({
     <div className="space-y-6">
       <div>
         <h2
-          className="font-display font-semibold text-[var(--color-text-primary)] mb-1"
+          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
           style={{ fontSize: "var(--text-lg)" }}
         >
           How often?
@@ -234,7 +234,7 @@ export function StepSchedule({
             className={cn(
               "px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
               form.frequency === freq.value
-                ? "bg-brand text-white shadow-sm"
+                ? "bg-brand text-on-brand shadow-sm"
                 : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
             )}
           >
@@ -263,7 +263,7 @@ export function StepSchedule({
                 className={cn(
                   "w-10 h-10 rounded-full text-sm font-medium transition-all flex items-center justify-center",
                   form.scheduleDays.includes(day.value)
-                    ? "bg-brand text-white"
+                    ? "bg-brand text-on-brand"
                     : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
                 )}
               >
@@ -332,7 +332,7 @@ export function StepColor({
     <div className="space-y-6">
       <div>
         <h2
-          className="font-display font-semibold text-[var(--color-text-primary)] mb-1"
+          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
           style={{ fontSize: "var(--text-lg)" }}
         >
           Pick a color
@@ -395,7 +395,7 @@ export function StepSharing({
     <div className="space-y-6">
       <div>
         <h2
-          className="font-display font-semibold text-[var(--color-text-primary)] mb-1"
+          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
           style={{ fontSize: "var(--text-lg)" }}
         >
           Accountability
@@ -431,7 +431,7 @@ export function StepSharing({
 
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
-            <div className="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-brand-ink border-t-transparent rounded-full animate-spin" />
           </div>
         ) : !friends?.length ? (
           <div className="rounded-lg bg-[var(--color-bg-secondary)] p-4">
@@ -501,7 +501,7 @@ export function StepReview({ form }: { form: HabitForm }) {
     <div className="space-y-6">
       <div>
         <h2
-          className="font-display font-semibold text-[var(--color-text-primary)] mb-1"
+          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
           style={{ fontSize: "var(--text-lg)" }}
         >
           Looking good!
@@ -612,16 +612,16 @@ export function SuccessScreen({ form }: { form: HabitForm }) {
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 400, damping: 15 }}
-          className="w-20 h-20 rounded-full bg-success flex items-center justify-center mx-auto mb-6"
+          className="w-20 h-20 rounded-full bg-brand flex items-center justify-center mx-auto mb-6"
         >
-          <Check className="w-10 h-10 text-white" strokeWidth={3} />
+          <Check className="w-10 h-10 text-on-brand" strokeWidth={3} />
         </motion.div>
 
         <motion.h2
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="font-display font-bold text-[var(--color-text-primary)] mb-2"
+          className="font-display font-medium text-[var(--color-text-primary)] mb-2"
           style={{ fontSize: "var(--text-xl)" }}
         >
           Habit created!

@@ -57,12 +57,12 @@ export function JoinClient({ group, inviteCode }: JoinClientProps) {
           />
         ) : (
           <div className="w-20 h-20 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4">
-            <Users className="w-8 h-8 text-brand" />
+            <Users className="w-8 h-8 text-brand-ink" />
           </div>
         )}
 
         <h1
-          className="font-display font-bold text-text-primary mb-1"
+          className="font-display font-medium text-text-primary mb-1"
           style={{ fontSize: "var(--text-xl)" }}
         >
           {group.name}

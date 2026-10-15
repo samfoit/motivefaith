@@ -111,7 +111,7 @@ export function InboxClient({
       <div className="max-w-2xl mx-auto px-3 pt-4 space-y-4">
         {/* Header */}
         <h1
-          className="font-display font-bold text-[var(--color-text-primary)]"
+          className="font-display font-medium text-[var(--color-text-primary)]"
           style={{ fontSize: "var(--text-2xl)" }}
         >
           Inbox
@@ -226,7 +226,7 @@ export function InboxClient({
               <Bell className="w-6 h-6 text-[var(--color-text-tertiary)]" />
             </div>
             <h2
-              className="font-display font-semibold text-[var(--color-text-primary)] mb-2"
+              className="font-display font-medium text-[var(--color-text-primary)] mb-2"
               style={{ fontSize: "var(--text-xl)" }}
             >
               All caught up

@@ -8,7 +8,7 @@ export default function PrivacyPage() {
   return (
     <div className="space-y-8 text-[var(--color-text-primary)]">
       <header>
-        <h1 className="font-display text-3xl font-bold mb-2">
+        <h1 className="font-display text-3xl font-medium mb-2">
           Privacy Policy
         </h1>
         <p className="text-sm text-[var(--color-text-tertiary)]">
@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       </header>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           1. Information We Collect
         </h2>
         <p>We collect the following types of information:</p>
@@ -51,7 +51,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           2. How We Use Your Information
         </h2>
         <ul className="list-disc pl-5 space-y-1">
@@ -68,7 +68,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           3. Data Storage
         </h2>
         <p>
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           4. Data Retention
         </h2>
         <p>
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           5. Third-Party Sharing
         </h2>
         <p>
@@ -118,7 +118,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           6. Your Rights (GDPR)
         </h2>
         <p>
@@ -141,7 +141,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           7. Your Rights (CCPA)
         </h2>
         <p>
@@ -157,7 +157,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           8. Children&apos;s Privacy (COPPA)
         </h2>
         <p>
@@ -169,7 +169,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           9. Data Deletion Requests
         </h2>
         <p>
@@ -183,7 +183,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           10. Changes to This Policy
         </h2>
         <p>
@@ -195,7 +195,7 @@ export default function PrivacyPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           11. Contact
         </h2>
         <p>

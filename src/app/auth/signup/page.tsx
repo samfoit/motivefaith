@@ -129,7 +129,7 @@ export default function SignupPage() {
         {emailSent ? (
           <div className="bg-bg-elevated rounded-lg shadow-md p-8 text-center">
             <div className="text-4xl mb-4">📬</div>
-            <h1 className="font-display text-2xl font-bold mb-2">
+            <h1 className="font-display text-2xl font-medium mb-2">
               Check your email
             </h1>
             <p className="text-sm text-[var(--color-text-secondary)] mb-6">
@@ -142,7 +142,7 @@ export default function SignupPage() {
               <button
                 type="button"
                 onClick={() => setEmailSent(false)}
-                className="text-brand font-medium hover:text-brand-hover underline"
+                className="text-brand-ink font-medium hover:text-brand-ink underline"
               >
                 try again
               </button>
@@ -150,7 +150,7 @@ export default function SignupPage() {
           </div>
         ) : (
         <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-          <h1 className="font-display text-2xl font-bold text-center mb-2">
+          <h1 className="font-display text-2xl font-medium text-center mb-2">
             Create Account
           </h1>
           <p className="text-sm text-center mb-8 text-[var(--color-text-secondary)]">
@@ -217,7 +217,7 @@ export default function SignupPage() {
                 I agree to the{" "}
                 <Link
                   href="/legal/terms"
-                  className="text-brand font-medium hover:text-brand-hover underline"
+                  className="text-brand-ink font-medium hover:text-brand-ink underline"
                   target="_blank"
                 >
                   Terms of Service
@@ -225,7 +225,7 @@ export default function SignupPage() {
                 and{" "}
                 <Link
                   href="/legal/privacy"
-                  className="text-brand font-medium hover:text-brand-hover underline"
+                  className="text-brand-ink font-medium hover:text-brand-ink underline"
                   target="_blank"
                 >
                   Privacy Policy
@@ -253,7 +253,7 @@ export default function SignupPage() {
             Already have an account?{" "}
             <Link
               href="/auth/login"
-              className="text-brand font-medium hover:text-brand-hover"
+              className="text-brand-ink font-medium hover:text-brand-ink"
             >
               Sign in
             </Link>

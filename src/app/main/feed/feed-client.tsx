@@ -245,14 +245,14 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1
-            className="font-display font-bold text-[var(--color-text-primary)]"
+            className="font-display font-medium text-[var(--color-text-primary)]"
             style={{ fontSize: "var(--text-2xl)" }}
           >
             Feed
           </h1>
           <Link
             href="/main/feed/new-group"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-hover transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand text-on-brand text-sm font-medium hover:bg-brand-hover transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span>New Group</span>
@@ -270,7 +270,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
                 className={cn(
                   "flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize",
                   filter === tab
-                    ? "bg-brand text-white"
+                    ? "bg-brand text-on-brand"
                     : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]",
                 )}
               >
@@ -326,7 +326,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
               <Users className="w-6 h-6 text-[var(--color-text-tertiary)]" />
             </div>
             <h2
-              className="font-display font-semibold text-[var(--color-text-primary)] mb-2"
+              className="font-display font-medium text-[var(--color-text-primary)] mb-2"
               style={{ fontSize: "var(--text-xl)" }}
             >
               No friends yet

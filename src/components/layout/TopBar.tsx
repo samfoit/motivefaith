@@ -36,10 +36,10 @@ export function TopBar() {
   }, [invalidate]);
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-14 bg-[var(--color-bg-elevated)] border-b border-[var(--color-bg-secondary)]">
+    <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-14 bg-header border-b border-border">
       <Link
         href="/main/dashboard"
-        className="font-display text-lg font-bold text-[var(--color-text-primary)]"
+        className="font-display text-xl font-medium tracking-[-0.01em] text-[var(--color-text-primary)]"
       >
         MotiveFaith
       </Link>

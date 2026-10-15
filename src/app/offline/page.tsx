@@ -39,7 +39,7 @@ export default function OfflinePage() {
       <div className="text-center max-w-sm">
         <div className="text-4xl mb-4">📡</div>
         <h1
-          className="font-display font-bold text-[var(--color-text-primary)] mb-2"
+          className="font-display font-medium text-[var(--color-text-primary)] mb-2"
           style={{ fontSize: "var(--text-xl)" }}
         >
           You&apos;re offline
@@ -50,7 +50,7 @@ export default function OfflinePage() {
 
         <Link
           href="/main/dashboard"
-          className="inline-flex w-full items-center justify-center rounded-lg bg-[var(--color-accent)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+          className="inline-flex w-full items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-on-brand transition-colors hover:bg-brand-hover"
         >
           Go to your habits
         </Link>

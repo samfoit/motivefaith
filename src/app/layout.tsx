@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Inter, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { Figtree, Newsreader, JetBrains_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/components/providers";
@@ -8,7 +8,11 @@ import { THEME_INIT_SCRIPT } from "@/lib/theme-init-script";
 import { ToastProvider } from "@/components/ui/Toast";
 import "./globals.css";
 
-// Inter and DM Sans are preloaded (next/font's default); JetBrains Mono is not.
+// Figtree and Newsreader are preloaded (next/font's default); JetBrains Mono is not.
+//
+// (The measurements below were taken with Inter and DM Sans, the faces before
+// Lamplight. The reasoning holds for any pair of preloaded faces; re-measure
+// per DIAGNOSIS.md R12 if the numbers matter.)
 //
 // This is a deliberate, measured choice — please don't "optimize" the preloads
 // away without re-reading this.
@@ -34,15 +38,19 @@ import "./globals.css";
 //
 // Full working, including the eight experiments that ruled out the font swap,
 // opacity gating, DOM replacement and main-thread stalls: DIAGNOSIS.md R12/R13.
-const inter = Inter({
+const figtree = Figtree({
   variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
 });
 
-const dmSans = DM_Sans({
+// Headings: a book serif with an optical-size axis, so a 24px greeting and a
+// 13px label each get the cut drawn for them.
+const newsreader = Newsreader({
   variable: "--font-display",
   subsets: ["latin"],
+  // Variable weight: next/font allows extra axes only on the variable cut.
+  axes: ["opsz"],
   display: "swap",
 });
 
@@ -58,8 +66,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafaf9" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a1a1e" },
+    // The pinned Lamplight header colors. In "Auto" mode the theme store
+    // rewrites these to the hour's header once the page hydrates.
+    { media: "(prefers-color-scheme: light)", color: "#D3E5F3" },
+    { media: "(prefers-color-scheme: dark)", color: "#12151F" },
   ],
 };
 
@@ -142,7 +152,7 @@ export default async function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${dmSans.variable} ${jetbrainsMono.variable} font-sans antialiased`}
+        className={`${figtree.variable} ${newsreader.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
         <Providers>
           <ToastProvider>{children}</ToastProvider>

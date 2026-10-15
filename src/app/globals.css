@@ -16,6 +16,12 @@
   --color-brand: var(--color-brand);
   --color-brand-light: var(--color-brand-light);
   --color-brand-hover: var(--color-brand-hover);
+  --color-brand-ink: var(--color-brand-ink);
+  --color-on-brand: var(--color-on-brand);
+  --color-header: var(--color-header);
+  --color-nav: var(--color-nav);
+  --color-nav-text: var(--color-nav-text);
+  --color-border: var(--color-border);
   --color-success: var(--color-success);
   --color-streak: var(--color-streak);
   --color-miss: var(--color-miss);
@@ -463,6 +469,32 @@ body {
   animation: install-prompt-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ── Sky (Lamplight) ─────────────────────────────────────────────────────
+   The scene behind /main fades in once after hydration (the ground under it
+   is already the hour's color, so there is nothing to flash). A few low
+   stars breathe; nothing else in the sky moves on its own — the sun, moon,
+   clouds and birds move only with the hour. */
+
+@keyframes sky-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.sky-enter {
+  animation: sky-enter 0.3s ease-out both;
+}
+
+@keyframes sky-twinkle {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+.sky-twinkle {
+  animation: sky-twinkle 5s ease-in-out infinite;
+}
+.sky-twinkle-slow {
+  animation-duration: 7s;
+  animation-delay: -3s;
+}
+
 /* ── Reduced motion ──────────────────────────────────────────────────────
    Honour prefers-reduced-motion across every animation in the app. The
    skeleton delay is deliberately preserved — it is timing hygiene, not
@@ -478,6 +510,8 @@ body {
     animation: motive-skeleton-reveal 1ms linear var(--skeleton-delay) both;
   }
 
+  .sky-enter,
+  .sky-twinkle,
   .dv-stagger-container > *,
   .dv-progress-bar,
   .dv-all-done,

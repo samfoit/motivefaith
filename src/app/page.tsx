@@ -85,8 +85,8 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <Link
             href="/"
-            className="font-display text-xl font-bold"
-            style={{ color: "var(--color-brand)" }}
+            className="font-display text-xl font-medium"
+            style={{ color: "var(--color-brand-ink)" }}
           >
             MotiveFaith
           </Link>
@@ -114,9 +114,9 @@ export default function LandingPage() {
       <section className="pt-32 pb-16 sm:pt-40 sm:pb-24 px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
           <div className="flex-1 text-center lg:text-left landing-hero-text">
-            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6">
+            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-medium leading-tight tracking-tight mb-6">
               Build habits that stick.{" "}
-              <span style={{ color: "var(--color-brand)" }}>Together.</span>
+              <span style={{ color: "var(--color-brand-ink)" }}>Together.</span>
             </h1>
             <p
               className="text-lg sm:text-xl max-w-xl mx-auto lg:mx-0 mb-8"
@@ -151,7 +151,7 @@ export default function LandingPage() {
       <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-bg-secondary">
         <div className="mx-auto max-w-6xl">
           <div className="text-center mb-12 landing-animate-on-scroll landing-section-header">
-            <h2 className="font-display text-3xl sm:text-4xl font-bold mb-4">
+            <h2 className="font-display text-3xl sm:text-4xl font-medium mb-4">
               Everything you need to build better habits
             </h2>
             <p
@@ -176,7 +176,7 @@ export default function LandingPage() {
                   {feature.emoji}
                 </span>
                 <div className="pt-0.5">
-                  <h3 className="font-display font-semibold text-lg mb-1">
+                  <h3 className="font-display font-medium text-lg mb-1">
                     {feature.title}
                   </h3>
                   <p
@@ -199,7 +199,7 @@ export default function LandingPage() {
       >
         <div className="mx-auto max-w-3xl">
           <div className="text-center mb-12 landing-animate-on-scroll landing-section-header">
-            <h2 className="font-display text-3xl sm:text-4xl font-bold mb-4">
+            <h2 className="font-display text-3xl sm:text-4xl font-medium mb-4">
               How it works
             </h2>
             <p
@@ -225,13 +225,13 @@ export default function LandingPage() {
                   style={{ animationDelay: `${i * 150}ms` }}
                 >
                   <div
-                    className="shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-mono font-bold text-lg text-white relative z-10"
+                    className="shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-mono font-bold text-lg text-on-brand relative z-10"
                     style={{ backgroundColor: "var(--color-brand)" }}
                   >
                     {step.num}
                   </div>
                   <div className="pt-2">
-                    <h3 className="font-display font-semibold text-lg mb-1">
+                    <h3 className="font-display font-medium text-lg mb-1">
                       {step.title}
                     </h3>
                     <p
@@ -258,7 +258,7 @@ export default function LandingPage() {
       {/* ── Final CTA ── */}
       <section className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center landing-animate-on-scroll landing-cta">
-          <h2 className="font-display text-3xl sm:text-4xl font-bold mb-4">
+          <h2 className="font-display text-3xl sm:text-4xl font-medium mb-4">
             Ready to build better habits?
           </h2>
           <p
@@ -290,8 +290,8 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span
-              className="font-display font-bold"
-              style={{ color: "var(--color-brand)" }}
+              className="font-display font-medium"
+              style={{ color: "var(--color-brand-ink)" }}
             >
               MotiveFaith
             </span>
@@ -354,7 +354,7 @@ function HeroMockup() {
           {"\u{1F64F}"}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-display font-semibold text-sm">Morning Prayer</p>
+          <p className="font-display font-medium text-sm">Morning Prayer</p>
           <p
             className="text-xs"
             style={{ color: "var(--color-text-tertiary)" }}
@@ -364,10 +364,10 @@ function HeroMockup() {
         </div>
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 landing-checkmark"
-          style={{ backgroundColor: "var(--color-success)" }}
+          style={{ backgroundColor: "var(--color-brand)" }}
         >
           <svg
-            className="w-4 h-4 text-white"
+            className="w-4 h-4 text-on-brand"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -407,13 +407,13 @@ function HeroMockup() {
               className="w-5 h-5 rounded-full flex items-center justify-center landing-dot"
               style={{
                 backgroundColor:
-                  i < 5 ? "var(--color-success)" : "var(--color-bg-secondary)",
+                  i < 5 ? "var(--color-brand)" : "var(--color-bg-secondary)",
                 animationDelay: `${800 + i * 100}ms`,
               }}
             >
               {i < 5 && (
                 <svg
-                  className="w-3 h-3 text-white"
+                  className="w-3 h-3 text-on-brand"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"

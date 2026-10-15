@@ -24,13 +24,13 @@ describe("Button", () => {
   it("applies primary variant classes by default", () => {
     render(<Button>Primary</Button>);
     const btn = screen.getByRole("button");
-    expect(btn.className).toContain("bg-indigo-600");
+    expect(btn.className).toContain("bg-brand");
   });
 
   it("applies secondary variant classes", () => {
     render(<Button variant="secondary">Secondary</Button>);
     const btn = screen.getByRole("button");
-    expect(btn.className).toContain("border-indigo-200");
+    expect(btn.className).toContain("border-brand-ink/30");
   });
 
   it("applies ghost variant classes", () => {

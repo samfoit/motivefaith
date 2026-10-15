@@ -172,7 +172,7 @@ const MILESTONE_MESSAGES: Record<number, string> = {
 const TAB_TRIGGER_CLASS = cn(
   "flex-1 min-w-0 truncate px-2 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors",
   "text-[var(--color-text-secondary)]",
-  "data-[state=active]:bg-brand data-[state=active]:text-white",
+  "data-[state=active]:bg-brand data-[state=active]:text-on-brand",
   "hover:text-[var(--color-text-primary)]",
 );
 
@@ -585,7 +585,7 @@ export function HabitDetailClient({
             <div className="flex items-center gap-2">
               <span className="text-2xl">{habit.emoji}</span>
               <h1
-                className="font-display font-bold text-[var(--color-text-primary)] truncate"
+                className="font-display font-medium text-[var(--color-text-primary)] truncate"
                 style={{ fontSize: "var(--text-xl)" }}
               >
                 {habit.title}
@@ -643,7 +643,7 @@ export function HabitDetailClient({
             icon={Trophy}
             label="Best"
             value={habit.streak_best ?? 0}
-            color="var(--color-brand)"
+            color="var(--color-brand-ink)"
           />
           <StatCard
             icon={Target}
@@ -798,7 +798,7 @@ export function HabitDetailClient({
                 {requests.map((row) => (
                   <div
                     key={row.shareId}
-                    className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm ring-1 ring-brand/30"
+                    className="flex items-center gap-3 rounded-lg bg-elevated p-3 shadow-sm ring-1 ring-brand-ink/30"
                   >
                     <Avatar
                       src={row.profile.avatar_url}
@@ -982,7 +982,7 @@ export function HabitDetailClient({
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-brand-light flex items-center justify-center flex-shrink-0">
-                        <Users className="w-4 h-4 text-brand" />
+                        <Users className="w-4 h-4 text-brand-ink" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">

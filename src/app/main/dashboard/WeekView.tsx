@@ -82,7 +82,7 @@ export const WeekView = memo(function WeekView({
                       className={cn(
                         "text-[10px] font-medium",
                         td
-                          ? "text-brand"
+                          ? "text-brand-ink"
                           : "text-[var(--color-text-tertiary)]",
                       )}
                     >
@@ -91,10 +91,10 @@ export const WeekView = memo(function WeekView({
                     <div
                       className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium",
-                        completed && "bg-success text-white",
+                        completed && "bg-brand text-on-brand",
                         !completed &&
                           td &&
-                          "ring-2 ring-brand text-[var(--color-text-secondary)] bg-[var(--color-bg-elevated)]",
+                          "ring-2 ring-brand-ink text-[var(--color-text-secondary)] bg-[var(--color-bg-elevated)]",
                         !completed &&
                           !td &&
                           !future &&

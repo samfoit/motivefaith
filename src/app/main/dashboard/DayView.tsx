@@ -66,7 +66,7 @@ export const DayView = memo(function DayView({
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="text-5xl mb-4">🌱</div>
         <h2
-          className="font-display font-semibold text-text-primary mb-2"
+          className="font-display font-medium text-text-primary mb-2"
           style={{ fontSize: "var(--text-xl)" }}
         >
           No habits yet
@@ -102,7 +102,7 @@ export const DayView = memo(function DayView({
           </div>
           <div className="h-2 rounded-full bg-bg-secondary overflow-hidden">
             <div
-              className="h-full rounded-full bg-success dv-progress-bar"
+              className="h-full rounded-full bg-brand shadow-[var(--lamp-glow-bar)] dv-progress-bar"
               style={{ transform: `scaleX(${progressRatio})` }}
             />
           </div>
@@ -115,31 +115,36 @@ export const DayView = memo(function DayView({
         </div>
       )}
 
-      {/* Streak Summary Row */}
+      {/* Streak Summary Row: each kept streak is a lamp kept lit */}
       {topStreaks.length > 0 && (
         <div>
           <h2 className="text-sm font-medium text-text-secondary mb-3">
-            Active Streaks
+            Lamps kept lit
           </h2>
           <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
             {topStreaks.map((habit) => (
               <button
                 key={habit.id}
                 className={cn(
-                  "shrink-0 flex items-center gap-2 rounded-lg px-3 py-2",
-                  "bg-bg-secondary",
+                  "shrink-0 flex items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-3.5",
+                  "bg-bg-elevated border border-border",
                   "text-left dv-streak-btn",
                 )}
                 onClick={() => onHabitPress(habit.id)}
               >
-                <span className="text-base">{habit.emoji}</span>
+                <span
+                  aria-hidden
+                  className="flex items-center justify-center w-8 h-8 rounded-full text-streak"
+                  style={{ background: "var(--lamp-halo)" }}
+                >
+                  <Flame className="w-4.5 h-4.5" fill="currentColor" strokeWidth={1.5} />
+                </span>
                 <div className="min-w-0">
-                  <p className="text-xs text-text-secondary truncate max-w-25">
+                  <p className="text-[13px] text-text-primary truncate max-w-25">
                     {habit.title}
                   </p>
-                  <p className="text-sm font-mono font-semibold text-streak flex items-center gap-0.5">
-                    <Flame className="w-3.5 h-3.5" />
-                    {habit.streak_current}
+                  <p className="text-xs text-text-secondary tabular-nums">
+                    {habit.streak_current} {habit.streak_current === 1 ? "day" : "days"}
                   </p>
                 </div>
               </button>

@@ -103,9 +103,9 @@ export function AudioPlayer({ src, className }: { src: string; className?: strin
         onClick={toggle}
         aria-label={playing ? "Pause voice note" : "Play voice note"}
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-on-brand",
           "bg-[var(--color-brand)] transition-transform active:scale-95",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)]",
         )}
       >
         {playing ? (

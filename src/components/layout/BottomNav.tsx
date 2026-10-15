@@ -40,7 +40,7 @@ function NavBar({ pathname, hasUnread, hasPendingRequests }: NavBarProps) {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-40 bg-[var(--color-bg-elevated)] border-t border-[var(--color-bg-secondary)] pb-[env(safe-area-inset-bottom)]"
+      className="fixed bottom-0 inset-x-0 z-40 bg-nav border-t border-border pb-[env(safe-area-inset-bottom)]"
       aria-label="Main navigation"
     >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
@@ -55,7 +55,7 @@ function NavBar({ pathname, hasUnread, hasPendingRequests }: NavBarProps) {
                 type="button"
                 onClick={openCapture}
                 aria-label={label}
-                className="flex items-center justify-center w-12 h-12 -mt-4 rounded-full bg-[var(--color-brand)] text-white shadow-md transition-transform duration-200 ease-[cubic-bezier(.34,1.56,.64,1)] hover:scale-110 active:scale-95"
+                className="flex items-center justify-center w-12 h-12 -mt-4 rounded-full bg-brand text-on-brand shadow-[var(--lamp-glow-fab)] transition-transform duration-200 ease-[cubic-bezier(.34,1.56,.64,1)] hover:scale-110 active:scale-95"
               >
                 <Icon className="w-6 h-6" strokeWidth={2.5} />
               </button>
@@ -74,8 +74,8 @@ function NavBar({ pathname, hasUnread, hasPendingRequests }: NavBarProps) {
               className={cn(
                 "flex flex-col items-center justify-center gap-1 min-w-[64px] py-1 transition-colors",
                 isActive
-                  ? "text-[var(--color-brand)]"
-                  : "text-[var(--color-text-tertiary)]",
+                  ? "text-brand-ink"
+                  : "text-nav-text",
               )}
               aria-current={isActive ? "page" : undefined}
               aria-label={showBadge ? `${label}, new activity` : label}

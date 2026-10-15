@@ -473,7 +473,7 @@ export function CompletionForm({
                 >
                   <Camera
                     className="w-5 h-5"
-                    style={{ color: "var(--color-brand)" }}
+                    style={{ color: "var(--color-brand-ink)" }}
                   />
                 </div>
                 <div className="text-center">
@@ -770,7 +770,7 @@ export function CompletionForm({
                         className={cn(
                           "w-full min-h-12 flex items-center gap-3 rounded-lg px-3 py-3",
                           "border text-left text-sm transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-ink",
                           selected
                             ? "font-medium"
                             : "border-[var(--color-surface-hover)] text-text-secondary hover:bg-surface-hover",
@@ -832,7 +832,7 @@ export function CompletionForm({
                           className={cn(
                             "shrink-0 w-12 min-h-12 flex flex-col items-center justify-center",
                             "rounded-lg border text-xs transition-colors",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-ink",
                             selected
                               ? "font-semibold"
                               : "border-[var(--color-surface-hover)] text-text-secondary hover:bg-surface-hover",
@@ -885,7 +885,7 @@ export function CompletionForm({
                         className={cn(
                           "w-full min-h-12 flex items-center gap-3 rounded-lg px-3 py-3",
                           "border text-left text-sm transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-ink",
                           selected
                             ? "font-medium"
                             : "border-[var(--color-surface-hover)] text-text-secondary hover:bg-surface-hover",
@@ -959,7 +959,7 @@ export function CompletionForm({
         {isSubmitting && mode !== "message" && mode !== "rain_check" && (
           <div className="absolute inset-0 flex items-center justify-center bg-elevated/80 rounded-t-lg z-10">
             <div className="flex flex-col items-center gap-2">
-              <Loader2 className="w-8 h-8 animate-spin text-brand" />
+              <Loader2 className="w-8 h-8 animate-spin text-brand-ink" />
               <p className="text-sm text-text-secondary">
                 Uploading...
               </p>

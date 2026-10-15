@@ -319,7 +319,7 @@ export const HabitCard = React.memo(function HabitCard({
               className={cn(
                 "hc-option shrink-0 rounded-full text-white shadow-sm",
                 "flex items-center justify-center",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-ink",
               )}
               style={{
                 width: OPTION_SIZE,
@@ -381,7 +381,7 @@ export const HabitCard = React.memo(function HabitCard({
             className={cn(
               "shrink-0 -my-1 w-7 h-11 flex items-center justify-center rounded-md",
               "text-text-tertiary hover:text-text-secondary",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
             )}
           >
             <ChevronRight
@@ -417,7 +417,7 @@ export const HabitCard = React.memo(function HabitCard({
                 It still earns its place when the two differ — it is the only
                 sign the habit came from a group. */}
             {habit.challenge && !challengeNameIsTitle && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-light text-brand">
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-light text-brand-ink">
                 {habit.challenge.emoji} {habit.challenge.title}
               </span>
             )}
@@ -468,7 +468,7 @@ export const HabitCard = React.memo(function HabitCard({
           disabled={completedToday}
           className={cn(
             "group shrink-0 rounded-full",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-ink",
             !completedToday && "active:scale-90 transition-transform",
           )}
           aria-label={

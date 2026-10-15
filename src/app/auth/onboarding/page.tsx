@@ -137,7 +137,7 @@ export default function OnboardingPage() {
       className="w-full max-w-md"
     >
       <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-        <h2 className="font-display text-xl font-bold text-center mb-2">
+        <h2 className="font-display text-xl font-medium text-center mb-2">
           Choose your avatar
         </h2>
         <p className="text-sm text-center mb-6 text-text-secondary">
@@ -165,7 +165,7 @@ export default function OnboardingPage() {
               className={cn(
                 "flex items-center justify-center h-14 rounded-md text-2xl transition-all duration-150",
                 selectedEmoji === emoji
-                  ? "bg-brand-light ring-2 ring-brand"
+                  ? "bg-brand-light ring-2 ring-brand-ink"
                   : "bg-bg-secondary hover:bg-surface-hover",
               )}
             >
@@ -175,7 +175,7 @@ export default function OnboardingPage() {
         </div>
 
         <label className="block cursor-pointer">
-          <span className="inline-flex items-center justify-center w-full px-3 py-1.5 text-sm font-medium rounded-md bg-transparent text-indigo-600 border border-indigo-200 hover:bg-indigo-50 transition-colors">
+          <span className="inline-flex items-center justify-center w-full px-3 py-1.5 text-sm font-medium rounded-md bg-transparent text-brand-ink border border-brand-ink/30 hover:bg-brand-light transition-colors">
             Upload photo
           </span>
           <input

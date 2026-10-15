@@ -51,7 +51,7 @@ const MonthDayCell = memo(function MonthDayCell({
       onClick={() => onSelect(day)}
       className={cn(
         "aspect-square rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors relative",
-        isSelected && "bg-brand/10 ring-1 ring-brand",
+        isSelected && "bg-brand/10 ring-1 ring-brand-ink",
         !isSelected && td && "bg-[var(--color-bg-elevated)]",
         !isSelected && !td && "hover:bg-[var(--color-surface-hover)]",
       )}
@@ -59,7 +59,7 @@ const MonthDayCell = memo(function MonthDayCell({
       <span
         className={cn(
           "text-xs font-medium leading-none",
-          td && "text-brand",
+          td && "text-brand-ink",
           !td && !future && "text-[var(--color-text-primary)]",
           future && "text-[var(--color-text-tertiary)]",
           allDone && "text-success",
@@ -156,7 +156,7 @@ export const MonthView = memo(function MonthView({
     <div className="space-y-4">
       {/* Month header */}
       <h2
-        className="text-center font-display font-semibold text-[var(--color-text-primary)]"
+        className="text-center font-display font-medium text-[var(--color-text-primary)]"
         style={{ fontSize: "var(--text-lg)" }}
       >
         {format(monthDays[0], "MMMM yyyy")}
@@ -236,8 +236,8 @@ export const MonthView = memo(function MonthView({
                   </div>
                   {isPast &&
                     (completed ? (
-                      <div className="w-6 h-6 rounded-full bg-success flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5 text-white" />
+                      <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5 text-on-brand" />
                       </div>
                     ) : (
                       <div className="w-6 h-6 rounded-full border-2 border-[var(--color-text-tertiary)] shrink-0" />

@@ -12,11 +12,11 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-indigo-600 text-white border-transparent hover:bg-indigo-700 focus-visible:ring-indigo-500",
+          "bg-brand text-on-brand border-transparent hover:bg-brand-hover focus-visible:ring-brand-ink",
         secondary:
-          "bg-transparent text-indigo-600 border border-indigo-200 hover:bg-indigo-50 focus-visible:ring-indigo-300",
+          "bg-transparent text-brand-ink border border-brand-ink/30 hover:bg-brand-light focus-visible:ring-brand-ink/50",
         ghost:
-          "bg-transparent text-indigo-600 hover:bg-indigo-50 border-transparent",
+          "bg-transparent text-brand-ink hover:bg-brand-light border-transparent",
       },
       size: {
         sm: "px-3 py-1.5 text-sm rounded-md",

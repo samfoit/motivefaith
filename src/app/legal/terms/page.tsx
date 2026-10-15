@@ -8,7 +8,7 @@ export default function TermsPage() {
   return (
     <div className="space-y-8 text-[var(--color-text-primary)]">
       <header>
-        <h1 className="font-display text-3xl font-bold mb-2">
+        <h1 className="font-display text-3xl font-medium mb-2">
           Terms of Service
         </h1>
         <p className="text-sm text-[var(--color-text-tertiary)]">
@@ -17,7 +17,7 @@ export default function TermsPage() {
       </header>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           1. Acceptance of Terms
         </h2>
         <p>
@@ -28,7 +28,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           2. Eligibility
         </h2>
         <p>
@@ -40,7 +40,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           3. User Content
         </h2>
         <p>
@@ -57,7 +57,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           4. Prohibited Content
         </h2>
         <p>You may not upload, post, or share content that:</p>
@@ -81,7 +81,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           5. Content Moderation
         </h2>
         <p>
@@ -93,7 +93,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           6. DMCA / Copyright Infringement
         </h2>
         <p>
@@ -101,7 +101,7 @@ export default function TermsPage() {
           please follow the procedures outlined in our{" "}
           <a
             href="/legal/dmca"
-            className="text-[var(--color-brand)] hover:text-[var(--color-brand-hover)] underline"
+            className="text-brand-ink hover:opacity-80 underline"
           >
             DMCA Policy
           </a>
@@ -114,7 +114,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           7. TAKE IT DOWN Act Compliance
         </h2>
         <p>
@@ -131,7 +131,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           8. Account Termination
         </h2>
         <p>
@@ -141,7 +141,7 @@ export default function TermsPage() {
           accordance with our{" "}
           <a
             href="/legal/privacy"
-            className="text-[var(--color-brand)] hover:text-[var(--color-brand-hover)] underline"
+            className="text-brand-ink hover:opacity-80 underline"
           >
             Privacy Policy
           </a>
@@ -150,7 +150,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           9. Limitation of Liability
         </h2>
         <p>
@@ -164,7 +164,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           10. Indemnification
         </h2>
         <p>
@@ -176,7 +176,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           11. Changes to These Terms
         </h2>
         <p>
@@ -188,7 +188,7 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-4 text-sm leading-relaxed text-[var(--color-text-secondary)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+        <h2 className="font-display text-lg font-medium text-[var(--color-text-primary)]">
           12. Contact
         </h2>
         <p>

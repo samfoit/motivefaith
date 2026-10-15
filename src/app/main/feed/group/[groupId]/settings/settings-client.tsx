@@ -32,7 +32,7 @@ import type { Group, GroupMemberProfile } from "@/lib/types/groups";
 const TAB_TRIGGER_CLASS = cn(
   "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
   "text-[var(--color-text-secondary)]",
-  "data-[state=active]:bg-brand data-[state=active]:text-white",
+  "data-[state=active]:bg-brand data-[state=active]:text-on-brand",
   "hover:text-[var(--color-text-primary)]",
 );
 
@@ -225,7 +225,7 @@ export function SettingsClient({
             <ArrowLeft className="w-5 h-5 text-text-secondary" />
           </button>
           <h1
-            className="font-display font-bold text-text-primary"
+            className="font-display font-medium text-text-primary"
             style={{ fontSize: "var(--text-xl)" }}
           >
             Group Settings
@@ -259,7 +259,7 @@ export function SettingsClient({
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploadingAvatar}
                   className={cn(
-                    "absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand text-white",
+                    "absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand text-on-brand",
                     "flex items-center justify-center shadow-sm",
                     "hover:bg-brand-hover transition-colors",
                     "disabled:opacity-50",

@@ -3,9 +3,9 @@
 import { useEffect, useRef } from "react";
 
 const COLORS = [
-  "#f59e0b", // streak amber
-  "#6366f1", // brand indigo
-  "#22c55e", // success green
+  "#E9B44C", // the lamp
+  "#F3CC7A", // lamp, pale
+  "#A87410", // the flame
   "#8b5cf6", // encourage purple
   "#ec4899", // pink
   "#3b82f6", // blue

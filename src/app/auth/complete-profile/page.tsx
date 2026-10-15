@@ -150,7 +150,7 @@ export default function CompleteProfilePage() {
       <div className="w-full max-w-sm">
         <div className="bg-bg-elevated rounded-lg shadow-md p-8">
           <div className="flex justify-center">
-            <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-brand-ink border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function CompleteProfilePage() {
           </div>
         )}
 
-        <h1 className="font-display text-2xl font-bold text-center mb-2">
+        <h1 className="font-display text-2xl font-medium text-center mb-2">
           Complete Your Profile
         </h1>
         <p className="text-sm text-center mb-8 text-[var(--color-text-secondary)]">
@@ -213,7 +213,7 @@ export default function CompleteProfilePage() {
               I agree to the{" "}
               <Link
                 href="/legal/terms"
-                className="text-brand font-medium hover:text-brand-hover underline"
+                className="text-brand-ink font-medium hover:text-brand-ink underline"
                 target="_blank"
               >
                 Terms of Service
@@ -221,7 +221,7 @@ export default function CompleteProfilePage() {
               and{" "}
               <Link
                 href="/legal/privacy"
-                className="text-brand font-medium hover:text-brand-hover underline"
+                className="text-brand-ink font-medium hover:text-brand-ink underline"
                 target="_blank"
               >
                 Privacy Policy
