@@ -36,6 +36,11 @@ export interface CameraCaptureProps {
    * The camera itself only starts if the user retakes.
    */
   initialCapture?: { file: File; notes?: string };
+  /**
+   * Offer the Voice mode beside the camera. Off where voice has its own way
+   * in, as on a habit's sheet, so the camera only makes photos and videos.
+   */
+  allowVoice?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +208,7 @@ export function CameraCapture({
   maxVideoDuration = 15,
   maxVoiceDuration = MAX_AUDIO_DURATION_S,
   initialCapture,
+  allowVoice = true,
 }: CameraCaptureProps) {
   const {
     state,
@@ -337,11 +343,12 @@ export function CameraCapture({
   const switchMode = useCallback(
     (next: CaptureMode) => {
       if (next === mode || stage !== "viewfinder") return;
+      if (next === "voice" && !allowVoice) return;
       setMode(next);
       if (next === "camera") requestCamera(facingMode);
       else stopCamera();
     },
-    [mode, stage, requestCamera, stopCamera, facingMode],
+    [mode, stage, allowVoice, requestCamera, stopCamera, facingMode],
   );
 
   // --- Attach / detach stream on the viewfinder element ---
@@ -838,14 +845,16 @@ export function CameraCapture({
             Use File Picker Instead
           </Button>
         </div>
-        <button
-          type="button"
-          onClick={() => setMode("voice")}
-          className="flex items-center gap-2 text-white/70 text-sm underline-offset-4 hover:underline"
-        >
-          <Mic className="w-4 h-4" aria-hidden />
-          Record a voice note instead
-        </button>
+        {allowVoice && (
+          <button
+            type="button"
+            onClick={() => setMode("voice")}
+            className="flex items-center gap-2 text-white/70 text-sm underline-offset-4 hover:underline"
+          >
+            <Mic className="w-4 h-4" aria-hidden />
+            Record a voice note instead
+          </button>
+        )}
       </div>
     );
   }
@@ -1086,11 +1095,13 @@ export function CameraCapture({
         <div className="flex flex-col items-center justify-center px-6 pt-2 pb-5">
           {(view === "viewfinder" || view === "recording") && (
             <>
-              <ModeStrip
-                mode={mode}
-                hidden={view === "recording"}
-                onChange={switchMode}
-              />
+              {allowVoice && (
+                <ModeStrip
+                  mode={mode}
+                  hidden={view === "recording"}
+                  onChange={switchMode}
+                />
+              )}
               <div className="mt-2 flex items-center justify-center w-full max-w-xs">
                 {/* Gallery button — hidden during recording */}
                 <div className="flex-1 flex justify-center">
