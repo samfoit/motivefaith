@@ -25,6 +25,8 @@ export type JourneyHabit = {
   isOwner: boolean;
   /** Whether this habit has been completed today by its owner */
   completedToday: boolean;
+  /** On today's list: scheduled today, moved here, or already checked in. */
+  dueToday: boolean;
   /** Skipped today on purpose — the streak is held, not broken. */
   rainCheckedToday?: boolean;
   /** Where today's rain check was moved to, when it was moved at all. */
@@ -89,6 +91,8 @@ export type FriendFeedRow = {
 /** Full journey data for the friend detail page (Level 2) */
 export type JourneyData = {
   friend: FeedProfile;
+  /** You, for your own habits' chips. Null only if your profile won't load. */
+  me: FeedProfile | null;
   friendshipSince: string;
   habits: JourneyHabit[];
   completions: JourneyCompletion[];

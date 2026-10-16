@@ -10,6 +10,7 @@ beforeEach(() => {
     habitIds: [],
     friendIds: [],
     groupIds: [],
+    direct: null,
   });
 });
 
@@ -116,5 +117,21 @@ describe("useQuickCaptureStore", () => {
 
     expect(useQuickCaptureStore.getState().friendIds).toEqual(["f2"]);
     expect(useQuickCaptureStore.getState().groupIds).toEqual(["f1"]);
+  });
+
+  it("openTo() opens the camera for one chat, and close() forgets it", () => {
+    const target = { kind: "friend" as const, id: "f1", name: "Bob" };
+    useQuickCaptureStore.getState().openTo(target);
+    expect(useQuickCaptureStore.getState().step).toBe("camera");
+    expect(useQuickCaptureStore.getState().direct).toBe(target);
+
+    useQuickCaptureStore.getState().close();
+    expect(useQuickCaptureStore.getState().direct).toBeNull();
+  });
+
+  it("open() from the nav drops a chat left over from before", () => {
+    useQuickCaptureStore.setState({ direct: { kind: "group", id: "g1", name: "Circle" } });
+    useQuickCaptureStore.getState().open();
+    expect(useQuickCaptureStore.getState().direct).toBeNull();
   });
 });

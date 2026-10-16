@@ -404,10 +404,8 @@ export const HabitCard = React.memo(function HabitCard({
   return (
     <div
       ref={trackRef}
-      className={cn(
-        "relative overflow-hidden rounded-lg bg-bg-secondary",
-        className,
-      )}
+      className={cn("hc-drawer relative overflow-hidden rounded-lg", className)}
+      style={{ ["--habit-color" as string]: habit.color ?? undefined } as React.CSSProperties}
     >
       {/* Check-in drawer, revealed as the card slides off it */}
       {drawerEnabled && (

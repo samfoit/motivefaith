@@ -74,6 +74,7 @@ export function QuickCaptureFlow() {
   const groupIds = useQuickCaptureStore((s) => s.groupIds);
   const toggleTarget = useQuickCaptureStore((s) => s.toggleTarget);
   const deselectTargets = useQuickCaptureStore((s) => s.deselectTargets);
+  const direct = useQuickCaptureStore((s) => s.direct);
 
   // Only fetched once the flow is open; both are cached across opens.
   const { data: friends } = useFriendsList(step !== "closed" ? userId : undefined);
@@ -176,6 +177,116 @@ export function QuickCaptureFlow() {
   // Handlers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Uploads the take once and sends it everywhere picked. A failure goes back
+   * to where the targets were chosen: the picker, or for a chat's own camera,
+   * the preview with its Send button.
+   */
+  const send = useCallback(
+    async (
+      file: File,
+      mode: "photo" | "video" | "voice",
+      caption: string,
+      targets: { habitIds: string[]; friendIds: string[]; groupIds: string[] },
+    ) => {
+      const direct = useQuickCaptureStore.getState().direct;
+      setStep("uploading");
+      setError(null);
+
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not authenticated");
+
+        // The bare type: a recorder's "video/webm;codecs=vp9" is neither in
+        // MIME_TO_EXT nor in the bucket's allowed types.
+        let uploadBlob: Blob = file;
+        let contentType = file.type.split(";")[0];
+        let ext = MIME_TO_EXT[contentType] ?? "bin";
+
+        if (mode === "photo") {
+          uploadBlob = await compressImage(file);
+          ext = "webp";
+          contentType = "image/webp";
+        }
+
+        // Uploaded once; every destination row points at this path, and those
+        // rows are what let a friend or group member read it (migration 034).
+        const path = `${user.id}/capture/${crypto.randomUUID()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("completions")
+          .upload(path, uploadBlob, { contentType });
+
+        if (uploadError) throw uploadError;
+
+        await shareCapture.mutateAsync({
+          mediaPath: path,
+          mediaType: mode,
+          caption: caption.trim() || undefined,
+          ...targets,
+        });
+
+        const { habitIds } = targets;
+        const count =
+          habitIds.length + targets.friendIds.length + targets.groupIds.length;
+        // From a chat's own camera the take shows up in that chat, which is
+        // confirmation enough; a toast over it would only cover it. From the
+        // picker it goes somewhere you can't see, so it's said.
+        if (!direct) {
+          show({
+            title:
+              habitIds.length > 0 && count === habitIds.length
+                ? "Habit completed!"
+                : "Sent!",
+            variant: "success",
+          });
+        }
+        // The dashboard reads from the query cache now, not from server props,
+        // so router.refresh() would be a wasted round trip — and one that
+        // fails outright offline.
+        if (habitIds.length > 0) {
+          void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
+        }
+        direct?.onSent?.();
+        setNotes("");
+        reset();
+      } catch (err) {
+        console.error("Quick capture send failed:", err);
+        show({ title: "Couldn't send. Try again.", variant: "error" });
+        setStep(direct ? "camera" : "share");
+      }
+    },
+    [shareCapture, reset, queryClient, setStep, show],
+  );
+
+  /**
+   * A take from the camera or the file picker. It goes to the "Send to…"
+   * picker, or, when the camera was opened from a chat, straight to that chat.
+   */
+  const acceptTake = useCallback(
+    (file: File, mode: "photo" | "video" | "voice", caption: string) => {
+      // Always overwrite: clearing the caption on the preview must stick.
+      setNotes(caption);
+      const direct = useQuickCaptureStore.getState().direct;
+      if (!direct) {
+        useQuickCaptureStore.setState({ captureMode: mode });
+        setCapturedFile(file);
+        return;
+      }
+      // Kept in the store so a failed send reopens on this take's preview.
+      useQuickCaptureStore.setState({ captureMode: mode, capturedFile: file });
+      void send(file, mode, caption, {
+        habitIds: [],
+        friendIds: direct.kind === "friend" ? [direct.id] : [],
+        groupIds: direct.kind === "group" ? [direct.id] : [],
+      });
+    },
+    [setCapturedFile, send],
+  );
+
   const handleCameraCapture = useCallback(
     (file: File, captionNotes?: string) => {
       // Detect mode from file type
@@ -184,12 +295,9 @@ export function QuickCaptureFlow() {
         : file.type.startsWith("audio")
           ? "voice"
           : "photo";
-      useQuickCaptureStore.setState({ captureMode: mode });
-      setCapturedFile(file);
-      // Always overwrite: clearing the caption on the preview must stick.
-      setNotes(captionNotes ?? "");
+      acceptTake(file, mode, captionNotes ?? "");
     },
-    [setCapturedFile],
+    [acceptTake],
   );
 
   const handleCameraFallback = useCallback(() => {
@@ -222,10 +330,9 @@ export function QuickCaptureFlow() {
       }
 
       const mode = ALLOWED_VIDEO_TYPES.has(file.type) ? "video" : "photo";
-      useQuickCaptureStore.setState({ captureMode: mode });
-      setCapturedFile(file);
+      acceptTake(file, mode, "");
     },
-    [setCapturedFile],
+    [acceptTake],
   );
 
   const selectedCount = habitIds.length + friendIds.length + groupIds.length;
@@ -247,82 +354,18 @@ export function QuickCaptureFlow() {
     [habits, toggleTarget, deselectTargets],
   );
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(() => {
     if (!capturedFile || !captureMode || selectedCount === 0) return;
-
-    setStep("uploading");
-    setError(null);
-
-    try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      // The bare type: a recorder's "video/webm;codecs=vp9" is neither in
-      // MIME_TO_EXT nor in the bucket's allowed types.
-      let uploadBlob: Blob = capturedFile;
-      let contentType = capturedFile.type.split(";")[0];
-      let ext = MIME_TO_EXT[contentType] ?? "bin";
-
-      if (captureMode === "photo") {
-        uploadBlob = await compressImage(capturedFile);
-        ext = "webp";
-        contentType = "image/webp";
-      }
-
-      // Uploaded once; every destination row points at this path, and those
-      // rows are what let a friend or group member read it (migration 034).
-      const path = `${user.id}/capture/${crypto.randomUUID()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("completions")
-        .upload(path, uploadBlob, { contentType });
-
-      if (uploadError) throw uploadError;
-
-      await shareCapture.mutateAsync({
-        mediaPath: path,
-        mediaType: captureMode,
-        caption: notes.trim() || undefined,
-        habitIds,
-        friendIds,
-        groupIds,
-      });
-
-      show({
-        title: habitIds.length > 0 && selectedCount === habitIds.length
-          ? "Habit completed!"
-          : "Sent!",
-        variant: "success",
-      });
-      // The dashboard reads from the query cache now, not from server props,
-      // so router.refresh() would be a wasted round trip — and one that
-      // fails outright offline.
-      if (habitIds.length > 0) {
-        void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
-      }
-      setNotes("");
-      reset();
-    } catch (err) {
-      console.error("Quick capture send failed:", err);
-      show({ title: "Couldn't send. Try again.", variant: "error" });
-      setStep("share");
-    }
+    void send(capturedFile, captureMode, notes, { habitIds, friendIds, groupIds });
   }, [
     capturedFile,
     captureMode,
     selectedCount,
-    shareCapture,
+    send,
     notes,
     habitIds,
     friendIds,
     groupIds,
-    reset,
-    queryClient,
-    setStep,
-    show,
   ]);
 
   const handleClose = useCallback(() => {
@@ -361,6 +404,7 @@ export function QuickCaptureFlow() {
               ? { file: capturedFile, notes: notes || undefined }
               : undefined
           }
+          useLabel={direct ? `Send to ${direct.name}` : undefined}
         />
       )}
 

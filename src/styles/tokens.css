@@ -30,11 +30,18 @@
   --color-rain: #3b82f6; /* Rain check blue — a deliberate skip, never an alarm */
   --color-encourage: #8b5cf6; /* Encouragement purple */
   /* Check-in actions, each its own hue wherever it appears. They sit
-     behind white icons in both families, so they hold 3:1 against white
-     rather than following the hour. Quick is the lamp itself, deepened. */
-  --color-checkin-quick: #A87410;
-  --color-checkin-photo: #0F766E;
-  --color-checkin-note: #C2410C;
+     behind white icons in both families, so they don't follow the hour: one
+     lightness (OKLCH L≈0.53) and one saturation for all, hues spread 45-70°
+     apart, every white icon at 4:1 or better (icons need 3:1). Check in is
+     the lamp itself, deepened, a little lighter than the rest. The red-to-magenta arc is left empty on purpose: red means
+     missed, danger and hearts in this app, and no action may look like one.
+     Their own tokens, not borrowed ones, so retuning rain or encouragement
+     never moves the drawer. */
+  --color-checkin-quick: #A87410; /* lamp gold, 76° */
+  --color-checkin-note: #2C7F44; /* ink green, 150° */
+  --color-checkin-photo: #007D7E; /* teal, 196° */
+  --color-checkin-rain: #226BC0; /* blue, 255° */
+  --color-checkin-voice: #8258C9; /* violet, 298° */
   /* The sky behind the app (src/components/layout/SkyScene.tsx) */
   --sky-sun: #F0C75E;
   --sky-glow: #E3EEF7;

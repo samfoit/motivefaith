@@ -4,9 +4,11 @@ import { useState } from "react";
 import { EvidenceAudio } from "@/components/ui/EvidenceAudio";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
 import { MediaLightbox } from "@/components/ui/MediaLightbox";
+import { cn } from "@/lib/utils/cn";
 
+/** Rounded by default; a chat bubble passes its own corners. */
 const FRAME_CLASS =
-  "w-56 max-w-full rounded-lg overflow-hidden bg-[var(--color-bg-secondary)]";
+  "w-60 max-w-full rounded-lg overflow-hidden bg-[var(--color-bg-secondary)]";
 
 /**
  * A photo, video or voice note sent from the capture flow, inside a DM or
@@ -19,10 +21,14 @@ const FRAME_CLASS =
 export function MessageMedia({
   path,
   type,
+  className,
 }: {
   path: string;
   type: "photo" | "video" | "voice";
+  /** The frame's shape, for a photo or video. */
+  className?: string;
 }) {
+  const frame = cn(FRAME_CLASS, className);
   const [open, setOpen] = useState(false);
 
   if (type === "voice") {
@@ -34,8 +40,8 @@ export function MessageMedia({
       <EvidenceMedia
         path={path}
         type="video"
-        className={FRAME_CLASS}
-        videoClassName="max-h-72"
+        className={frame}
+        videoClassName="max-h-80 object-cover"
       />
     );
   }
@@ -46,9 +52,9 @@ export function MessageMedia({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="View photo"
-        className="block cursor-zoom-in"
+        className="block max-w-full cursor-zoom-in"
       >
-        <EvidenceMedia path={path} type="photo" alt="Shared photo" className={FRAME_CLASS} />
+        <EvidenceMedia path={path} type="photo" alt="Shared photo" className={frame} />
       </button>
       <MediaLightbox path={path} open={open} onOpenChange={setOpen} alt="Shared photo" />
     </>

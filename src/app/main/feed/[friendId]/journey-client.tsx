@@ -1,25 +1,27 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { Send, ChevronRight } from "lucide-react";
+import { Camera, Send, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
-import { TopBarTitle } from "@/components/layout/TopBarSlots";
+import { TopBarActions, TopBarTitle } from "@/components/layout/TopBarSlots";
 import {
+  TOP_BAR_ICON_BUTTON_CLASS,
   TOP_BAR_SUBTITLE_CLASS,
   TOP_BAR_TITLE_CLASS,
   TOP_BAR_TITLE_STYLE,
 } from "@/components/layout/topBarStyles";
 import { useToast } from "@/components/ui/Toast";
-import { SharedHabits } from "@/components/social/SharedHabits";
+import { SharedHabits, type SharedHabitChip } from "@/components/social/SharedHabits";
 import { FriendProfileSheet } from "@/components/social/FriendProfileSheet";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { createClient } from "@/lib/supabase/client";
 import { sendOrQueue } from "@/lib/offline-write";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
+import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
 import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
@@ -47,7 +49,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   const inputBarRef = useRef<HTMLDivElement>(null);
   useKeyboardOffset(inputBarRef, "calc(4rem + env(safe-area-inset-bottom))");
 
-  const { friend, friendshipSince, habits, completions } = data;
+  const { friend, me, friendshipSince, habits, completions } = data;
 
   // Pending entries: optimistic sends + realtime arrivals not yet in server data
   const [pendingEntries, setPendingEntries] = useState<JourneyEncouragement[]>(
@@ -71,6 +73,17 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   }, [router]);
 
   const friendFirstName = friend.display_name.split(" ")[0];
+
+  // Whose each habit is, by face: today's strip mixes yours with theirs.
+  const habitChips: SharedHabitChip[] = useMemo(
+    () =>
+      habits.map((habit) => ({
+        ...habit,
+        ownerName: habit.isOwner ? (me?.display_name ?? "You") : friend.display_name,
+        ownerAvatar: habit.isOwner ? (me?.avatar_url ?? null) : friend.avatar_url,
+      })),
+    [habits, me, friend],
+  );
 
   // Realtime subscriptions
   useEffect(() => {
@@ -385,9 +398,27 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
             </span>
           </button>
         </TopBarTitle>
+        {/* The camera, sending only to this friend: no "Send to…" step. */}
+        <TopBarActions>
+          <button
+            type="button"
+            onClick={() =>
+              useQuickCaptureStore.getState().openTo({
+                kind: "friend",
+                id: friend.id,
+                name: friendFirstName,
+                onSent: debouncedRefresh,
+              })
+            }
+            className={TOP_BAR_ICON_BUTTON_CLASS}
+            aria-label={`Send ${friendFirstName} a photo or video`}
+          >
+            <Camera className="w-5 h-5" />
+          </button>
+        </TopBarActions>
 
         {/* Shared habits — one line of chips, details in a sheet */}
-        <SharedHabits habits={habits} friendName={friendFirstName} />
+        <SharedHabits habits={habitChips} friendName={friendFirstName} />
 
         {/* Timeline */}
         <section>
@@ -450,6 +481,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
         open={profileOpen}
         onOpenChange={setProfileOpen}
         onChanged={() => router.refresh()}
+        yourShared={habitChips.filter((h) => h.isOwner)}
       />
       {ToastElements}
     </div>

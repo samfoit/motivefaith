@@ -167,6 +167,8 @@ export type GroupTimelineData = {
     owner_name: string;
     owner_avatar: string | null;
     completedToday: boolean;
+    /** On today's list: scheduled today, moved here, or already checked in. */
+    dueToday: boolean;
     /** Skipped today on purpose — the streak is held, not broken. */
     rainCheckedToday?: boolean;
     /** Where today's rain check was moved to, when it was moved at all. */

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -182,5 +182,64 @@ describe("QuickCaptureFlow share step", () => {
     const [path, , options] = upload.mock.calls[0];
     expect(path).toMatch(/\.webm$/);
     expect(options).toEqual({ contentType: "video/webm" });
+  });
+});
+
+describe("QuickCaptureFlow opened from a chat", () => {
+  beforeEach(() => {
+    upload.mockReset().mockResolvedValue({ error: null });
+    share.mockReset().mockResolvedValue({});
+    useQuickCaptureStore.getState().reset();
+  });
+
+  // The camera is mocked away; a take from the file picker goes the same way.
+  function takePhoto(container: HTMLElement) {
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File(["jpg"], "shot.jpg", { type: "image/jpeg" })] },
+    });
+  }
+
+  it("sends the take straight to that friend, with no picker", async () => {
+    const onSent = vi.fn();
+    useQuickCaptureStore.getState().openTo({ kind: "friend", id: "f1", name: "Bob", onSent });
+    const { container } = renderFlow();
+
+    takePhoto(container);
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({ habitIds: [], friendIds: ["f1"], groupIds: [] }),
+    );
+    expect(screen.queryByText("Send to…")).not.toBeInTheDocument();
+    expect(onSent).toHaveBeenCalledTimes(1);
+    expect(useQuickCaptureStore.getState().step).toBe("closed");
+    // The chat shows the message; no toast on top of it.
+    expect(screen.queryByText(/Sent/)).not.toBeInTheDocument();
+  });
+
+  it("sends to the group it was opened from", async () => {
+    useQuickCaptureStore.getState().openTo({ kind: "group", id: "g1", name: "Prayer Circle" });
+    const { container } = renderFlow();
+
+    takePhoto(container);
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({ habitIds: [], friendIds: [], groupIds: ["g1"] }),
+    );
+  });
+
+  it("goes back to the take's preview, not the picker, when the send fails", async () => {
+    share.mockRejectedValueOnce(new Error("boom"));
+    useQuickCaptureStore.getState().openTo({ kind: "friend", id: "f1", name: "Bob" });
+    const { container } = renderFlow();
+
+    takePhoto(container);
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(useQuickCaptureStore.getState().step).toBe("camera"));
+    expect(useQuickCaptureStore.getState().capturedFile).not.toBeNull();
+    expect(useQuickCaptureStore.getState().direct?.id).toBe("f1");
   });
 });
