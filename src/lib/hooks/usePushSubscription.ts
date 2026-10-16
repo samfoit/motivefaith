@@ -109,14 +109,17 @@ export function usePushSubscription(userId: string) {
   // Determine initial state
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setState("unsupported");
+
+    // iOS requires the app to be installed as a PWA for push to work. Check
+    // this first: Safari only exposes PushManager once installed, so the
+    // support check below would otherwise call every iPhone unsupported.
+    if (isIOS() && !isStandalone()) {
+      setState("requires-install");
       return;
     }
 
-    // iOS requires the app to be installed as a PWA for push to work
-    if (isIOS() && !isStandalone()) {
-      setState("requires-install");
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setState("unsupported");
       return;
     }
 

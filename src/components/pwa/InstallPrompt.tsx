@@ -75,6 +75,17 @@ function markDismissed() {
 }
 
 // ---------------------------------------------------------------------------
+// Opening on demand
+// ---------------------------------------------------------------------------
+
+const OPEN_EVENT = "motive:open-install-prompt";
+
+/** Show the install directions now, even if the prompt was dismissed. */
+export function openInstallPrompt() {
+  window.dispatchEvent(new Event(OPEN_EVENT));
+}
+
+// ---------------------------------------------------------------------------
 // Instruction content per platform
 // ---------------------------------------------------------------------------
 
@@ -210,6 +221,13 @@ export function InstallPrompt() {
     // Small delay so the dashboard loads first
     const timer = setTimeout(() => setVisible(true), 1500);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Opened from elsewhere, e.g. the notifications row on iOS
+  useEffect(() => {
+    const open = () => setVisible(true);
+    window.addEventListener(OPEN_EVENT, open);
+    return () => window.removeEventListener(OPEN_EVENT, open);
   }, []);
 
   // Capture the native install prompt (Chrome/Edge on Android & desktop)
