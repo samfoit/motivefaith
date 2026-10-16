@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ReactNode } from "react";
 
 /**
  * The shared look for every link preview the app produces.
@@ -34,41 +35,25 @@ export async function ogFonts() {
   ];
 }
 
-// Lamplight's night: the same values as the Dark pin in src/styles/tokens.css.
+// Lamplight's night: the NIGHT stop in src/lib/lamplight/palette.ts. Flat
+// color only; no gradients or glow.
 const GROUND = "#12151F";
-const GROUND_HIGH = "#1E2540";
+const TILE = "#232838";
 const INK = "#EDE6D6";
-const MUTED = "#A9A190";
+const SUB = "#A9A190";
+const LINE = "#5C6480";
 const LAMP = "#E9B44C";
-const ON_LAMP = "#1A1405";
-const UNLIT = "#2E3446";
+const FLAME = "#F2CF84";
 
-// A few stars in the corner the lamp's glow does not reach.
-const STARS: [number, number, number][] = [
-  [1010, 96, 3], [1090, 150, 2], [960, 190, 2], [1120, 70, 2.5], [1050, 250, 2],
-  [890, 110, 1.5], [1140, 220, 1.5],
-];
+const FLAME_PATH =
+  "M256 80C256 80 208 140 208 190C208 216 230 240 256 240C282 240 304 216 304 190C304 140 256 80 256 80Z";
 
 /** The app icon's mark: the flame over the cross, in lamp gold. */
 function LampMark({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 512 512">
-      <defs>
-        <linearGradient id="og-ground" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={GROUND_HIGH} />
-          <stop offset="100%" stopColor={GROUND} />
-        </linearGradient>
-        <radialGradient id="og-halo" cx="256" cy="178" r="170" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={LAMP} stopOpacity="0.34" />
-          <stop offset="100%" stopColor={LAMP} stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <rect width="512" height="512" rx="108" fill="url(#og-ground)" />
-      <circle cx="256" cy="178" r="170" fill="url(#og-halo)" />
-      <path
-        d="M256 80C256 80 208 140 208 190C208 216 230 240 256 240C282 240 304 216 304 190C304 140 256 80 256 80Z"
-        fill="#F2CF84"
-      />
+      <rect width="512" height="512" rx="108" fill={TILE} />
+      <path d={FLAME_PATH} fill={FLAME} />
       <path
         d="M200 248H312A24 24 0 0 1 312 296H280V408A24 24 0 0 1 232 408V296H200A24 24 0 0 1 200 248Z"
         fill={LAMP}
@@ -77,134 +62,190 @@ function LampMark({ size }: { size: number }) {
   );
 }
 
+/** The mark's flame. Lit is solid gold; unlit is an outline, a place kept. */
+function Flame({ size, lit }: { size: number; lit: boolean }) {
+  const w = size * (112 / 176);
+  return (
+    <svg width={w} height={size} viewBox="200 72 112 176">
+      <path
+        d={FLAME_PATH}
+        fill={lit ? FLAME : "none"}
+        stroke={lit ? "none" : LINE}
+        strokeWidth={lit ? 0 : 6}
+      />
+    </svg>
+  );
+}
+
+function Caption({ children, lit = false }: { children: ReactNode; lit?: boolean }) {
+  return (
+    <div
+      style={{
+        display: "block",
+        maxWidth: 190,
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        textOverflow: "ellipsis",
+        fontSize: 22,
+        fontWeight: 600,
+        marginTop: 16,
+        color: lit ? INK : SUB,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** A week of kept days: the product's own picture of a streak. */
+export function WeekScene() {
+  const days = ["S", "M", "T", "W", "T", "F", "S"];
+  return (
+    <div style={{ display: "flex", gap: 14 }}>
+      {days.map((day, i) => (
+        <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <Flame size={48} lit={i < 5} />
+          <Caption lit={i < 5}>{day}</Caption>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Their flame lit, yours waiting beside it. */
+export function PairScene({ name }: { name: string }) {
+  return (
+    <div style={{ display: "flex", gap: 44, alignItems: "flex-end" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Flame size={110} lit />
+        <Caption lit>{name}</Caption>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Flame size={110} lit={false} />
+        <Caption>You</Caption>
+      </div>
+    </div>
+  );
+}
+
+/** A circle already lit, with one place open. */
+export function CircleScene() {
+  const ring: [number, number, boolean][] = [
+    [110, 0, true], [200, 50, true], [200, 150, true], [110, 200, false], [20, 150, true], [20, 50, true],
+  ];
+  return (
+    <div style={{ display: "flex", position: "relative", width: 260, height: 290 }}>
+      {ring.map(([x, y, lit], i) => (
+        <div
+          key={i}
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "absolute", left: x, top: y }}
+        >
+          <Flame size={60} lit={lit} />
+          {!lit && <Caption>You</Caption>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** One flame, lit for the first time. */
+export function FirstScene() {
+  return <Flame size={170} lit />;
+}
+
 /**
- * One card, two uses: a named invite and the app's own default preview.
- *
- * `headline` is the only thing that changes between them, which is deliberate
- * — a preview that looks like a different product depending on which link you
- * followed is a preview that does not build recognition.
- *
- * Drawn as the app's night: a lamplit ground, the icon's mark, Newsreader for
- * the message. A dark card also stands apart in the light feeds where most
- * link previews land.
+ * The headline's size, shrunk so its longest word fits the column. A username
+ * can be 30 characters with no space to break at, and at full size it would
+ * run off the card.
+ */
+function headlineSize(headline: string, full: number, column: number): number {
+  const longest = Math.max(...headline.split(" ").map((word) => word.length));
+  // Newsreader averages about half an em per character.
+  return Math.min(full, Math.floor(column / (longest * 0.52)));
+}
+
+/**
+ * One card for every link: a flat night ground, the mark, the words, and a
+ * small picture in gold. The words and picture change with the link; nothing
+ * else does, so every preview reads as the same product. Without a scene the
+ * card is words only (the legal pages).
  */
 export function OgCard({
   headline,
   subhead,
-  pill,
+  scene,
 }: {
   headline: string;
   subhead: string;
-  pill: string;
+  scene?: ReactNode;
 }) {
+  const column = scene ? 620 : 1040;
   return (
     <div
       style={{
         width: "100%",
         height: "100%",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        padding: "72px 80px",
-        position: "relative",
         background: GROUND,
-        backgroundImage: `radial-gradient(circle at 12% 0%, rgba(233, 180, 76, 0.16) 0%, rgba(233, 180, 76, 0) 45%), linear-gradient(180deg, ${GROUND_HIGH} 0%, ${GROUND} 70%)`,
         fontFamily: "Figtree",
         color: INK,
       }}
     >
-      {STARS.map(([x, y, r]) => (
-        <div
-          key={`${x}-${y}`}
-          style={{
-            position: "absolute",
-            left: x,
-            top: y,
-            width: r * 2,
-            height: r * 2,
-            borderRadius: 999,
-            background: INK,
-            opacity: 0.7,
-          }}
-        />
-      ))}
-
-      {/* Wordmark */}
-      <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-        <LampMark size={64} />
-        <div style={{ fontFamily: "Newsreader", fontSize: 34, fontWeight: 500, color: INK }}>
-          MotiveFaith
-        </div>
-      </div>
-
-      {/* Message */}
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <div
-          style={{
-            fontFamily: "Newsreader",
-            fontSize: 76,
-            fontWeight: 500,
-            color: INK,
-            letterSpacing: -1.5,
-            lineHeight: 1.05,
-          }}
-        >
-          {headline}
-        </div>
-        <div
-          style={{
-            fontSize: 34,
-            color: MUTED,
-            marginTop: 22,
-            lineHeight: 1.3,
-            maxWidth: 820,
-          }}
-        >
-          {subhead}
-        </div>
-      </div>
-
-      {/* Footer: the call, and a week of kept days behind it — the product's
-          own vocabulary, so the preview reads as this app and not as any
-          invite card. Kept days are lit lamps. */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          flexDirection: "column",
           justifyContent: "space-between",
+          flex: 1,
+          padding: "64px 0 64px 72px",
         }}
       >
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <LampMark size={60} />
+          <div style={{ fontFamily: "Newsreader", fontSize: 34, fontWeight: 500 }}>MotiveFaith</div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", maxWidth: column }}>
+          <div
+            style={{
+              fontFamily: "Newsreader",
+              fontSize: headlineSize(headline, scene ? 76 : 92, column),
+              fontWeight: 500,
+              letterSpacing: -1.5,
+              lineHeight: 1.05,
+              textWrap: "balance",
+            }}
+          >
+            {headline}
+          </div>
+          <div
+            style={{
+              fontSize: 30,
+              color: SUB,
+              marginTop: 22,
+              lineHeight: 1.35,
+              textWrap: "balance",
+              maxWidth: scene ? 560 : 800,
+            }}
+          >
+            {subhead}
+          </div>
+        </div>
+      </div>
+
+      {scene && (
         <div
           style={{
             display: "flex",
+            width: 440,
             alignItems: "center",
-            padding: "16px 32px",
-            borderRadius: 999,
-            background: LAMP,
-            color: ON_LAMP,
-            fontSize: 28,
-            fontWeight: 600,
-            boxShadow: "0 0 36px rgba(233, 180, 76, 0.35)",
+            justifyContent: "center",
+            paddingRight: 72,
           }}
         >
-          {pill}
+          {scene}
         </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-            <div
-              key={i}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 999,
-                background: i < 5 ? LAMP : UNLIT,
-                boxShadow: i < 5 ? "0 0 14px rgba(233, 180, 76, 0.45)" : "none",
-              }}
-            />
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { parseInviteUsername } from "@/lib/constants/pending-invite";
-import { OgCard, OG_SIZE, OG_CONTENT_TYPE, ogFonts } from "@/app/_og/card";
+import { OgCard, PairScene, OG_SIZE, OG_CONTENT_TYPE, ogFonts } from "@/app/_og/card";
 
 export const alt = "You've been invited to MotiveFaith";
 export const size = OG_SIZE;
@@ -24,8 +24,8 @@ export default async function Image({
     (
       <OgCard
         headline={username ? `@${username} invited you` : "You've been invited"}
-        subhead="Track the habits that matter, with people who keep you honest."
-        pill="Join them"
+        subhead="Keep your habits side by side and see each other's days."
+        scene={<PairScene name={username ? `@${username}` : "A friend"} />}
       />
     ),
     { ...size, fonts: await ogFonts() },
