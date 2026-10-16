@@ -35,3 +35,6 @@ export const TOP_BAR_ICON_BUTTON_CLASS =
  */
 export const TOP_BAR_PRIMARY_ACTION_CLASS =
   "relative flex items-center justify-center gap-1.5 h-8 min-w-9 px-2.5 rounded-lg bg-brand text-on-brand text-sm font-medium hover:bg-brand-hover transition-colors after:absolute after:-inset-x-1 after:-inset-y-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+
+/** The second line under a sub-page's title: who a chat is with, a count. */
+export const TOP_BAR_SUBTITLE_CLASS = "block text-xs text-text-tertiary truncate";

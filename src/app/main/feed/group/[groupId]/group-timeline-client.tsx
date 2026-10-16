@@ -8,7 +8,6 @@ import {
   useRef,
 } from "react";
 import {
-  ArrowLeft,
   Heart,
   MoreHorizontal,
   Send,
@@ -23,7 +22,13 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { FEED_WINDOW_MS } from "@/lib/constants/limits";
 import { Avatar } from "@/components/ui/Avatar";
-import { Pill } from "@/components/ui/Badge";
+import { TopBarActions, TopBarTitle } from "@/components/layout/TopBarSlots";
+import {
+  TOP_BAR_ICON_BUTTON_CLASS,
+  TOP_BAR_SUBTITLE_CLASS,
+  TOP_BAR_TITLE_CLASS,
+  TOP_BAR_TITLE_STYLE,
+} from "@/components/layout/topBarStyles";
 import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/ui/Toast";
@@ -619,76 +624,46 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
   return (
     <div>
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-32 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
+        {/* The group's name is the TopBar's title, and its buttons sit in
+            the bar beside it. */}
+        <TopBarTitle>
+          <h1 className={TOP_BAR_TITLE_CLASS} style={TOP_BAR_TITLE_STYLE}>
+            {group.name}
+          </h1>
+          <span className={TOP_BAR_SUBTITLE_CLASS}>
+            {members.length} {members.length === 1 ? "member" : "members"}
+          </span>
+        </TopBarTitle>
+        <TopBarActions>
           <button
             type="button"
-            onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-            aria-label="Go back"
+            onClick={() => setInviteOpen(true)}
+            className={TOP_BAR_ICON_BUTTON_CLASS}
+            aria-label="Invite"
           >
-            <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
+            <Link2 className="w-5 h-5" />
           </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-display font-medium text-[var(--color-text-primary)] text-base truncate">
-              {group.name}
-            </h1>
-            <div className="flex items-center gap-2 mt-0.5">
-              {/* Stacked avatars */}
-              <div className="flex -space-x-2">
-                {members.slice(0, 5).map((m) => (
-                  <div key={m.user_id} className="ring-2 ring-[var(--color-bg-primary)] rounded-full">
-                    <Avatar
-                      src={m.profile.avatar_url}
-                      name={m.profile.display_name}
-                      size="sm"
-                    />
-                  </div>
-                ))}
-              </div>
-              {members.length > 5 && (
-                <span className="text-xs text-[var(--color-text-tertiary)]">
-                  +{members.length - 5}
-                </span>
-              )}
-              <Pill size="sm" variant="default">
-                {members.length} members
-              </Pill>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          {myRole === "admin" ? (
             <button
               type="button"
-              onClick={() => setInviteOpen(true)}
-              className="p-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-              aria-label="Invite"
+              onClick={() => router.push(`/main/feed/group/${group.id}/settings`)}
+              className={TOP_BAR_ICON_BUTTON_CLASS}
+              aria-label="Settings"
             >
-              <Link2 className="w-4 h-4 text-[var(--color-text-secondary)]" />
+              <Settings className="w-5 h-5" />
             </button>
-            {myRole === "admin" ? (
-              <button
-                type="button"
-                onClick={() => router.push(`/main/feed/group/${group.id}/settings`)}
-                className="p-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-                aria-label="Settings"
-              >
-                <Settings className="w-4 h-4 text-[var(--color-text-secondary)]" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setLeaveConfirmOpen(true)}
-                disabled={isLeaving}
-                className="p-2 rounded-lg hover:bg-miss/10 transition-colors"
-                aria-label="Leave group"
-              >
-                <LogOut className="w-4 h-4 text-miss" />
-              </button>
-            )}
-          </div>
-        </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLeaveConfirmOpen(true)}
+              disabled={isLeaving}
+              className={cn(TOP_BAR_ICON_BUTTON_CLASS, "text-miss hover:text-miss hover:bg-miss/10")}
+              aria-label="Leave group"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          )}
+        </TopBarActions>
 
         {/* Shared Habits */}
         {habits.length > 0 && (

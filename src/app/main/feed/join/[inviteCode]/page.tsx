@@ -30,12 +30,12 @@ export default async function JoinGroupPage({ params }: Props) {
           <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mx-auto mb-4">
             <Users className="w-6 h-6 text-text-tertiary" />
           </div>
-          <h1
+          <h2
             className="font-display font-medium text-text-primary mb-2"
             style={{ fontSize: "var(--text-xl)" }}
           >
             Invite not found
-          </h1>
+          </h2>
           <p className="text-sm text-text-secondary mb-4">
             Invalid or expired invite link
           </p>

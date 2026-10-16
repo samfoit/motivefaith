@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, useRef } from "react";
 import {
-  ArrowLeft,
   Shield,
   UserMinus,
   ChevronUp,
@@ -217,23 +216,6 @@ export function SettingsClient({
   return (
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-lg hover:bg-surface-hover transition-colors"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-text-secondary" />
-          </button>
-          <h1
-            className="font-display font-medium text-text-primary"
-            style={{ fontSize: "var(--text-xl)" }}
-          >
-            Group Settings
-          </h1>
-        </div>
-
         <Tabs.Root defaultValue="details">
           <Tabs.List
             className="flex gap-1 p-1 rounded-lg bg-bg-secondary mb-6"

@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { motion } from "motion/react";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
-  ArrowLeft,
   Camera,
   CloudRain,
   Video,
@@ -24,11 +23,15 @@ import {
   Pencil,
   Share2,
   Mic,
-  Globe,
-  Lock,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useRouter } from "next/navigation";
+import { TopBarActions, TopBarTitle } from "@/components/layout/TopBarSlots";
+import {
+  TOP_BAR_ICON_BUTTON_CLASS,
+  TOP_BAR_TITLE_CLASS,
+  TOP_BAR_TITLE_STYLE,
+} from "@/components/layout/topBarStyles";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
 import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
@@ -637,65 +640,38 @@ export function HabitDetailClient({
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-4">
-        {/* Back button + header */}
-        <div className="flex items-center gap-3 mb-6">
+      <div className="max-w-2xl mx-auto px-4 pt-6">
+        {/* The habit is the TopBar's title, and edit and share are the
+            bar's buttons. One line: a second under it left the 56px bar no
+            room to breathe. The description and visibility are facts about
+            the habit, so they are in the Overview's details with the rest. */}
+        <TopBarTitle>
+          <h1 className={TOP_BAR_TITLE_CLASS} style={TOP_BAR_TITLE_STYLE}>
+            <span aria-hidden="true">{habit.emoji}</span> {habit.title}
+          </h1>
+        </TopBarTitle>
+        <TopBarActions>
           <button
-            onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-            aria-label="Go back"
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className={TOP_BAR_ICON_BUTTON_CLASS}
+            aria-label="Edit habit"
           >
-            <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
+            <Pencil className="w-5 h-5" />
           </button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{habit.emoji}</span>
-              <h1
-                className="font-display font-medium text-[var(--color-text-primary)] truncate"
-                style={{ fontSize: "var(--text-xl)" }}
-              >
-                {habit.title}
-              </h1>
-              <button
-                onClick={() => setEditOpen(true)}
-                className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors flex-shrink-0"
-                aria-label="Edit habit"
-              >
-                <Pencil className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-              </button>
-              {/* Sits with edit rather than as a band under the stats: it is
-                  an occasional action, and a full-width button spent more of
-                  the screen on it than it earns. The milestone toast carries
-                  the discoverability instead — it offers sharing at the one
-                  moment the streak has just moved. */}
-              <button
-                onClick={() => setShareOpen(true)}
-                className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors flex-shrink-0"
-                aria-label="Share your streak"
-              >
-                <Share2 className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[var(--color-text-tertiary)]">
-              {habit.visibility === "public" ? (
-                <Globe className="w-3 h-3 flex-shrink-0" />
-              ) : (
-                <Lock className="w-3 h-3 flex-shrink-0" />
-              )}
-              <span className="flex-shrink-0">
-                {habit.visibility === "public"
-                  ? "Friends can find this"
-                  : "Invite only"}
-              </span>
-              {habit.description && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className="truncate">{habit.description}</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+          {/* An occasional action, so it sits with edit rather than as a band
+              under the stats. The milestone toast carries the
+              discoverability instead — it offers sharing at the one moment the
+              streak has just moved. */}
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            className={TOP_BAR_ICON_BUTTON_CLASS}
+            aria-label="Share your streak"
+          >
+            <Share2 className="w-5 h-5" />
+          </button>
+        </TopBarActions>
 
         {/* Hero stats row */}
         <div className="flex gap-3 mb-6">
@@ -808,9 +784,20 @@ export function HabitDetailClient({
               </div>
             </div>
 
-            {/* Details */}
+            {/* Details. The description leads, in full: this is the only
+                place it is shown. */}
             <div className="rounded-lg bg-elevated p-4 shadow-sm space-y-3">
+              {habit.description && (
+                <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-line break-words pb-3 border-b border-border">
+                  {habit.description}
+                </p>
+              )}
               <DetailRow label="Frequency" value={FREQUENCY_LABELS[habit.frequency] ?? habit.frequency} />
+              {/* The picker's own words, so the row and the edit sheet agree. */}
+              <DetailRow
+                label="Visibility"
+                value={habit.visibility === "public" ? "Public" : "Private"}
+              />
               <DetailRow
                 label="Created"
                 value={habit.created_at ? format(new Date(habit.created_at), "MMM d, yyyy") : "—"}

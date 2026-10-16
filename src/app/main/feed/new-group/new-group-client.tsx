@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -59,23 +58,6 @@ export function NewGroupClient({ userId, friends }: NewGroupClientProps) {
   return (
     <div className="min-h-screen">
       <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
-          </button>
-          <h1
-            className="font-display font-medium text-[var(--color-text-primary)]"
-            style={{ fontSize: "var(--text-xl)" }}
-          >
-            New Group
-          </h1>
-        </div>
-
         {/* Form */}
         <Input
           label="Group name"

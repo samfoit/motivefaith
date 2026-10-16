@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { ArrowLeft, Send, ChevronRight } from "lucide-react";
+import { Send, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
-import { Pill } from "@/components/ui/Badge";
+import { TopBarTitle } from "@/components/layout/TopBarSlots";
+import {
+  TOP_BAR_SUBTITLE_CLASS,
+  TOP_BAR_TITLE_CLASS,
+  TOP_BAR_TITLE_STYLE,
+} from "@/components/layout/topBarStyles";
 import { useToast } from "@/components/ui/Toast";
 import { SharedHabits } from "@/components/social/SharedHabits";
 import { FriendProfileSheet } from "@/components/social/FriendProfileSheet";
@@ -350,20 +355,13 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   return (
     <div>
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-32 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-lg hover:bg-surface-hover transition-colors"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-text-secondary" />
-          </button>
+        {/* Who the chat is with is the TopBar's title; tapping it opens
+            their habits, as the row under the bar used to. */}
+        <TopBarTitle>
           <button
             type="button"
             onClick={() => setProfileOpen(true)}
-            className="flex min-w-0 items-center gap-3 text-left rounded-lg transition-opacity active:opacity-70"
+            className="flex min-w-0 items-center gap-2.5 text-left rounded-lg transition-opacity active:opacity-70"
             aria-label={`View ${friend.display_name}'s habits`}
           >
             <Avatar
@@ -373,20 +371,20 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
             />
             <span className="min-w-0">
               <span className="flex items-center gap-1">
-                <span className="font-display font-medium text-text-primary text-base truncate">
+                <span className={TOP_BAR_TITLE_CLASS} style={TOP_BAR_TITLE_STYLE}>
                   {friend.display_name}
                 </span>
                 <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
               </span>
-              <Pill size="sm" variant="default">
-                Friends{" "}
+              <span className={TOP_BAR_SUBTITLE_CLASS}>
+                Friends for{" "}
                 {formatDistanceToNow(new Date(friendshipSince), {
                   addSuffix: false,
                 })}
-              </Pill>
+              </span>
             </span>
           </button>
-        </div>
+        </TopBarTitle>
 
         {/* Shared habits — one line of chips, details in a sheet */}
         <SharedHabits habits={habits} friendName={friendFirstName} />

@@ -13,12 +13,12 @@ export default function JoinGroupError({
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="text-center max-w-sm">
         <div className="text-4xl mb-4">😵</div>
-        <h1
+        <h2
           className="font-display font-medium text-[var(--color-text-primary)] mb-2"
           style={{ fontSize: "var(--text-xl)" }}
         >
           Something went wrong
-        </h1>
+        </h2>
         <p className="text-sm text-[var(--color-text-secondary)] mb-6">
           {error.message || "Failed to load invite"}
         </p>
