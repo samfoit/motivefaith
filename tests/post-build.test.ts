@@ -25,7 +25,12 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
  *     substituted the first match — a mention of the token in a comment — and
  *     left the real placeholder frozen at whatever the first build produced.
  *
- * Both are cheap to assert and expensive to notice in production, so they are
+ * A third shipped later: with Next 16.3's immutable static assets (on by
+ * default on Vercel) chunks are emitted under `static/immutable/chunks/`, and
+ * only the shared entry chunks were precached. An offline launch served the
+ * cached dashboard and then failed to load its JS.
+ *
+ * All are cheap to assert and expensive to notice in production, so they are
  * pinned here.
  */
 function runPostBuild(): { dir: string; sw: string; stdout: string } {
@@ -33,9 +38,7 @@ function runPostBuild(): { dir: string; sw: string; stdout: string } {
 
   // Minimal fixture of the parts of `.next` the script reads.
   mkdirSync(join(dir, ".next", "static", "chunks"), { recursive: true });
-  mkdirSync(join(dir, ".next", "server", "app", "main", "dashboard"), {
-    recursive: true,
-  });
+  mkdirSync(join(dir, ".next", "static", "immutable", "chunks"), { recursive: true });
   mkdirSync(join(dir, "public"), { recursive: true });
   mkdirSync(join(dir, "scripts"), { recursive: true });
   mkdirSync(join(dir, "src", "sw"), { recursive: true });
@@ -51,11 +54,14 @@ function runPostBuild(): { dir: string; sw: string; stdout: string } {
       polyfillFiles: ["static/chunks/polyfill-xyz.js"],
     }),
   );
-  writeFileSync(
-    join(dir, ".next", "server", "app", "main", "dashboard", "page_client-reference-manifest.js"),
-    'globalThis.X={"m":"static/chunks/dashboard-def.js","n":"static/chunks/styles-ghi.css"};',
-  );
-  writeFileSync(join(dir, ".next", "static", "chunks", "styles-ghi.css"), "body{}");
+  const chunks = join(dir, ".next", "static", "chunks");
+  writeFileSync(join(chunks, "dashboard-def.js"), "");
+  writeFileSync(join(chunks, "styles-ghi.css"), "body{}");
+  // A chunk only ever loaded through next/dynamic, which no manifest lists.
+  writeFileSync(join(chunks, "lazy-jkl.js"), "");
+  writeFileSync(join(chunks, "app.js.map"), "");
+  const immutable = join(dir, ".next", "static", "immutable", "chunks");
+  writeFileSync(join(immutable, "wizard-mno.js"), "");
 
   cpSync(join(REPO, "src", "sw", "service-worker.js"), join(dir, "src", "sw", "service-worker.js"));
   cpSync(join(REPO, "scripts", "post-build.mjs"), join(dir, "scripts", "post-build.mjs"));
@@ -89,6 +95,18 @@ describe("post-build service worker generation", () => {
 
   it("precaches the start_url route's own chunks", () => {
     expect(out.sw).toContain("/_next/static/chunks/dashboard-def.js");
+  });
+
+  it("precaches chunks that are only loaded lazily", () => {
+    expect(out.sw).toContain("/_next/static/chunks/lazy-jkl.js");
+  });
+
+  it("precaches immutable chunks under the path the browser requests", () => {
+    expect(out.sw).toContain("/_next/static/immutable/chunks/wizard-mno.js");
+  });
+
+  it("does not precache source maps", () => {
+    expect(out.sw).not.toContain("app.js.map");
   });
 
   it("precaches the render-blocking stylesheet", () => {

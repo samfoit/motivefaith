@@ -3,7 +3,6 @@
 import React from "react";
 import { motion } from "motion/react";
 import {
-  ArrowLeft,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -13,7 +12,6 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import { CalendarHeatmap } from "@/components/habits/CalendarHeatmap";
 import { useWeeklySummary } from "@/lib/hooks/useWeeklySummary";
@@ -87,7 +85,6 @@ function StatCard({
 // ---------------------------------------------------------------------------
 
 export function WeeklySummaryClient({ userId }: { userId: string }) {
-  const router = useRouter();
   const { data: summary, isLoading } = useWeeklySummary(userId);
 
   if (isLoading) {
@@ -127,29 +124,6 @@ export function WeeklySummaryClient({ userId }: { userId: string }) {
   return (
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/main/dashboard")}
-            className="p-2 -ml-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-            aria-label="Back to dashboard"
-          >
-            <ArrowLeft className="w-5 h-5 text-[var(--color-text-primary)]" />
-          </button>
-          <div>
-            <h1
-              className="font-display font-medium text-[var(--color-text-primary)]"
-              style={{ fontSize: "var(--text-2xl)" }}
-            >
-              Weekly Summary
-            </h1>
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              Your last 7 days at a glance
-            </p>
-          </div>
-        </div>
-
         {/* Hero: Completion Rate */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}

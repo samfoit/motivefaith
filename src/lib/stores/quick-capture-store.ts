@@ -4,6 +4,20 @@ type Step = "closed" | "camera" | "share" | "uploading";
 type CaptureMode = "photo" | "video" | "voice";
 export type ShareTarget = "habit" | "friend" | "group";
 
+/**
+ * The one chat a capture goes to when the camera is opened from inside it.
+ * Skips the "Send to…" picker: the take goes straight to this friend or group,
+ * as a camera opened from a Snapchat conversation does.
+ */
+export interface DirectTarget {
+  kind: "friend" | "group";
+  id: string;
+  /** Shown on the send button: "Send to Sam". */
+  name: string;
+  /** The chat's own messages arrive by refresh, not realtime. */
+  onSent?: () => void;
+}
+
 interface QuickCaptureState {
   step: Step;
   captureMode: CaptureMode | null;
@@ -11,7 +25,10 @@ interface QuickCaptureState {
   habitIds: string[];
   friendIds: string[];
   groupIds: string[];
+  direct: DirectTarget | null;
   open: () => void;
+  /** Open the camera to send to one chat only. */
+  openTo: (target: DirectTarget) => void;
   close: () => void;
   reset: () => void;
   setCapturedFile: (file: File) => void;
@@ -38,11 +55,15 @@ const cleared = () => ({
   habitIds: [],
   friendIds: [],
   groupIds: [],
+  direct: null,
 });
 
 export const useQuickCaptureStore = create<QuickCaptureState>((set) => ({
   ...cleared(),
-  open: () => set({ step: "camera" }),
+  // Not a parameter of `open`: that is passed straight to onClick, which
+  // would hand it the click event.
+  open: () => set({ step: "camera", direct: null }),
+  openTo: (target) => set({ step: "camera", direct: target }),
   close: () => set(cleared()),
   reset: () => set(cleared()),
   setCapturedFile: (file) => set({ capturedFile: file, step: "share" }),

@@ -15,6 +15,7 @@ import {
   useRespondToPartner,
 } from "@/lib/hooks/usePartnerActions";
 import type { ProfileHabit } from "@/lib/types/partners";
+import { SharedHabitRows, type SharedHabitChip } from "@/components/social/SharedHabits";
 
 export interface SheetFriend {
   id: string;
@@ -29,6 +30,11 @@ interface FriendProfileSheetProps {
   onOpenChange: (open: boolean) => void;
   /** Called after anything is accepted, declined, asked for or withdrawn. */
   onChanged?: () => void;
+  /**
+   * Your habits this friend follows. Their side is the sheet's own list; from
+   * the chat, this completes the picture of what the two of you share.
+   */
+  yourShared?: SharedHabitChip[];
 }
 
 /**
@@ -48,6 +54,7 @@ export function FriendProfileSheet({
   open,
   onOpenChange,
   onChanged,
+  yourShared = [],
 }: FriendProfileSheetProps) {
   const { show: showToast, ToastElements } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -119,7 +126,7 @@ export function FriendProfileSheet({
             <Skeleton className="h-14 w-full rounded-lg" />
             <Skeleton className="h-14 w-full rounded-lg" />
           </div>
-        ) : habits.length === 0 ? (
+        ) : habits.length === 0 && yourShared.length === 0 ? (
           <p className="py-8 text-center text-sm text-text-tertiary">
             {firstName} has no habits you can see yet.
           </p>
@@ -183,6 +190,12 @@ export function FriendProfileSheet({
                     )}
                   </Row>
                 ))}
+              </Group>
+            )}
+
+            {yourShared.length > 0 && (
+              <Group label="Yours" hint={`${firstName} follows these`}>
+                <SharedHabitRows habits={yourShared} />
               </Group>
             )}
 

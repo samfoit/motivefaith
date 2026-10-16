@@ -278,14 +278,6 @@ export function ModerationClient({ initialReports, initialTotal }: ModerationCli
   return (
     <div className="min-h-screen">
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
-        {/* Header */}
-        <h1
-          className="font-display font-medium text-[var(--color-text-primary)]"
-          style={{ fontSize: "var(--text-xl)" }}
-        >
-          Moderation
-        </h1>
-
         {/* Filter bar */}
         <div className="flex flex-wrap gap-2">
           <select

@@ -8,27 +8,27 @@ import {
   useRef,
 } from "react";
 import {
-  ArrowLeft,
+  Copy,
+  Flag,
   Heart,
-  MoreHorizontal,
   Send,
-  Settings,
-  Link2,
-  Trophy,
-  LogOut,
+  Camera,
+  ChevronRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { FEED_WINDOW_MS } from "@/lib/constants/limits";
-import { Avatar } from "@/components/ui/Avatar";
-import { Pill } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { TopBarActions, TopBarTitle } from "@/components/layout/TopBarSlots";
+import {
+  TOP_BAR_ICON_BUTTON_CLASS,
+  TOP_BAR_SUBTITLE_CLASS,
+  TOP_BAR_TITLE_CLASS,
+  TOP_BAR_TITLE_STYLE,
+} from "@/components/layout/topBarStyles";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/ui/Toast";
 import { SharedHabits, type SharedHabitChip } from "@/components/social/SharedHabits";
-import { GroupChallenges } from "@/components/social/GroupChallenges";
 import type { ChallengeFormData } from "@/components/social/CreateChallengeSheet";
 
 const InviteLinkSheet = dynamic(
@@ -39,17 +39,25 @@ const CreateChallengeSheet = dynamic(
   () => import("@/components/social/CreateChallengeSheet").then((m) => m.CreateChallengeSheet),
   { ssr: false },
 );
-import { motion } from "motion/react";
-import * as RadixDialog from "@radix-ui/react-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
+import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
 import { useRegenerateInviteCode, useRemoveGroupMember } from "@/lib/hooks/useGroups";
 import { useCreateChallenge, useJoinChallenge, useLeaveChallenge } from "@/lib/hooks/useGroupChallenges";
 import { ReportSheet } from "@/components/social/ReportSheet";
-import { CompletionBubble, slideVariant } from "@/components/social/CompletionBubble";
-import { MessageMedia } from "@/components/social/MessageMedia";
+import { GroupInfoSheet } from "@/components/social/GroupInfoSheet";
+import { ChallengeEvent } from "@/components/social/ChallengeEvent";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { CompletionBubble } from "@/components/social/CompletionBubble";
+import {
+  ChatRow,
+  MessageBubble,
+  TimeDivider,
+  layoutRuns,
+  type ChatAction,
+} from "@/components/social/ChatParts";
 import type {
   GroupTimelineData,
   GroupTimelineMessage,
@@ -59,6 +67,13 @@ import type {
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+
+/** A challenge started or joined, shown in the conversation as it happened. */
+type ChallengeEventEntry = {
+  kind: "started" | "joined";
+  challenge: GroupTimelineData["challenges"][number];
+  userId: string;
+};
 
 interface GroupTimelineClientProps {
   data: GroupTimelineData;
@@ -135,6 +150,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
 
   // Invite sheet
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const regenerateCode = useRegenerateInviteCode();
 
   // Challenge sheet
@@ -182,6 +198,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
         streak_current: habit.streak_current,
         isOwner: habit.owner_id === userId,
         completedToday: habit.completedToday,
+        dueToday: habit.dueToday,
         rainCheckedToday: habit.rainCheckedToday,
         rainCheckMovedTo: habit.rainCheckMovedTo,
         ownerName: habit.owner_name,
@@ -308,6 +325,41 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       supabase.removeChannel(channel);
     };
   }, [group.id, userId, members, memberIds, debouncedRefresh, scrollToLatest]);
+
+  // Challenges started, joined and left show in the conversation as they
+  // happen (migration 038 publishes both tables). Its own channel: the
+  // participants filter has to follow the list of challenges as it changes.
+  const challengeIdsKey = challenges.map((c) => c.id).join(",");
+  useEffect(() => {
+    const supabase = createClient();
+    let channel = supabase.channel(`group-challenges-${group.id}`).on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "group_challenges",
+        filter: `group_id=eq.${group.id}`,
+      },
+      () => debouncedRefresh(),
+    );
+    if (challengeIdsKey) {
+      channel = channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "group_challenge_participants",
+          filter: `challenge_id=in.(${challengeIdsKey})`,
+        },
+        () => debouncedRefresh(),
+      );
+    }
+    channel.subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [group.id, challengeIdsKey, debouncedRefresh]);
 
   // Focus/visibility refresh
   useEffect(() => {
@@ -577,14 +629,45 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     }
   };
 
-  // Build merged timeline (completions + messages, chronological, last 24h)
+  // Build merged timeline (completions, messages and challenge events,
+  // chronological, last 24h)
   const timeline = useMemo(() => {
     const entries: {
-      type: "completion" | "message";
+      type: "completion" | "message" | "challenge";
       id: string;
       timestamp: string;
-      data: GroupTimelineData["completions"][number] | GroupTimelineMessage;
+      data:
+        | GroupTimelineData["completions"][number]
+        | GroupTimelineMessage
+        | ChallengeEventEntry;
     }[] = [];
+
+    // Who started each challenge and who joined it, from the challenge rows
+    // already loaded. The creator is joined automatically when they create
+    // it, so their own join would only repeat the "started" line.
+    for (const challenge of challenges) {
+      if (
+        challenge.created_at &&
+        new Date(challenge.created_at).getTime() >= cutoff
+      ) {
+        entries.push({
+          type: "challenge",
+          id: `challenge-${challenge.id}`,
+          timestamp: challenge.created_at,
+          data: { kind: "started", challenge, userId: challenge.created_by },
+        });
+      }
+      for (const p of challenge.participants) {
+        if (p.user_id === challenge.created_by) continue;
+        if (!p.joined_at || new Date(p.joined_at).getTime() < cutoff) continue;
+        entries.push({
+          type: "challenge",
+          id: `joined-${p.id}`,
+          timestamp: p.joined_at,
+          data: { kind: "joined", challenge, userId: p.user_id },
+        });
+      }
+    }
 
     for (const c of mergedCompletions) {
       if (new Date(c.completed_at).getTime() >= cutoff) {
@@ -614,295 +697,210 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     );
 
     return entries;
-  }, [mergedCompletions, mergedMessages, cutoff]);
+  }, [mergedCompletions, mergedMessages, challenges, cutoff]);
+
+  // Runs of one person's messages, and where a time goes between them.
+  const timelineRuns = useMemo(
+    () =>
+      layoutRuns(
+        timeline.map((entry) => ({
+          sender:
+            entry.type === "challenge"
+              ? null
+              : (entry.data as { user_id: string }).user_id,
+          at: new Date(entry.timestamp).getTime(),
+        })),
+      ),
+    [timeline],
+  );
 
   return (
     <div>
       <div className="max-w-2xl mx-auto px-4 pt-6 pb-32 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
+        {/* The group's name is the TopBar's title. Tapping it opens the
+            group's info — members, invite, settings, leave — as in any
+            messaging app, so the bar keeps only the camera beside it. */}
+        <TopBarTitle>
           <button
             type="button"
-            onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-            aria-label="Go back"
+            onClick={() => setInfoOpen(true)}
+            className="flex min-w-0 flex-col items-start text-left rounded-lg transition-opacity active:opacity-70"
+            aria-label={`${group.name}: members and group options`}
           >
-            <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-display font-medium text-[var(--color-text-primary)] text-base truncate">
-              {group.name}
-            </h1>
-            <div className="flex items-center gap-2 mt-0.5">
-              {/* Stacked avatars */}
-              <div className="flex -space-x-2">
-                {members.slice(0, 5).map((m) => (
-                  <div key={m.user_id} className="ring-2 ring-[var(--color-bg-primary)] rounded-full">
-                    <Avatar
-                      src={m.profile.avatar_url}
-                      name={m.profile.display_name}
-                      size="sm"
-                    />
-                  </div>
-                ))}
-              </div>
-              {members.length > 5 && (
-                <span className="text-xs text-[var(--color-text-tertiary)]">
-                  +{members.length - 5}
-                </span>
-              )}
-              <Pill size="sm" variant="default">
-                {members.length} members
-              </Pill>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setInviteOpen(true)}
-              className="p-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-              aria-label="Invite"
-            >
-              <Link2 className="w-4 h-4 text-[var(--color-text-secondary)]" />
-            </button>
-            {myRole === "admin" ? (
-              <button
-                type="button"
-                onClick={() => router.push(`/main/feed/group/${group.id}/settings`)}
-                className="p-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-                aria-label="Settings"
-              >
-                <Settings className="w-4 h-4 text-[var(--color-text-secondary)]" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setLeaveConfirmOpen(true)}
-                disabled={isLeaving}
-                className="p-2 rounded-lg hover:bg-miss/10 transition-colors"
-                aria-label="Leave group"
-              >
-                <LogOut className="w-4 h-4 text-miss" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Shared Habits */}
-        {habits.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2
-                className="font-display font-medium text-[var(--color-text-primary)]"
-                style={{ fontSize: "var(--text-lg)" }}
-              >
-                Shared Habits
-              </h2>
-              <span className="text-xs text-[var(--color-text-tertiary)]">
-                {habits.length} habit{habits.length === 1 ? "" : "s"}
+            <span className="flex max-w-full items-center gap-1">
+              <span className={TOP_BAR_TITLE_CLASS} style={TOP_BAR_TITLE_STYLE}>
+                {group.name}
               </span>
-            </div>
-            <SharedHabits habits={habitChips} />
-          </section>
-        )}
+              <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
+            </span>
+            <span className={TOP_BAR_SUBTITLE_CLASS}>
+              {members.length} {members.length === 1 ? "member" : "members"}
+            </span>
+          </button>
+        </TopBarTitle>
+        {/* The camera, sending only to this group: no "Send to…" step. */}
+        <TopBarActions>
+          <button
+            type="button"
+            onClick={() =>
+              useQuickCaptureStore.getState().openTo({
+                kind: "group",
+                id: group.id,
+                name: group.name,
+                onSent: debouncedRefresh,
+              })
+            }
+            className={TOP_BAR_ICON_BUTTON_CLASS}
+            aria-label={`Send ${group.name} a photo or video`}
+          >
+            <Camera className="w-5 h-5" />
+          </button>
+        </TopBarActions>
 
-        {/* Active Challenges */}
-        {(challenges.length > 0 || myRole === "admin") && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2
-                className="font-display font-medium text-[var(--color-text-primary)]"
-                style={{ fontSize: "var(--text-lg)" }}
-              >
-                Challenges
-              </h2>
-              {myRole === "admin" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setChallengeSheetOpen(true)}
-                >
-                  <Trophy className="w-4 h-4" />
-                  <span>New</span>
-                </Button>
-              )}
-            </div>
-            {challenges.length > 0 ? (
-              <GroupChallenges
-                challenges={challenges}
-                onJoin={handleJoinChallenge}
-                onLeave={handleLeaveChallenge}
-                pendingId={joiningChallengeId}
-              />
-            ) : (
-              <p className="text-sm text-[var(--color-text-tertiary)] text-center py-4">
-                No active challenges yet
-              </p>
-            )}
-          </section>
-        )}
+        {/* Today: which shared habits are done and which are still open.
+            The full list and the challenges are in the info sheet behind
+            the group's name. */}
+        <SharedHabits habits={habitChips} />
 
         {/* Timeline */}
-        <section>
-          <h2
-            className="font-display font-medium text-[var(--color-text-primary)] mb-3"
-            style={{ fontSize: "var(--text-lg)" }}
-          >
-            Activity
-          </h2>
-
+        <section aria-label="Messages">
           {timeline.length === 0 ? (
             <p className="text-sm text-[var(--color-text-tertiary)] text-center py-8">
               No activity in the last 24 hours.
             </p>
           ) : (
-            // Bubbles slide in from ±20px — clipped so the page never widens.
-            <div className="space-y-2 overflow-x-clip">
-              {timeline.map((entry) => {
+            <div className="overflow-x-clip">
+              {timeline.map((entry, i) => {
+                const position = timelineRuns[i];
+
+                if (entry.type === "challenge") {
+                  const e = entry.data as ChallengeEventEntry;
+                  const isMe = e.userId === userId;
+                  const actor = members.find((m) => m.user_id === e.userId)?.profile;
+                  return (
+                    <div key={entry.id}>
+                      {position.divider && <TimeDivider label={position.divider} />}
+                      <ChallengeEvent
+                        kind={e.kind}
+                        isMe={isMe}
+                        actorName={isMe ? "You" : (actor?.display_name ?? "Someone")}
+                        actorAvatar={actor?.avatar_url ?? null}
+                        challengeEmoji={e.challenge.emoji}
+                        challengeTitle={e.challenge.title}
+                        onJoin={
+                          e.kind === "started" && !e.challenge.myParticipation
+                            ? () => handleJoinChallenge(e.challenge.id)
+                            : undefined
+                        }
+                        joining={joiningChallengeId === e.challenge.id}
+                      />
+                    </div>
+                  );
+                }
+
                 if (entry.type === "completion") {
                   const c = entry.data as GroupTimelineData["completions"][number];
                   const cReactions = c.reactions ?? [];
-                  const cHeartCount = cReactions.length;
                   const cIHearted = cReactions.some((r) => r.user_id === userId);
 
                   return (
-                    <CompletionBubble
+                    <ChatRow
                       key={entry.id}
                       isMe={c.isMe}
-                      habitEmoji={c.habit_emoji}
-                      habitTitle={c.habit_title}
-                      habitColor={c.habit_color}
-                      completionType={c.completion_type}
-                      rainCheckReason={c.rain_check_reason}
-                      rainCheckMovedTo={c.rain_check_moved_to}
-                      evidenceUrl={c.evidence_url}
-                      notes={c.notes}
-                      completedAt={c.completed_at}
-                      heartCount={cHeartCount}
-                      isHearted={cIHearted}
-                      senderName={c.isMe ? undefined : c.user_name}
-                      senderAvatar={c.isMe ? undefined : c.user_avatar}
-                      onHeart={
-                        !c.isMe
-                          ? () => toggleCompletionReaction(c.id, cReactions)
-                          : undefined
+                      position={position}
+                      showSender
+                      senderName={c.user_name}
+                      senderAvatar={c.user_avatar}
+                      heartCount={cReactions.length}
+                      actionsTitle={`${c.habit_emoji} ${c.habit_title}`}
+                      actions={
+                        c.isMe
+                          ? []
+                          : [{
+                              label: "Report",
+                              icon: Flag,
+                              danger: true,
+                              onSelect: () =>
+                                setReportTarget({ contentType: "completion", contentId: c.id }),
+                            }]
                       }
-                      onReport={
-                        !c.isMe
-                          ? () =>
-                              setReportTarget({
-                                contentType: "completion",
-                                contentId: c.id,
-                              })
-                          : undefined
-                      }
-                    />
+                    >
+                      <CompletionBubble
+                        isMe={c.isMe}
+                        first={position.first}
+                        habitEmoji={c.habit_emoji}
+                        habitTitle={c.habit_title}
+                        habitColor={c.habit_color}
+                        completionType={c.completion_type}
+                        rainCheckReason={c.rain_check_reason}
+                        rainCheckMovedTo={c.rain_check_moved_to}
+                        evidenceUrl={c.evidence_url}
+                        notes={c.notes}
+                        isHearted={cIHearted}
+                        onHeart={
+                          !c.isMe
+                            ? () => toggleCompletionReaction(c.id, cReactions)
+                            : undefined
+                        }
+                      />
+                    </ChatRow>
                   );
                 }
 
                 // Message
                 const m = entry.data as GroupTimelineMessage;
                 const reactions = m.reactions ?? [];
-                const heartCount = reactions.length;
                 const iHearted = reactions.some((r) => r.user_id === userId);
+                const actions: ChatAction[] = [];
+                if (!m.isMe) {
+                  actions.push({
+                    label: iHearted ? "Remove heart" : "Heart",
+                    icon: Heart,
+                    onSelect: () => toggleReaction(m.id, reactions),
+                  });
+                }
+                if (m.content) {
+                  const text = m.content;
+                  actions.push({
+                    label: "Copy text",
+                    icon: Copy,
+                    onSelect: () => {
+                      void navigator.clipboard?.writeText(text).then(
+                        () => showToast({ variant: "success", title: "Copied" }),
+                        () => showToast({ variant: "error", title: "Couldn't copy" }),
+                      );
+                    },
+                  });
+                }
+                if (!m.isMe) {
+                  actions.push({
+                    label: "Report",
+                    icon: Flag,
+                    danger: true,
+                    onSelect: () => setReportTarget({ contentType: "message", contentId: m.id }),
+                  });
+                }
 
                 return (
-                  <motion.div
+                  <ChatRow
                     key={entry.id}
-                    variants={slideVariant(m.isMe)}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
-                    className={cn("flex", m.isMe ? "justify-end" : "justify-start")}
+                    isMe={m.isMe}
+                    position={position}
+                    showSender
+                    senderName={m.user_name}
+                    senderAvatar={m.user_avatar}
+                    heartCount={reactions.length}
+                    actions={actions}
+                    actionsTitle={m.isMe ? "Your message" : m.user_name}
                   >
-                    <div
-                      className={cn(
-                        "max-w-[75%] flex items-end gap-1.5",
-                        m.isMe && "flex-row-reverse",
-                      )}
-                    >
-                      {!m.isMe && (
-                        <Avatar
-                          src={m.user_avatar}
-                          name={m.user_name}
-                          size="sm"
-                          className="flex-shrink-0 mb-1"
-                        />
-                      )}
-
-                      <div
-                        className={cn(
-                          "min-w-0 rounded-xl px-3.5 py-2.5 space-y-1",
-                          m.isMe
-                            ? "bg-brand text-on-brand rounded-br-sm"
-                            : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] rounded-bl-sm",
-                        )}
-                      >
-                        {!m.isMe && (
-                          <p className="text-xs font-semibold text-[var(--color-text-secondary)]">
-                            {m.user_name}
-                          </p>
-                        )}
-                        {m.media_path && m.media_type && (
-                          <MessageMedia path={m.media_path} type={m.media_type} />
-                        )}
-                        {m.content && (
-                          <p className="text-sm break-words">{m.content}</p>
-                        )}
-                        <div className="flex items-center gap-1.5">
-                          <p
-                            className={cn(
-                              "text-[10px]",
-                              m.isMe
-                                ? "text-on-brand/60"
-                                : "text-[var(--color-text-tertiary)]",
-                            )}
-                          >
-                            {format(new Date(m.created_at), "h:mm a")}
-                          </p>
-                          {m.isMe && heartCount > 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-red-500">
-                              <Heart className="w-3 h-3" fill="currentColor" />
-                              {heartCount > 1 && (
-                                <span className="text-[10px] font-medium">{heartCount}</span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions — only on others' messages */}
-                      {!m.isMe && (
-                        <div className="flex flex-col items-center gap-0.5 mb-1 flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setReportTarget({ contentType: "message", contentId: m.id })
-                            }
-                            className="p-1 rounded-full text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] transition-colors"
-                            aria-label="More options"
-                          >
-                            <MoreHorizontal className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleReaction(m.id, reactions)}
-                            className={cn(
-                              "p-1.5 rounded-full transition-all",
-                              iHearted
-                                ? "text-red-500"
-                                : "text-[var(--color-text-tertiary)] hover:text-red-400 active:scale-90",
-                            )}
-                            aria-label={iHearted ? "Remove heart" : "Heart this message"}
-                          >
-                            <Heart className="w-4 h-4" fill={iHearted ? "currentColor" : "none"} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
+                    <MessageBubble
+                      isMe={m.isMe}
+                      first={position.first}
+                      content={m.content}
+                      mediaPath={m.media_path}
+                      mediaType={m.media_type}
+                    />
+                  </ChatRow>
                 );
               })}
             </div>
@@ -956,6 +954,24 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       </div>
 
       {/* Sheets */}
+      <GroupInfoSheet
+        open={infoOpen}
+        onOpenChange={setInfoOpen}
+        name={group.name}
+        members={members}
+        userId={userId}
+        isAdmin={myRole === "admin"}
+        onInvite={() => setInviteOpen(true)}
+        onSettings={() => router.push(`/main/feed/group/${group.id}/settings`)}
+        onLeave={() => setLeaveConfirmOpen(true)}
+        habits={habitChips}
+        challenges={challenges}
+        onJoinChallenge={handleJoinChallenge}
+        onLeaveChallenge={handleLeaveChallenge}
+        pendingChallengeId={joiningChallengeId}
+        onCreateChallenge={myRole === "admin" ? () => setChallengeSheetOpen(true) : undefined}
+      />
+
       <InviteLinkSheet
         open={inviteOpen}
         onOpenChange={setInviteOpen}
@@ -973,42 +989,15 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
         onSubmit={handleCreateChallenge}
       />
 
-      {/* Leave group confirmation */}
-      <RadixDialog.Root open={leaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
-        <RadixDialog.Portal>
-          <RadixDialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]" />
-          <RadixDialog.Content
-            className={cn(
-              "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-              "w-[min(90vw,360px)] rounded-xl bg-elevated p-6 shadow-lg",
-              "animate-in fade-in-0 zoom-in-95",
-            )}
-          >
-            <RadixDialog.Title className="font-display text-base font-medium text-[var(--color-text-primary)]">
-              Leave group?
-            </RadixDialog.Title>
-            <RadixDialog.Description className="text-sm text-[var(--color-text-secondary)] mt-2">
-              You&apos;ll no longer see this group&apos;s activity or messages.
-              You&apos;ll need a new invite to rejoin.
-            </RadixDialog.Description>
-            <div className="flex gap-3 mt-5">
-              <RadixDialog.Close asChild>
-                <Button variant="secondary" className="flex-1">
-                  Cancel
-                </Button>
-              </RadixDialog.Close>
-              <Button
-                variant="primary"
-                className="flex-1 !bg-miss hover:!bg-miss/90"
-                onClick={handleLeaveGroup}
-                loading={isLeaving}
-              >
-                Leave
-              </Button>
-            </div>
-          </RadixDialog.Content>
-        </RadixDialog.Portal>
-      </RadixDialog.Root>
+      <ConfirmDialog
+        open={leaveConfirmOpen}
+        onOpenChange={setLeaveConfirmOpen}
+        title="Leave group?"
+        description="You'll no longer see this group's activity or messages. You'll need a new invite to rejoin."
+        confirmLabel="Leave"
+        onConfirm={handleLeaveGroup}
+        loading={isLeaving}
+      />
 
       {reportTarget && (
         <ReportSheet

@@ -18,8 +18,9 @@ const STATE_CONFIG: Record<
     description: "This device can't receive notifications.",
   },
   "requires-install": {
-    label: "Install Required",
-    description: "Add MotiveFaith to your home screen first.",
+    label: "Notifications Off",
+    description: "Download the app to turn on notifications.",
+    actionLabel: "Download",
   },
   denied: {
     label: "Blocked",
@@ -53,6 +54,8 @@ interface NotificationToggleProps {
   onUnsubscribe: () => void;
   /** When set, the subscribed state drills into settings instead of offering Turn Off. */
   onOpenSettings?: () => void;
+  /** Shows the install directions, for devices that only get push once installed. */
+  onInstall?: () => void;
   className?: string;
 }
 
@@ -62,11 +65,13 @@ export function NotificationToggle({
   onSubscribe,
   onUnsubscribe,
   onOpenSettings,
+  onInstall,
   className,
 }: NotificationToggleProps) {
   const config = STATE_CONFIG[state];
   const isActive = state === "subscribed";
   const canToggle = state === "prompt" || state === "unsubscribed" || state === "subscribed";
+  const canInstall = state === "requires-install" && !!onInstall;
   const drillIn = isActive && !!onOpenSettings;
   const Root = drillIn ? "button" : "div";
 
@@ -105,6 +110,10 @@ export function NotificationToggle({
 
       {drillIn ? (
         <ChevronRight className="w-4 h-4 shrink-0 text-[var(--color-text-tertiary)]" />
+      ) : canInstall ? (
+        <Button variant="secondary" size="sm" className="shrink-0" onClick={onInstall}>
+          <span>{config.actionLabel}</span>
+        </Button>
       ) : canToggle && (
         <Button
           variant={isActive ? "ghost" : "secondary"}

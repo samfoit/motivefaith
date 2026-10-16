@@ -41,6 +41,12 @@ export interface CameraCaptureProps {
    * in, as on a habit's sheet, so the camera only makes photos and videos.
    */
   allowVoice?: boolean;
+  /**
+   * The review screen's confirm button, in place of "Use Photo": "Send to
+   * Sam" when the camera was opened from a chat and the take goes straight
+   * there.
+   */
+  useLabel?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +215,7 @@ export function CameraCapture({
   maxVoiceDuration = MAX_AUDIO_DURATION_S,
   initialCapture,
   allowVoice = true,
+  useLabel,
 }: CameraCaptureProps) {
   const {
     state,
@@ -1242,13 +1249,22 @@ export function CameraCapture({
             <div className="flex gap-4 w-full max-w-xs">
               <Button
                 variant="secondary"
-                className="flex-1 text-white border-white/20"
+                className={cn(
+                  "text-white border-white/20",
+                  // A "Send to …" label needs the room more than Retake does.
+                  useLabel ? "flex-none px-5" : "flex-1",
+                )}
                 onClick={handleRetake}
               >
                 Retake
               </Button>
-              <Button className="flex-1" onClick={handleUse}>
-                {isVoiceCapture ? "Use Recording" : isPhotoCapture ? "Use Photo" : "Use Video"}
+              {/* The button's own inner span sizes to its text; capped here so
+                  a long group name truncates instead of running off the button. */}
+              <Button className="flex-1 min-w-0 [&>span]:min-w-0 [&>span]:max-w-full" onClick={handleUse}>
+                <span className="truncate">
+                  {useLabel ??
+                    (isVoiceCapture ? "Use Recording" : isPhotoCapture ? "Use Photo" : "Use Video")}
+                </span>
               </Button>
             </div>
           )}

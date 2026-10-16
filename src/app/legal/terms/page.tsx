@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 
+const description = "The rules for using MotiveFaith.";
+
 export const metadata: Metadata = {
   title: "Terms of Service | MotiveFaith",
+  description,
+  openGraph: { type: "website", siteName: "MotiveFaith", title: "Terms of Service", description },
+  twitter: { card: "summary_large_image", title: "Terms of Service", description },
 };
 
 export default function TermsPage() {

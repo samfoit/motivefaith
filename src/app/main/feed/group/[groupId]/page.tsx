@@ -26,6 +26,8 @@ type RpcGroupHabit = {
   owner_name: string;
   owner_avatar: string | null;
   completed_today: boolean;
+  /** Added by migration 037; absent on a database without it. */
+  due_today?: boolean;
   rain_checked_today: boolean;
   rain_check_moved_to: string | null;
 };
@@ -160,6 +162,8 @@ export default async function GroupTimelinePage({ params }: Props) {
     owner_name: h.owner_name,
     owner_avatar: h.owner_avatar,
     completedToday: h.completed_today,
+    // Every habit counts as due on a database without migration 037.
+    dueToday: h.due_today ?? true,
     rainCheckedToday: h.rain_checked_today ?? false,
     rainCheckMovedTo: h.rain_check_moved_to ?? null,
   }));

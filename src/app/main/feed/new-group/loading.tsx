@@ -6,7 +6,6 @@ export default function NewGroupLoading() {
   return (
     <div className="min-h-screen">
       <SkeletonScreen label="Loading" className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
-        <Skeleton variant="text" width="40%" height={32} />
         <div className="space-y-4">
           <div className="space-y-2">
             <Skeleton variant="text" width={100} height={14} />

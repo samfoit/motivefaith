@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 /**
@@ -61,3 +61,26 @@ export function TopBarActions({ children }: { children: ReactNode }) {
   return <TopBarSlot name="actions">{children}</TopBarSlot>;
 }
 
+
+/**
+ * Overrides what the bar's back arrow does on a sub-page. Read at click time,
+ * so changing it never re-renders the bar. `null` restores the default.
+ */
+let backHandler: (() => void) | null = null;
+
+export function getTopBarBackHandler() {
+  return backHandler;
+}
+
+/**
+ * The new-habit wizard's arrow steps back through the wizard before it leaves
+ * the page: it passes its step handler while there is a step to go back to.
+ */
+export function useTopBarBack(handler: (() => void) | null) {
+  useEffect(() => {
+    backHandler = handler;
+    return () => {
+      if (backHandler === handler) backHandler = null;
+    };
+  }, [handler]);
+}

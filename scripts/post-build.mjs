@@ -24,6 +24,17 @@ const SW_SRC = join(ROOT, "src", "sw", "service-worker.js");
 const SW_OUT = join(ROOT, "public", "sw.js");
 const NEXT_DIR = join(ROOT, ".next");
 
+/**
+ * Where client chunks are emitted, relative to `.next/` and to `/_next/`.
+ *
+ * With `supportsImmutableAssets` (Next 16.3+, switched on by the Vercel
+ * adapter) content-hashed chunks move under `static/immutable/`, and the
+ * browser requests them there. Matching only `static/chunks/` precached none
+ * of the route chunks in production, so an offline launch served the cached
+ * dashboard and then failed to load its JS ("Failed to load chunk").
+ */
+const CHUNK_DIRS = ["static/chunks", "static/immutable/chunks"];
+
 /** Read a JSON file, or return null if it isn't there. */
 function readJson(path) {
   try {
@@ -34,79 +45,36 @@ function readJson(path) {
 }
 
 /**
- * Collect the hashed client assets that must be present for the app shell to
- * paint: the global stylesheet (render-blocking, so the single most valuable
- * thing to precache) and the shared entry chunks every route loads.
+ * Collect the hashed client assets the app needs to run with no network.
  *
- * The App Router records the shared entry chunks in `build-manifest.json`
- * under `rootMainFiles`. The old implementation looked for the Pages Router
- * keys `pages['/_app']` and `pages['/main/dashboard']`, which are always
- * empty here — hence the "No critical assets found" every build printed.
+ * Every JS and CSS chunk the build emitted, not just a route's entry chunks.
+ * The shell documents (SHELL_DOCUMENTS in the worker) are served offline, and
+ * a document served without its chunks is worse than not serving it: the user
+ * gets "Failed to load chunk" instead of the offline page. Picking chunks per
+ * route kept missing the ones loaded lazily through `next/dynamic` (the
+ * dashboard's day/week/month views, the completion form, the camera), which
+ * the client-reference manifest does not list, so opening any of them offline
+ * failed. The whole set is a couple of megabytes of immutable, user-agnostic
+ * code, which is cheaper than a precache that is quietly incomplete.
  */
-/**
- * The routes the service worker serves offline, read out of its source.
- *
- * `/offline` is always included: it is the fallback for every route that is
- * not a shell, so it must be able to paint with no network.
- */
-function shellRoutes() {
-  const routes = new Set(["offline"]);
-  try {
-    const src = readFileSync(SW_SRC, "utf8");
-    const list = src.match(/var SHELL_DOCUMENTS\s*=\s*\[([^\]]*)\]/);
-    for (const [, path] of (list?.[1] ?? "").matchAll(/"([^"]+)"/g)) {
-      routes.add(path.replace(/^\//, ""));
-    }
-  } catch {
-    // Fall back to the start_url alone rather than precaching nothing.
-    routes.add("main/dashboard");
-  }
-  return [...routes];
-}
-
 function collectCriticalAssets() {
   const assets = new Set();
 
   const buildManifest = readJson(join(NEXT_DIR, "build-manifest.json"));
-  for (const file of buildManifest?.rootMainFiles ?? []) {
-    assets.add("/_next/" + file);
-  }
-  for (const file of buildManifest?.polyfillFiles ?? []) {
+  for (const file of [
+    ...(buildManifest?.rootMainFiles ?? []),
+    ...(buildManifest?.polyfillFiles ?? []),
+  ]) {
     assets.add("/_next/" + file);
   }
 
-  // Per-route chunks for the shell-bearing routes. `/main/dashboard` is the
-  // PWA start_url, so its chunks are what an installed-app launch needs.
-  //
-  // The list comes from SHELL_DOCUMENTS in the service worker source rather
-  // than being repeated here. Those are exactly the documents the worker
-  // serves offline, and a document served without its chunks is worse than
-  // not serving it — the user gets "Failed to load chunk" instead of the
-  // offline page. Deriving the list means adding a route in one place cannot
-  // silently leave its JS unprecached.
-  //
-  // Turbopack does not emit `app-build-manifest.json`, so fall back to the
-  // per-route client-reference manifest, which names every client chunk the
-  // route pulls in. Reading the paths out by regex is deliberate: the file is
-  // executable JS that assigns onto `globalThis`, not JSON we can parse.
-  for (const route of shellRoutes()) {
-    const refManifest = join(
-      NEXT_DIR, "server", "app", route, "page_client-reference-manifest.js",
-    );
-    if (!existsSync(refManifest)) continue;
-    const src = readFileSync(refManifest, "utf8");
-    for (const [chunk] of src.matchAll(/static\/chunks\/[A-Za-z0-9._-]+\.(?:js|css)/g)) {
-      assets.add("/_next/" + chunk);
-    }
-  }
-
-  // Stylesheets are render-blocking, so precaching them is what actually moves
-  // first paint. Turbopack does not always list them in the manifests above,
-  // so sweep the emitted CSS directly — there are only a handful.
-  const cssDir = join(NEXT_DIR, "static", "chunks");
-  if (existsSync(cssDir)) {
-    for (const file of readdirSync(cssDir)) {
-      if (file.endsWith(".css")) assets.add("/_next/static/chunks/" + file);
+  for (const dir of CHUNK_DIRS) {
+    const chunkDir = join(NEXT_DIR, dir);
+    if (!existsSync(chunkDir)) continue;
+    for (const file of readdirSync(chunkDir)) {
+      if (file.endsWith(".js") || file.endsWith(".css")) {
+        assets.add(`/_next/${dir}/${file}`);
+      }
     }
   }
 

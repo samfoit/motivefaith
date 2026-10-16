@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTopBarBack } from "@/components/layout/TopBarSlots";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
@@ -91,10 +92,14 @@ export function WizardClient() {
     setStep((s) => Math.min(s + 1, STEP_LABELS.length - 1));
   };
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     setDirection(-1);
     setStep((s) => Math.max(s - 1, 0));
-  };
+  }, []);
+
+  // The bar's arrow steps back through the wizard; on the first step it
+  // leaves the page as usual.
+  useTopBarBack(step > 0 ? goBack : null);
 
   const handleSubmit = async () => {
     // The session has not resolved, or is gone. Creating a habit with no owner
@@ -219,23 +224,6 @@ export function WizardClient() {
   return (
     <div className="min-h-screen">
       <div className="max-w-lg mx-auto px-4 pt-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-2">
-          <button
-            onClick={() => (step === 0 ? router.back() : goBack())}
-            className="p-2 -ml-2 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
-          </button>
-          <h1
-            className="font-display font-medium text-[var(--color-text-primary)]"
-            style={{ fontSize: "var(--text-xl)" }}
-          >
-            New Habit
-          </h1>
-        </div>
-
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-8">
           {STEP_LABELS.map((label, i) => (

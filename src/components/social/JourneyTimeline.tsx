@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { motion } from "motion/react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils/cn";
+import { Copy, Flag } from "lucide-react";
 import { FEED_WINDOW_MS } from "@/lib/constants/limits";
-import { CompletionBubble, slideVariant } from "@/components/social/CompletionBubble";
+import { CompletionBubble } from "@/components/social/CompletionBubble";
 import { ReportSheet } from "@/components/social/ReportSheet";
-import { MessageMedia } from "@/components/social/MessageMedia";
+import { ChatRow, MessageBubble, layoutRuns } from "@/components/social/ChatParts";
+import { useToast } from "@/components/ui/Toast";
 import type { JourneyCompletion, JourneyEncouragement } from "@/lib/types/feed";
 
 // ---------------------------------------------------------------------------
@@ -98,8 +97,6 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
 
     const map = new Map<string, HeartState>();
     for (const c of completions) {
-      if (c.isMe) continue; // hearts are only relevant for friend completions
-
       const linked = heartsByCompletion.get(c.id) ?? [];
       let alreadyHearted = false;
       let heartCount = 0;
@@ -113,6 +110,17 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
     return map;
   }, [completions, encouragements]);
 
+  // Runs of one person's messages, and where a time goes between them.
+  const runs = useMemo(
+    () =>
+      layoutRuns(
+        entries.map((e) => ({ sender: e.data.isMe ? "me" : "friend", at: e.sortDate })),
+      ),
+    [entries],
+  );
+
+  const { show: showToast, ToastElements } = useToast();
+
   if (entries.length === 0) {
     return (
       <p className="text-sm text-text-tertiary text-center py-8">
@@ -123,18 +131,43 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
 
   return (
     <>
-      {/* Bubbles animate in from ±20px; clipping keeps that slide from
-          briefly widening the page and flashing a horizontal scrollbar.
-          `clip` rather than `hidden` so no scroll container is created. */}
-      <div className="space-y-2 overflow-x-clip">
-        {entries.map((entry) => {
+      <div className="overflow-x-clip">
+        {entries.map((entry, i) => {
+          const position = runs[i];
+
           if (entry.kind === "encouragement") {
+            const e = entry.data;
+            const text = e.content;
             return (
-              <EncouragementBubble
-                key={`e-${entry.data.id}`}
-                data={entry.data}
-                friendName={friendName}
-              />
+              <ChatRow
+                key={`e-${e.id}`}
+                isMe={e.isMe}
+                position={position}
+                showSender={false}
+                actionsTitle={e.isMe ? "Your message" : friendName}
+                actions={
+                  text
+                    ? [{
+                        label: "Copy text",
+                        icon: Copy,
+                        onSelect: () => {
+                          void navigator.clipboard?.writeText(text).then(
+                            () => showToast({ variant: "success", title: "Copied" }),
+                            () => showToast({ variant: "error", title: "Couldn't copy" }),
+                          );
+                        },
+                      }]
+                    : []
+                }
+              >
+                <MessageBubble
+                  isMe={e.isMe}
+                  first={position.first}
+                  content={e.content}
+                  mediaPath={e.media_path}
+                  mediaType={e.media_type}
+                />
+              </ChatRow>
             );
           }
 
@@ -153,50 +186,59 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
             (optimisticUnhearts.has(c.id) && alreadyHearted ? 1 : 0);
 
           return (
-            <CompletionBubble
+            <ChatRow
               key={`c-${c.id}`}
               isMe={c.isMe}
-              habitEmoji={c.habit_emoji}
-              habitTitle={c.habit_title}
-              habitColor={c.habit_color}
-              completionType={c.completion_type}
-              rainCheckReason={c.rain_check_reason}
-              rainCheckMovedTo={c.rain_check_moved_to}
-              evidenceUrl={c.evidence_url}
-              notes={c.notes}
-              completedAt={c.completed_at}
+              position={position}
+              showSender={false}
               heartCount={heartCount}
-              isHearted={isHearted}
-              onHeart={
-                !c.isMe && onHeartCompletion
-                  ? () => {
-                    if (isHearted) {
-                      setOptimisticHearts((prev) => {
-                        const next = new Set(prev);
-                        next.delete(c.id);
-                        return next;
-                      });
-                      setOptimisticUnhearts(
-                        (prev) => new Set(prev).add(c.id),
-                      );
-                    } else {
-                      setOptimisticUnhearts((prev) => {
-                        const next = new Set(prev);
-                        next.delete(c.id);
-                        return next;
-                      });
-                      setOptimisticHearts(
-                        (prev) => new Set(prev).add(c.id),
-                      );
+              actionsTitle={`${c.habit_emoji} ${c.habit_title}`}
+              actions={
+                c.isMe
+                  ? []
+                  : [{ label: "Report", icon: Flag, danger: true, onSelect: () => setReportId(c.id) }]
+              }
+            >
+              <CompletionBubble
+                isMe={c.isMe}
+                first={position.first}
+                habitEmoji={c.habit_emoji}
+                habitTitle={c.habit_title}
+                habitColor={c.habit_color}
+                completionType={c.completion_type}
+                rainCheckReason={c.rain_check_reason}
+                rainCheckMovedTo={c.rain_check_moved_to}
+                evidenceUrl={c.evidence_url}
+                notes={c.notes}
+                isHearted={isHearted}
+                onHeart={
+                  !c.isMe && onHeartCompletion
+                    ? () => {
+                      if (isHearted) {
+                        setOptimisticHearts((prev) => {
+                          const next = new Set(prev);
+                          next.delete(c.id);
+                          return next;
+                        });
+                        setOptimisticUnhearts(
+                          (prev) => new Set(prev).add(c.id),
+                        );
+                      } else {
+                        setOptimisticUnhearts((prev) => {
+                          const next = new Set(prev);
+                          next.delete(c.id);
+                          return next;
+                        });
+                        setOptimisticHearts(
+                          (prev) => new Set(prev).add(c.id),
+                        );
+                      }
+                      onHeartCompletion(c.id, isHearted);
                     }
-                    onHeartCompletion(c.id, isHearted);
-                  }
-                  : undefined
-              }
-              onReport={
-                !c.isMe ? () => setReportId(c.id) : undefined
-              }
-            />
+                    : undefined
+                }
+              />
+            </ChatRow>
           );
         })}
       </div>
@@ -209,68 +251,7 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
         contentType="completion"
         contentId={reportId ?? ""}
       />
+      {ToastElements}
     </>
   );
 });
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function EncouragementBubble({
-  data,
-  friendName,
-}: {
-  data: JourneyEncouragement;
-  friendName: string;
-}) {
-  const actor = data.isMe ? "You" : friendName;
-
-  return (
-    <motion.div
-      variants={slideVariant(data.isMe)}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true }}
-      className={cn("flex", data.isMe ? "justify-end" : "justify-start")}
-    >
-      <div
-        className={cn(
-          // min-w-0 is what makes max-w-[75%] stick: without it the flex
-          // item's automatic minimum is the width of its longest unbroken
-          // run of text, so one pasted URL stretched the bubble past the
-          // edge of the screen and took the page into horizontal scroll.
-          "min-w-0 max-w-[75%] rounded-xl px-3.5 py-2.5 space-y-1",
-          data.isMe ? "rounded-br-sm" : "rounded-bl-sm",
-        )}
-        style={{
-          backgroundColor: `color-mix(in srgb, var(--color-encourage) ${data.isMe ? "15%" : "10%"}, var(--color-bg-primary))`,
-        }}
-      >
-        {/* Sender */}
-        <p className="text-xs font-semibold text-encourage">{actor}</p>
-
-        {data.media_path && data.media_type && (
-          <MessageMedia path={data.media_path} type={data.media_type} />
-        )}
-
-        {/* Content — always shown */}
-        {data.content && (
-          <p
-            className={cn(
-              "text-text-primary break-words",
-              data.encouragement_type === "emoji" ? "text-2xl" : "text-sm",
-            )}
-          >
-            {data.content}
-          </p>
-        )}
-
-        {/* Time */}
-        <p className="text-[10px] text-text-tertiary">
-          {format(new Date(data.created_at), "h:mm a")}
-        </p>
-      </div>
-    </motion.div>
-  );
-}

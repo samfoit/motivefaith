@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 
+const description = "What MotiveFaith collects, how it's used, and how to delete it.";
+
 export const metadata: Metadata = {
   title: "Privacy Policy | MotiveFaith",
+  description,
+  openGraph: { type: "website", siteName: "MotiveFaith", title: "Privacy Policy", description },
+  twitter: { card: "summary_large_image", title: "Privacy Policy", description },
 };
 
 export default function PrivacyPage() {

@@ -24,6 +24,8 @@ type RpcHabit = {
   streak_best: number;
   is_owner: boolean;
   completed_today: boolean;
+  /** Added by migration 037; absent on a database without it. */
+  due_today?: boolean;
   rain_checked_today: boolean;
   rain_check_moved_to: string | null;
 };
@@ -123,6 +125,8 @@ export default async function JourneyPage({ params }: Props) {
       owner_id: h.owner_id,
       isOwner: h.is_owner,
       completedToday: h.completed_today,
+      // Every habit counts as due on a database without migration 037.
+      dueToday: h.due_today ?? true,
       rainCheckedToday: h.rain_checked_today ?? false,
       rainCheckMovedTo: h.rain_check_moved_to ?? null,
     }),
@@ -166,6 +170,7 @@ export default async function JourneyPage({ params }: Props) {
 
   const journeyData: JourneyData = {
     friend,
+    me: myProfile ?? null,
     friendshipSince: friendship.created_at!,
     habits,
     completions,

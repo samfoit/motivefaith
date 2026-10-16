@@ -22,6 +22,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NotificationToggle } from "@/components/social/NotificationToggle";
+import { openInstallPrompt } from "@/components/pwa/InstallPrompt";
 import { NotificationPreferences } from "@/components/social/NotificationPreferences";
 import { usePushSubscription } from "@/lib/hooks/usePushSubscription";
 import { createClient } from "@/lib/supabase/client";
@@ -337,6 +338,7 @@ export function ProfileClient({
               onSubscribe={pushSubscribe}
               onUnsubscribe={pushUnsubscribe}
               onOpenSettings={() => setNotifSettingsOpen(true)}
+              onInstall={openInstallPrompt}
             />
           </section>
 

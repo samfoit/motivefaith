@@ -2,13 +2,10 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Camera,
   Check,
   CloudRain,
   CornerDownRight,
-  MessageSquare,
   Loader2,
-  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Sheet } from "@/components/ui/Sheet";
@@ -20,6 +17,7 @@ import { compressImage } from "@/lib/utils/compress-image";
 import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { ModeHeader } from "@/components/ui/ModeHeader";
+import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 
 const CameraCapture = dynamic(
   () => import("@/components/habits/CameraCapture").then((m) => m.CameraCapture),
@@ -452,175 +450,37 @@ export function CompletionForm({
           {mode === "select" && (
             <div className="cf-fade-in grid grid-cols-2 gap-3">
 
-              <button
-                type="button"
+              <CheckInTile
+                action="content"
+                title="Content"
+                hint="Photo or video"
                 onClick={handleContentSelect}
-                className={cn(
-                  "flex flex-col items-center gap-2 p-5 rounded-lg transition-all",
-                  "hover:scale-[1.02] active:scale-95",
-                )}
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--color-brand) 15%, var(--color-bg-secondary))",
-                }}
-              >
-                <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--color-brand) 15%, transparent)",
-                  }}
-                >
-                  <Camera
-                    className="w-5 h-5"
-                    style={{ color: "var(--color-brand-ink)" }}
-                  />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-text-primary">
-                    Content
-                  </p>
-                  <p className="text-xs text-text-tertiary">
-                    Photo or video
-                  </p>
-                </div>
-              </button>
-
-              <button
-                type="button"
+              />
+              <CheckInTile
+                action="voice"
+                title="Voice"
+                hint="Record a note"
                 onClick={handleVoiceSelect}
-                className={cn(
-                  "flex flex-col items-center gap-2 p-5 rounded-lg transition-all",
-                  "hover:scale-[1.02] active:scale-95",
-                )}
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--color-encourage) 15%, var(--color-bg-secondary))",
-                }}
-              >
-                <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--color-encourage) 15%, transparent)",
-                  }}
-                >
-                  <Mic
-                    className="w-5 h-5"
-                    style={{ color: "var(--color-encourage)" }}
-                  />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-text-primary">
-                    Voice
-                  </p>
-                  <p className="text-xs text-text-tertiary">
-                    Record a note
-                  </p>
-                </div>
-              </button>
-
-              <button
-                type="button"
+              />
+              <CheckInTile
+                action="message"
+                title="Message"
+                hint="Write a note"
                 onClick={handleMessageSelect}
-                className={cn(
-                  "flex flex-col items-center gap-2 p-5 rounded-lg transition-all",
-                  "hover:scale-[1.02] active:scale-95",
-                )}
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--color-streak) 15%, var(--color-bg-secondary))",
-                }}
-              >
-                <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--color-streak) 15%, transparent)",
-                  }}
-                >
-                  <MessageSquare
-                    className="w-5 h-5"
-                    style={{ color: "var(--color-streak)" }}
-                  />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-text-primary">
-                    Message
-                  </p>
-                  <p className="text-xs text-text-tertiary">
-                    Write a note
-                  </p>
-                </div>
-              </button>
-
-              <button
-                type="button"
+              />
+              <CheckInTile
+                action="quick"
+                title="Check in"
+                hint="Just log it"
                 onClick={handleQuickCheckin}
-                className={cn(
-                  "flex flex-col items-center gap-2 p-5 rounded-lg transition-all",
-                  "hover:scale-[1.02] active:scale-95",
-                )}
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--color-success) 15%, var(--color-bg-secondary))",
-                }}
-              >
-                <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--color-success) 15%, transparent)",
-                  }}
-                >
-                  <Check
-                    className="w-5 h-5"
-                    style={{ color: "var(--color-success)" }}
-                  />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-text-primary">
-                    Check in
-                  </p>
-                  <p className="text-xs text-text-tertiary">
-                    Just log it
-                  </p>
-                </div>
-              </button>
-
-              <button
-                type="button"
+              />
+              <CheckInTile
+                action="rain_check"
+                title="Rain check"
+                hint="Skip today, keep your streak"
                 onClick={handleRainCheckSelect}
-                className={cn(
-                  "col-span-2 flex items-center gap-3 p-4 rounded-lg transition-all",
-                  "border border-dashed hover:scale-[1.01] active:scale-95",
-                )}
-                style={{
-                  borderColor:
-                    "color-mix(in srgb, var(--color-rain) 40%, transparent)",
-                }}
-              >
-                <div
-                  className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--color-rain) 15%, transparent)",
-                  }}
-                >
-                  <CloudRain
-                    className="w-5 h-5"
-                    style={{ color: "var(--color-rain)" }}
-                  />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-medium text-text-primary">
-                    Rain check
-                  </p>
-                  <p className="text-xs text-text-tertiary">
-                    Skip today, keep your streak
-                  </p>
-                </div>
-              </button>
+                wide
+              />
             </div>
           )}
 
@@ -986,5 +846,59 @@ export function CompletionForm({
         />
       )}
     </>
+  );
+}
+
+/**
+ * One way to check in, on the sheet's first step. Each wears its action's
+ * own color — the same solid circle and white icon as on the habit card's
+ * drawer, from the same table — so a voice note is purple and a note is
+ * orange wherever you meet them. The tile behind takes a light wash of it.
+ *
+ * Rain check runs the full width with a dashed edge: a skip on purpose,
+ * set apart from the four ways of doing it.
+ */
+function CheckInTile({
+  action,
+  title,
+  hint,
+  onClick,
+  wide = false,
+}: {
+  action: CheckInAction;
+  title: string;
+  hint: string;
+  onClick: () => void;
+  wide?: boolean;
+}) {
+  const option = CHECK_IN_OPTIONS.find((o) => o.action === action)!;
+  const Icon = option.icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-lg transition-transform active:scale-95",
+        wide
+          ? "col-span-2 flex items-center gap-3 border border-dashed p-4 hover:scale-[1.01]"
+          : "flex flex-col items-center gap-2 p-5 hover:scale-[1.02]",
+      )}
+      style={
+        wide
+          ? { borderColor: `color-mix(in srgb, ${option.color} 45%, transparent)` }
+          : { backgroundColor: `color-mix(in srgb, ${option.color} 12%, var(--color-bg-elevated))` }
+      }
+    >
+      <span
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-sm"
+        style={{ backgroundColor: option.color }}
+      >
+        <Icon className="h-5 w-5" strokeWidth={2.25} />
+      </span>
+      <span className={wide ? "text-left" : "text-center"}>
+        <span className="block text-sm font-medium text-text-primary">{title}</span>
+        <span className="block text-xs text-text-tertiary">{hint}</span>
+      </span>
+    </button>
   );
 }

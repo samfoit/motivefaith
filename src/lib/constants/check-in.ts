@@ -45,7 +45,7 @@ export const CHECK_IN_OPTIONS: readonly CheckInOption[] = [
     action: "voice",
     label: "Voice note",
     icon: Mic,
-    color: "var(--color-encourage)",
+    color: "var(--color-checkin-voice)",
   },
   {
     action: "message",
@@ -57,6 +57,6 @@ export const CHECK_IN_OPTIONS: readonly CheckInOption[] = [
     action: "rain_check",
     label: "Rain check",
     icon: CloudRain,
-    color: "var(--color-rain)",
+    color: "var(--color-checkin-rain)",
   },
 ] as const;

@@ -157,8 +157,16 @@ export default async function RootLayout({
         <Providers>
           <ToastProvider>{children}</ToastProvider>
         </Providers>
-        <SpeedInsights />
-        <Analytics />
+        {/* Production only. In dev both load a debug script from
+            va.vercel-scripts.com, which the dev CSP (src/proxy.ts) blocks —
+            and they record nothing in dev anyway. In production they load
+            from /_vercel/, which 'self' already allows. */}
+        {process.env.NODE_ENV === "production" && (
+          <>
+            <SpeedInsights />
+            <Analytics />
+          </>
+        )}
       </body>
     </html>
   );

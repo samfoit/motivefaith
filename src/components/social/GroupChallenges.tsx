@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Check, Users } from "lucide-react";
+import { Calendar, Check, ChevronRight, Plus, Users } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { Sheet } from "@/components/ui/Sheet";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { Pill } from "@/components/ui/Badge";
 import type { GroupChallenge, GroupChallengeParticipant } from "@/lib/types/groups";
 import type { FeedProfile } from "@/lib/types/feed";
 
@@ -22,6 +21,11 @@ interface GroupChallengesProps {
   onLeave: (challengeId: string) => void;
   /** The challenge currently being joined or left, if any. */
   pendingId?: string | null;
+  /**
+   * Admins only: a chip at the end of the row to start a challenge. With it
+   * the row shows even while there are none, as just that chip.
+   */
+  onCreate?: () => void;
 }
 
 /** What the challenge runs between, written the short way. */
@@ -33,64 +37,81 @@ function dateRange(challenge: GroupChallenge): string {
 }
 
 /**
- * Group challenges as one scrollable line of chips, matching the shared
- * habits directly above them.
+ * A group's challenges, as rows in its info sheet.
  *
- * Each challenge used to be a full-width card carrying its description, dates,
- * participant count and a Join button — four of them filled the screen before
- * a single message was visible. The chip says which challenge it is and
- * whether you are in it; the rest, including joining and leaving, lives one
- * tap away in the sheet.
+ * They were a line of chips at the top of the chat, beside the shared habits
+ * — but which challenges are running is reference, not today's status, and
+ * the strip there now answers only what's done and what's open today. A row
+ * says which challenge it is, when, and whether you are in it; the rest,
+ * including joining and leaving, is a tap away in its sheet.
  */
 export function GroupChallenges({
   challenges,
   onJoin,
   onLeave,
   pendingId,
+  onCreate,
 }: GroupChallengesProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   const selected = challenges.find((c) => c.id === openId) ?? null;
 
-  if (challenges.length === 0) return null;
+  if (challenges.length === 0 && !onCreate) return null;
 
   return (
     <>
-      {/* Bleeds into the page gutter so the row can scroll edge to edge */}
-      <div className="-mx-4 px-4 overflow-x-auto">
-        <div className="flex items-center gap-2 w-max">
-          {challenges.map((challenge) => {
-            const joined = !!challenge.myParticipation;
-            return (
-              <button
-                key={challenge.id}
-                type="button"
-                onClick={() => setOpenId(challenge.id)}
-                aria-label={`${challenge.title} — ${
-                  joined ? "you have joined" : "not joined"
-                }, ${challenge.participants.length} taking part`}
-                className={cn(
-                  "habit-tint shrink-0 flex items-center gap-1.5 rounded-full border",
-                  "pl-2.5 pr-3 py-1.5 transition-transform active:scale-95",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
-                )}
-                style={{ ["--habit-color" as string]: challenge.color ?? undefined }}
-              >
-                <span className="text-sm leading-none">{challenge.emoji ?? "🎯"}</span>
-                <span className="text-xs font-medium text-text-primary truncate max-w-32">
+      <div className="space-y-1.5">
+        {challenges.map((challenge) => {
+          const joined = !!challenge.myParticipation;
+          return (
+            <button
+              key={challenge.id}
+              type="button"
+              onClick={() => setOpenId(challenge.id)}
+              className={cn(
+                "habit-tint flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left",
+                "transition-opacity active:opacity-80",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
+              )}
+              style={{ ["--habit-color" as string]: challenge.color ?? undefined }}
+            >
+              <span className="shrink-0 text-base leading-none">{challenge.emoji ?? "🎯"}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-text-primary">
                   {challenge.title}
                 </span>
-                {joined ? (
-                  <Check className="w-3.5 h-3.5 shrink-0 text-success" />
-                ) : (
-                  <span className="text-xs text-text-tertiary shrink-0 flex items-center gap-0.5">
-                    <Users className="w-3 h-3" />
-                    {challenge.participants.length}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+                <span className="block truncate text-xs text-text-tertiary">
+                  {dateRange(challenge)}
+                </span>
+              </span>
+              {joined ? (
+                <span className="shrink-0 flex items-center gap-1 text-xs font-medium text-success">
+                  <Check className="w-3.5 h-3.5" />
+                  You&apos;re in
+                </span>
+              ) : (
+                <span className="shrink-0 flex items-center gap-1 text-xs text-text-tertiary">
+                  <Users className="w-3.5 h-3.5" />
+                  {challenge.participants.length}
+                </span>
+              )}
+              <ChevronRight className="w-4 h-4 shrink-0 text-text-tertiary" />
+            </button>
+          );
+        })}
+        {onCreate && (
+          <button
+            type="button"
+            onClick={onCreate}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-lg border border-dashed border-border px-3 py-2.5",
+              "text-sm font-medium text-text-secondary transition-colors hover:text-text-primary",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
+            )}
+          >
+            <Plus className="w-4 h-4" />
+            New challenge
+          </button>
+        )}
       </div>
 
       <Sheet
@@ -109,15 +130,20 @@ export function GroupChallenges({
         }
       >
         {selected && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Pill size="sm" variant={selected.myParticipation ? "health" : "default"}>
-                {selected.myParticipation ? "Joined" : "Not joined"}
-              </Pill>
-              <Pill size="sm" variant="default">
-                <Calendar className="w-3 h-3 mr-1" />
+          <div className="space-y-5 pb-2">
+            {/* Plain lines with icons, not pills: the pills' light-theme
+                fills lit up as white and mint blobs on the dark sheet. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span className="flex items-center gap-1.5 text-text-secondary">
+                <Calendar className="w-4 h-4 shrink-0 text-text-tertiary" />
                 {dateRange(selected)}
-              </Pill>
+              </span>
+              {selected.myParticipation && (
+                <span className="flex items-center gap-1.5 font-medium text-success">
+                  <Check className="w-4 h-4 shrink-0" />
+                  You&apos;re in
+                </span>
+              )}
             </div>
 
             {selected.description && (
@@ -126,7 +152,9 @@ export function GroupChallenges({
 
             <div>
               <p className="text-xs text-text-tertiary mb-2">
-                {selected.participants.length} taking part
+                {selected.participants.length === 0
+                  ? "Nobody has joined yet"
+                  : `${selected.participants.length} taking part`}
               </p>
               {selected.participants.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -150,9 +178,11 @@ export function GroupChallenges({
             </div>
 
             {selected.myParticipation ? (
+              // Leaving is a step back, not the sheet's main action: neutral,
+              // not in the brand colour the ghost button used.
               <Button
                 variant="ghost"
-                className="w-full"
+                className="w-full !text-text-secondary hover:!text-text-primary"
                 loading={pendingId === selected.id}
                 onClick={() => onLeave(selected.id)}
               >

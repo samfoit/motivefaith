@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 
+const description = "How to report content that infringes your copyright.";
+
 export const metadata: Metadata = {
   title: "DMCA Policy | MotiveFaith",
+  description,
+  openGraph: { type: "website", siteName: "MotiveFaith", title: "DMCA Policy", description },
+  twitter: { card: "summary_large_image", title: "DMCA Policy", description },
 };
 
 export default function DmcaPage() {

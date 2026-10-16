@@ -396,11 +396,59 @@ body {
   }
 }
 
+/* ── Chat bubbles ────────────────────────────────────────────────────────
+   Two voices. Theirs is a plain card on the sky. Yours is the same card
+   with the lamp let in: a light gold wash and a gold hairline. The gold is
+   never the fill: a slab of it shouted over everything else on the screen,
+   and its fixed `brand-light` wash turned to mud at night.
+
+   Built only from tokens the hour blends (card, border) and the lamp gold,
+   in oklab, so the pair holds from sunrise to the small hours without a
+   palette entry of its own. Ink stays at 9:1 or better on both, all day.
+   Check-ins aren't bubbles at all: they wear the habit's own tint, the same
+   as its chip at the top of the chat. */
+@layer components {
+  .chat-bubble {
+    background-color: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+  }
+
+  .chat-bubble--mine {
+    background-color: color-mix(in oklab, var(--color-brand) 12%, var(--color-bg-elevated));
+    border-color: color-mix(in oklab, var(--color-brand) 38%, var(--color-bg-elevated));
+  }
+
+  /* At night, gold mixed into the blue card in oklab cancels to plain grey,
+     and a faint edge vanishes. Mixed in sRGB it keeps some lamplight, and the
+     edge is brought up until it reads as the lamp's. */
+  [data-theme="dark"] .chat-bubble--mine {
+    background-color: color-mix(in srgb, var(--color-brand) 13%, var(--color-bg-elevated));
+    border-color: color-mix(in oklab, var(--color-brand) 60%, var(--color-bg-elevated));
+  }
+}
+
 /* ── Habit card check-in drawer ──────────────────────────────────────────
    The card surface slides right off a row of check-in icons. The icons scale
    in through a custom property rather than a plain transform so the pressed
    state can still override it here — the open/closed scale is written inline
    from React. */
+
+/* The drawer is the inside of the card: the card's own outline, in the
+   habit's color, around a floor a step deeper than the card and tinted with
+   the same hue. It used to be the page's tile color, which by day is the
+   page itself, so the icons floated on nothing when the card slid away. */
+.hc-drawer {
+  --hc-drawer-hue: var(--habit-color, var(--color-text-tertiary));
+  background-color: color-mix(in oklab, var(--hc-drawer-hue) 10%, var(--color-surface-hover));
+  /* The outline as a 1px inset shadow, not a border: it paints under the
+     card, so with the drawer shut there is one edge, not two. */
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--hc-drawer-hue) 45%, var(--color-surface-hover));
+}
+
+[data-theme="dark"] .hc-drawer {
+  /* The dark track is close to the card already; the hue does the work. */
+  background-color: color-mix(in srgb, var(--hc-drawer-hue) 12%, var(--color-bg-primary));
+}
 
 .hc-option {
   transform: scale(var(--hc-option-scale, 1));
