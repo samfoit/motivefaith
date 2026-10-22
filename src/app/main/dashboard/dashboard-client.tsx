@@ -23,7 +23,7 @@ import type { MoveLabels } from "@/lib/types/habit";
 import type { CheckInAction } from "@/lib/constants/check-in";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
 import type { RainCheckReason } from "@/lib/constants/rain-check";
-import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
+import { useCompleteHabit, PrivateOfflineError } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 import { DashboardContentSkeleton } from "./DashboardSkeleton";
@@ -506,8 +506,15 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
       }
       settleWrite(result);
-    } catch {
+    } catch (err) {
       restore(snapshot);
+      if (err instanceof PrivateOfflineError) {
+        showToast({
+          variant: "error",
+          title: "You're offline",
+          description: "Private check-ins need a connection.",
+        });
+      }
     } finally {
       endWrite();
     }

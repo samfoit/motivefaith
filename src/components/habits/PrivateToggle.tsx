@@ -14,9 +14,8 @@ export interface PrivateToggleProps {
 
 /**
  * Whether a check-in's note or media goes to partners or stays in your own
- * history. Either way partners see that you checked in; private only hides
- * what you recorded. Says where it goes in both states rather than being a
- * bare lock, so it can't be misread as "partners won't see this at all".
+ * history. Both states say what partners get, since they always see the
+ * check-in itself: "Only me" read as though they would see nothing at all.
  */
 export function PrivateToggle({
   isPrivate,
@@ -31,7 +30,7 @@ export function PrivateToggle({
       type="button"
       role="switch"
       aria-checked={isPrivate}
-      aria-label="Only me"
+      aria-label="Share check-in only"
       disabled={disabled}
       onClick={() => onChange(!isPrivate)}
       className={cn(
@@ -49,7 +48,7 @@ export function PrivateToggle({
       )}
     >
       <Icon className="w-3.5 h-3.5 shrink-0" />
-      <span>{isPrivate ? "Only me" : "Partners see it"}</span>
+      <span>{isPrivate ? "Check-in only" : "Share all"}</span>
     </button>
   );
 }

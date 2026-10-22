@@ -45,7 +45,7 @@ import { useNearViewport } from "@/lib/hooks/useNearViewport";
 import { HISTORY_PAGE_SIZE } from "@/lib/constants/limits";
 import { FriendPicker } from "@/components/social/FriendPicker";
 import { CalendarHeatmap } from "@/components/habits/CalendarHeatmap";
-import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
+import { useCompleteHabit, PrivateOfflineError } from "@/lib/hooks/useCompleteHabit";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
@@ -482,7 +482,7 @@ export function HabitDetailClient({
       });
       if (!rainCheck) checkMilestone(prevStreak + 1);
       router.refresh();
-    } catch {
+    } catch (err) {
       // Take back only this entry: resetting to the first page would also
       // throw away every page already scrolled through.
       setCompletions((prev) => prev.filter((c) => c.id !== tempCompletion.id));
@@ -490,9 +490,12 @@ export function HabitDetailClient({
       setHabit(initialHabit);
       showToast({
         variant: "error",
-        title: rainCheck
-          ? "Failed to take rain check"
-          : "Failed to log completion",
+        title:
+          err instanceof PrivateOfflineError
+            ? "You're offline — private check-ins need a connection"
+            : rainCheck
+              ? "Failed to take rain check"
+              : "Failed to log completion",
       });
     }
   };

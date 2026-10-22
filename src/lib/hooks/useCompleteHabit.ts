@@ -27,6 +27,19 @@ interface CompleteHabitParams {
   isPrivate?: boolean;
 }
 
+/**
+ * A private check-in was made without a connection. These are never queued:
+ * service workers installed before 039 don't know the private flag and
+ * would drop it on sync, sending the note out as an ordinary check-in that
+ * partners can read. Failing is safer than that.
+ */
+export class PrivateOfflineError extends Error {
+  constructor() {
+    super("Private check-ins need a connection");
+    this.name = "PrivateOfflineError";
+  }
+}
+
 export function useCompleteHabit() {
   const supabase = createClient();
 
@@ -52,11 +65,11 @@ export function useCompleteHabit() {
         notes: params.notes,
         rainCheckReason: params.rainCheckReason,
         rainCheckMovedTo: params.rainCheckMovedTo,
-        isPrivate: params.isPrivate,
       };
 
       // Quick path: if obviously offline, skip the network attempt
       if (!navigator.onLine) {
+        if (params.isPrivate) throw new PrivateOfflineError();
         await queueCompletion(offlinePayload);
         notifyPendingChanged();
         return { queued: true } as const;
@@ -92,6 +105,7 @@ export function useCompleteHabit() {
         // losing the completion; it is flushed by Background Sync, or by the
         // page-side drain on browsers without SyncManager (Safari/iOS).
         if (err instanceof TypeError) {
+          if (params.isPrivate) throw new PrivateOfflineError();
           await queueCompletion(offlinePayload);
           notifyPendingChanged();
           return { queued: true } as const;

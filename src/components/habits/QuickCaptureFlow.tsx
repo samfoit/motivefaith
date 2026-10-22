@@ -539,12 +539,7 @@ export function QuickCaptureFlow() {
               onToggle={handleToggle}
             />
             {habitIds.length > 0 && (
-              <div className="flex items-center justify-between gap-3 pb-3">
-                <p className="text-xs text-text-tertiary">
-                  {isPrivate
-                    ? "Partners just see that you checked in."
-                    : "Partners see it with your check-in."}
-                </p>
+              <div className="flex justify-end pb-3">
                 <PrivateToggle
                   isPrivate={isPrivate}
                   onChange={handlePrivateChange}

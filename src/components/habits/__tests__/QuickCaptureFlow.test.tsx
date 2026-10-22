@@ -110,7 +110,7 @@ describe("QuickCaptureFlow share step", () => {
     await userEvent.click(await screen.findByText("Pray"));
     await userEvent.click(screen.getByText("Bob"));
     // Going private takes back the friend it was about to be sent to.
-    await userEvent.click(screen.getByRole("switch", { name: "Only me" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Share check-in only" }));
     expect(useQuickCaptureStore.getState().friendIds).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
 

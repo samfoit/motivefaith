@@ -20,7 +20,7 @@ export interface VoiceRecorderProps {
   onClose: () => void;
   maxDuration?: number;
   /**
-   * Offers the "Only me" switch on the review step, for a check-in whose
+   * Offers the private switch on the review step, for a check-in whose
    * recording can be kept out of partners' view. Absent hides it.
    */
   privacy?: {

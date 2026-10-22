@@ -405,6 +405,13 @@ export function CompletionForm({
 
   const handleMessageSubmit = () => {
     if (!message.trim()) return;
+    // Private check-ins are never queued offline (see PrivateOfflineError),
+    // so say so here while the note is still on screen, rather than closing
+    // the sheet and losing it.
+    if (isPrivate && !navigator.onLine) {
+      setError("You're offline. Private check-ins need a connection.");
+      return;
+    }
     setIsSubmitting(true);
     onComplete({ type: "message", notes: message.trim(), isPrivate });
     handleClose(false);

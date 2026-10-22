@@ -27,7 +27,7 @@ interface QuickCaptureState {
   groupIds: string[];
   direct: DirectTarget | null;
   /**
-   * The "Only me" switch, once touched. null follows the picked habits'
+   * The private switch, once touched. null follows the picked habits'
    * own setting.
    */
   privateOverride: boolean | null;
