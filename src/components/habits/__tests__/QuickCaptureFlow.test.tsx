@@ -99,8 +99,33 @@ describe("QuickCaptureFlow share step", () => {
       habitIds: ["h1"],
       friendIds: ["f1"],
       groupIds: ["g1"],
+      isPrivate: false,
     });
     expect(useQuickCaptureStore.getState().step).toBe("closed");
+  });
+
+  it("keeps a take private: uploads outside the shared folders, habits only", async () => {
+    renderFlow();
+
+    await userEvent.click(await screen.findByText("Pray"));
+    await userEvent.click(screen.getByText("Bob"));
+    // Going private takes back the friend it was about to be sent to.
+    await userEvent.click(screen.getByRole("switch", { name: "Only me" }));
+    expect(useQuickCaptureStore.getState().friendIds).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    const [path] = upload.mock.calls[0];
+    expect(path).toMatch(/^me\/private\/[0-9a-f-]+\.webp$/);
+    expect(share).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaPath: path,
+        habitIds: ["h1"],
+        friendIds: [],
+        groupIds: [],
+        isPrivate: true,
+      }),
+    );
   });
 
   it("keeps the selection when the send fails", async () => {

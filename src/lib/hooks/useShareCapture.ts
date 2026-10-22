@@ -13,6 +13,11 @@ export interface ShareCaptureParams {
   habitIds: string[];
   friendIds: string[];
   groupIds: string[];
+  /**
+   * Log it to the habits for the owner's eyes only: partners and groups see
+   * a plain check-in. Only habits may be picked (039).
+   */
+  isPrivate?: boolean;
 }
 
 export interface ShareCaptureResult {
@@ -43,6 +48,7 @@ export function useShareCapture() {
           p_habit_ids: params.habitIds,
           p_friend_ids: params.friendIds,
           p_group_ids: params.groupIds,
+          p_private: params.isPrivate ?? false,
         },
       );
 

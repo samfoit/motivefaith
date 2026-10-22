@@ -35,6 +35,8 @@ export interface QueuedCompletion {
   rainCheckReason?: RainCheckReason;
   /** Only set on a "rain_check" that was moved; a YYYY-MM-DD key. */
   rainCheckMovedTo?: string;
+  /** Kept for the owner only; partners get a plain check-in. */
+  isPrivate?: boolean;
   queuedAt: string;
   /**
    * When some context took responsibility for sending this row, ISO.

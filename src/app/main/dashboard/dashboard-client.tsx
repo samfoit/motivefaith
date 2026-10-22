@@ -460,12 +460,14 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     notes,
     rainCheckReason,
     rainCheckMovedTo,
+    isPrivate,
   }: {
     type: CompletionType;
     evidenceUrl?: string;
     notes?: string;
     rainCheckReason?: RainCheckReason;
     rainCheckMovedTo?: string;
+    isPrivate?: boolean;
   }) => {
     if (!completionHabitId) return;
     const habitId = completionHabitId;
@@ -498,6 +500,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         notes,
         rainCheckReason,
         rainCheckMovedTo,
+        isPrivate,
       });
       if (!rainCheck) {
         checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
@@ -761,6 +764,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         habitEmoji={completionHabit?.emoji ?? ""}
         habitSchedule={completionHabit?.schedule}
         timezone={timezone}
+        defaultPrivate={completionHabit?.private_checkins ?? false}
         onComplete={handleCompletion}
       />
 

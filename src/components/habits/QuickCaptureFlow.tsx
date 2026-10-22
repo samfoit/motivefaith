@@ -30,6 +30,7 @@ import {
   MIME_TO_EXT,
 } from "@/lib/utils/media-types";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { PrivateToggle } from "@/components/habits/PrivateToggle";
 
 /**
  * Interaction-only: the camera UI is reachable only after the user taps the
@@ -75,6 +76,8 @@ export function QuickCaptureFlow() {
   const toggleTarget = useQuickCaptureStore((s) => s.toggleTarget);
   const deselectTargets = useQuickCaptureStore((s) => s.deselectTargets);
   const direct = useQuickCaptureStore((s) => s.direct);
+  const privateOverride = useQuickCaptureStore((s) => s.privateOverride);
+  const setPrivateOverride = useQuickCaptureStore((s) => s.setPrivateOverride);
 
   // Only fetched once the flow is open; both are cached across opens.
   const { data: friends } = useFriendsList(step !== "closed" ? userId : undefined);
@@ -188,6 +191,7 @@ export function QuickCaptureFlow() {
       mode: "photo" | "video" | "voice",
       caption: string,
       targets: { habitIds: string[]; friendIds: string[]; groupIds: string[] },
+      isPrivate = false,
     ) => {
       const direct = useQuickCaptureStore.getState().direct;
       setStep("uploading");
@@ -214,7 +218,8 @@ export function QuickCaptureFlow() {
 
         // Uploaded once; every destination row points at this path, and those
         // rows are what let a friend or group member read it (migration 034).
-        const path = `${user.id}/capture/${crypto.randomUUID()}.${ext}`;
+        // A private take goes where no shared row can point (039).
+        const path = `${user.id}/${isPrivate ? "private" : "capture"}/${crypto.randomUUID()}.${ext}`;
 
         const { error: uploadError } = await supabase.storage
           .from("completions")
@@ -227,6 +232,7 @@ export function QuickCaptureFlow() {
           mediaType: mode,
           caption: caption.trim() || undefined,
           ...targets,
+          isPrivate,
         });
 
         const { habitIds } = targets;
@@ -337,13 +343,39 @@ export function QuickCaptureFlow() {
 
   const selectedCount = habitIds.length + friendIds.length + groupIds.length;
 
+  // Private only means anything for habits alone: a friend or group picked is
+  // someone it is being sent to. Untouched, it follows the picked habits —
+  // private when every one of them keeps its check-ins private.
+  const onlyHabits =
+    habitIds.length > 0 && friendIds.length === 0 && groupIds.length === 0;
+  const habitsDefaultPrivate =
+    habitIds.length > 0 &&
+    habitIds.every((id) => habits.find((h) => h.id === id)?.private_checkins);
+  const isPrivate = onlyHabits && (privateOverride ?? habitsDefaultPrivate);
+
+  const handlePrivateChange = useCallback(
+    (next: boolean) => {
+      setPrivateOverride(next);
+      if (!next) return;
+      // Going private takes back anyone it was about to be sent to.
+      const s = useQuickCaptureStore.getState();
+      deselectTargets("friend", s.friendIds);
+      deselectTargets("group", s.groupIds);
+    },
+    [setPrivateOverride, deselectTargets],
+  );
+
   // Picking a habit takes over whoever its check-in already reaches: drop
   // them from the hand-picked lists so the picker shows them locked, and so
   // they come back unpicked — not silently re-selected — when the habit is.
   const handleToggle = useCallback(
     (kind: ShareTarget, id: string) => {
       toggleTarget(kind, id);
-      if (kind !== "habit") return;
+      // Picking a person or a group is sharing it, so it is no longer private.
+      if (kind !== "habit") {
+        setPrivateOverride(false);
+        return;
+      }
       const reached = reachedByHabits(
         habits,
         useQuickCaptureStore.getState().habitIds,
@@ -351,12 +383,18 @@ export function QuickCaptureFlow() {
       deselectTargets("friend", reached.friend.keys());
       deselectTargets("group", reached.group.keys());
     },
-    [habits, toggleTarget, deselectTargets],
+    [habits, toggleTarget, deselectTargets, setPrivateOverride],
   );
 
   const handleSend = useCallback(() => {
     if (!capturedFile || !captureMode || selectedCount === 0) return;
-    void send(capturedFile, captureMode, notes, { habitIds, friendIds, groupIds });
+    void send(
+      capturedFile,
+      captureMode,
+      notes,
+      { habitIds, friendIds, groupIds },
+      isPrivate,
+    );
   }, [
     capturedFile,
     captureMode,
@@ -366,6 +404,7 @@ export function QuickCaptureFlow() {
     habitIds,
     friendIds,
     groupIds,
+    isPrivate,
   ]);
 
   const handleClose = useCallback(() => {
@@ -499,6 +538,19 @@ export function QuickCaptureFlow() {
               selected={selected}
               onToggle={handleToggle}
             />
+            {habitIds.length > 0 && (
+              <div className="flex items-center justify-between gap-3 pb-3">
+                <p className="text-xs text-text-tertiary">
+                  {isPrivate
+                    ? "Partners just see that you checked in."
+                    : "Partners see it with your check-in."}
+                </p>
+                <PrivateToggle
+                  isPrivate={isPrivate}
+                  onChange={handlePrivateChange}
+                />
+              </div>
+            )}
             <Button
               className="w-full min-h-12"
               disabled={selectedCount === 0}

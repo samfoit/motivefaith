@@ -27,6 +27,7 @@ function makeHabit(overrides: Partial<HabitWithCompletions> = {}): HabitWithComp
     schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
     time_window: null,
     visibility: "private" as const,
+    private_checkins: false,
     streak_current: 5,
     streak_best: 12,
     total_completions: 30,

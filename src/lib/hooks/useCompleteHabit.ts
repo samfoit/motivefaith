@@ -20,6 +20,11 @@ interface CompleteHabitParams {
    * for a "rain_check"; absent means a plain skip.
    */
   rainCheckMovedTo?: string;
+  /**
+   * Keep the note or media for the owner's history only. Partners get a
+   * plain check-in, the same as a quick one.
+   */
+  isPrivate?: boolean;
 }
 
 export function useCompleteHabit() {
@@ -47,6 +52,7 @@ export function useCompleteHabit() {
         notes: params.notes,
         rainCheckReason: params.rainCheckReason,
         rainCheckMovedTo: params.rainCheckMovedTo,
+        isPrivate: params.isPrivate,
       };
 
       // Quick path: if obviously offline, skip the network attempt
@@ -59,14 +65,21 @@ export function useCompleteHabit() {
       // Try-then-queue: attempt the network request, fall back to offline
       // queue on network errors (lie-fi, captive portals, etc.).
       try {
-        const { data, error } = await supabase.rpc("insert_completion", {
-          p_habit_id: params.habitId,
-          p_completion_type: params.type,
-          p_evidence_url: params.evidenceUrl,
-          p_notes: params.notes,
-          p_rain_check_reason: params.rainCheckReason,
-          p_rain_check_moved_to: params.rainCheckMovedTo,
-        });
+        const { data, error } = params.isPrivate
+          ? await supabase.rpc("insert_private_completion", {
+              p_habit_id: params.habitId,
+              p_completion_type: params.type,
+              p_evidence_url: params.evidenceUrl,
+              p_notes: params.notes,
+            })
+          : await supabase.rpc("insert_completion", {
+              p_habit_id: params.habitId,
+              p_completion_type: params.type,
+              p_evidence_url: params.evidenceUrl,
+              p_notes: params.notes,
+              p_rain_check_reason: params.rainCheckReason,
+              p_rain_check_moved_to: params.rainCheckMovedTo,
+            });
 
         if (error) throw error;
         // Set here rather than in an onSuccess passed to mutate(): those are

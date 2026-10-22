@@ -26,6 +26,11 @@ interface QuickCaptureState {
   friendIds: string[];
   groupIds: string[];
   direct: DirectTarget | null;
+  /**
+   * The "Only me" switch, once touched. null follows the picked habits'
+   * own setting.
+   */
+  privateOverride: boolean | null;
   open: () => void;
   /** Open the camera to send to one chat only. */
   openTo: (target: DirectTarget) => void;
@@ -38,6 +43,7 @@ interface QuickCaptureState {
   toggleTarget: (target: ShareTarget, id: string) => void;
   /** Unpick these, e.g. ones a picked habit's check-in now reaches anyway. */
   deselectTargets: (target: ShareTarget, ids: Iterable<string>) => void;
+  setPrivateOverride: (value: boolean | null) => void;
 }
 
 const TARGET_KEY = {
@@ -56,19 +62,22 @@ const cleared = () => ({
   friendIds: [],
   groupIds: [],
   direct: null,
+  privateOverride: null,
 });
 
 export const useQuickCaptureStore = create<QuickCaptureState>((set) => ({
   ...cleared(),
   // Not a parameter of `open`: that is passed straight to onClick, which
   // would hand it the click event.
-  open: () => set({ step: "camera", direct: null }),
-  openTo: (target) => set({ step: "camera", direct: target }),
+  open: () => set({ step: "camera", direct: null, privateOverride: null }),
+  openTo: (target) =>
+    set({ step: "camera", direct: target, privateOverride: null }),
   close: () => set(cleared()),
   reset: () => set(cleared()),
   setCapturedFile: (file) => set({ capturedFile: file, step: "share" }),
   backToPreview: () => set({ step: "camera" }),
   setStep: (step) => set({ step }),
+  setPrivateOverride: (privateOverride) => set({ privateOverride }),
   toggleTarget: (target, id) =>
     set((s) => {
       const key = TARGET_KEY[target];

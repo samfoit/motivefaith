@@ -17,6 +17,7 @@ import { compressImage } from "@/lib/utils/compress-image";
 import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { ModeHeader } from "@/components/ui/ModeHeader";
+import { PrivateToggle } from "@/components/habits/PrivateToggle";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 
 const CameraCapture = dynamic(
@@ -57,6 +58,12 @@ export interface CompletionFormProps {
    * right "next 7 days" — falls back to the browser's zone.
    */
   timezone?: string;
+  /**
+   * The habit's "keep check-in content private" setting. The note or media
+   * starts private when it is on; the switch in the sheet overrides it for
+   * this one check-in.
+   */
+  defaultPrivate?: boolean;
   onComplete: (params: {
     type: CompletionType;
     evidenceUrl?: string;
@@ -64,6 +71,8 @@ export interface CompletionFormProps {
     rainCheckReason?: RainCheckReason;
     /** The day a rain check was moved to, as a YYYY-MM-DD key. */
     rainCheckMovedTo?: string;
+    /** Keep the note or media in the owner's history only. */
+    isPrivate?: boolean;
   }) => void;
 }
 
@@ -126,6 +135,7 @@ export function CompletionForm({
   habitSchedule,
   initialAction,
   timezone,
+  defaultPrivate = false,
   onComplete,
 }: CompletionFormProps) {
   const [mode, setMode] = useState<Mode>("select");
@@ -141,6 +151,7 @@ export function CompletionForm({
   const [error, setError] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(defaultPrivate);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -171,6 +182,11 @@ export function CompletionForm({
   // Jump straight to the step the habit card asked for. Deliberately keyed on
   // `open` alone: re-running it would drag the user back here after they hit
   // "back", or reopen a camera they just dismissed.
+  // Each check-in starts from the habit's setting, whatever the last one was.
+  useEffect(() => {
+    if (open) setIsPrivate(defaultPrivate);
+  }, [open, defaultPrivate]);
+
   useEffect(() => {
     if (!open || !initialAction) return;
     if (initialAction === "content") {
@@ -281,7 +297,7 @@ export function CompletionForm({
     setError(null);
     try {
       const url = await uploadFile(file, "voice");
-      onComplete({ type: "voice", evidenceUrl: url });
+      onComplete({ type: "voice", evidenceUrl: url, isPrivate });
       handleClose(false);
     } catch (err) {
       console.error("Voice upload failed:", err);
@@ -352,7 +368,11 @@ export function CompletionForm({
       contentType = "image/webp";
     }
 
-    const path = `${user.id}/${habitId}/${Date.now()}.${ext}`;
+    // Private media lives outside the habit's folder, which partners on the
+    // habit can read (034); see 039.
+    const path = isPrivate
+      ? `${user.id}/private/${crypto.randomUUID()}.${ext}`
+      : `${user.id}/${habitId}/${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("completions")
@@ -374,7 +394,7 @@ export function CompletionForm({
 
     try {
       const url = await uploadFile(selectedFile, mediaType);
-      onComplete({ type: mediaType, evidenceUrl: url });
+      onComplete({ type: mediaType, evidenceUrl: url, isPrivate });
       handleClose(false);
     } catch (err) {
       console.error("Upload failed:", err);
@@ -386,7 +406,7 @@ export function CompletionForm({
   const handleMessageSubmit = () => {
     if (!message.trim()) return;
     setIsSubmitting(true);
-    onComplete({ type: "message", notes: message.trim() });
+    onComplete({ type: "message", notes: message.trim(), isPrivate });
     handleClose(false);
   };
 
@@ -516,6 +536,11 @@ export function CompletionForm({
                   )}
                 </div>
               )}
+              <PrivateToggle
+                isPrivate={isPrivate}
+                onChange={setIsPrivate}
+                disabled={isSubmitting}
+              />
               <div className="flex gap-3">
                 <Button
                   variant="secondary"
@@ -570,13 +595,20 @@ export function CompletionForm({
                 >
                   {message.length}/{MAX_MESSAGE_LENGTH}
                 </span>
-                <Button
-                  onClick={handleMessageSubmit}
-                  disabled={!message.trim() || isSubmitting}
-                  loading={isSubmitting}
-                >
-                  Submit
-                </Button>
+                <div className="flex items-center gap-2">
+                  <PrivateToggle
+                    isPrivate={isPrivate}
+                    onChange={setIsPrivate}
+                    disabled={isSubmitting}
+                  />
+                  <Button
+                    onClick={handleMessageSubmit}
+                    disabled={!message.trim() || isSubmitting}
+                    loading={isSubmitting}
+                  >
+                    Submit
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -843,6 +875,7 @@ export function CompletionForm({
         <VoiceRecorder
           onCapture={handleVoiceCapture}
           onClose={handleVoiceClose}
+          privacy={{ isPrivate, onChange: setIsPrivate }}
         />
       )}
     </>

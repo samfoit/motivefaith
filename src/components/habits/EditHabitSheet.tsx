@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
+import * as Switch from "@radix-ui/react-switch";
 import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { createClient } from "@/lib/supabase/client";
@@ -48,6 +49,7 @@ interface EditForm {
   timeWindowEnd: string;
   color: string | null;
   visibility: HabitVisibility;
+  privateCheckins: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +85,7 @@ function buildFormFromHabit(habit: Habit): EditForm {
     timeWindowEnd: tw.end,
     color: habit.color ?? null,
     visibility: habit.visibility,
+    privateCheckins: habit.private_checkins,
   };
 }
 
@@ -123,6 +126,7 @@ export function EditHabitSheet({
       form.frequency !== initial.frequency ||
       form.color !== initial.color ||
       form.visibility !== initial.visibility ||
+      form.privateCheckins !== initial.privateCheckins ||
       form.timeWindowEnabled !== initial.timeWindowEnabled ||
       form.timeWindowStart !== initial.timeWindowStart ||
       form.timeWindowEnd !== initial.timeWindowEnd ||
@@ -148,6 +152,7 @@ export function EditHabitSheet({
         : null,
       color: form.color,
       visibility: form.visibility,
+      private_checkins: form.privateCheckins,
     };
 
     const supabase = createClient();
@@ -369,6 +374,40 @@ export function EditHabitSheet({
             value={form.visibility}
             onChange={(v) => update("visibility", v)}
           />
+        </section>
+
+        {/* ---- Check-in content ---- */}
+        {/* Only the default: each check-in can still flip it on its own. */}
+        <section className="space-y-4">
+          <h3 className="text-sm font-medium text-text-secondary">
+            What partners see
+          </h3>
+          <label className="flex items-center justify-between gap-3 cursor-pointer">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text-primary">
+                Keep check-in content private
+              </p>
+              <p className="text-xs text-text-tertiary mt-0.5">
+                Notes, photos, videos and voice clips stay in your history.
+                Partners just see that you checked in.
+              </p>
+            </div>
+            <Switch.Root
+              checked={form.privateCheckins}
+              onCheckedChange={(v) => update("privateCheckins", v)}
+              className={cn(
+                "w-10 h-6 rounded-full relative transition-colors shrink-0",
+                "data-[state=checked]:bg-brand data-[state=unchecked]:bg-[var(--color-bg-secondary)]",
+              )}
+            >
+              <Switch.Thumb
+                className={cn(
+                  "block w-4 h-4 rounded-full bg-white shadow-sm transition-transform",
+                  "data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-1",
+                )}
+              />
+            </Switch.Root>
+          </label>
         </section>
 
         {/* ---- Save ---- */}

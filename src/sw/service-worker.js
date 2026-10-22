@@ -599,6 +599,7 @@ function syncQueuedCompletions() {
           notes: item.notes || undefined,
           rainCheckReason: item.rainCheckReason || undefined,
           rainCheckMovedTo: item.rainCheckMovedTo || undefined,
+          isPrivate: item.isPrivate || undefined,
           // evidenceUrl is intentionally omitted — files uploaded separately
         };
       });

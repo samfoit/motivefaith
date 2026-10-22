@@ -3,6 +3,7 @@ import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { HabitDetailClient } from "./habit-detail-client";
 import { DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 import { computeEffectiveStreak } from "@/lib/utils/streak";
+import { mergePrivateContent } from "@/lib/utils/private-checkin";
 import {
   HABIT_ACTIVITY_DAYS,
   HABIT_ACTIVITY_MAX_ROWS,
@@ -48,7 +49,7 @@ export default async function HabitDetailPage({ params }: Props) {
     supabase.from("profiles").select("timezone, username").eq("id", user.id).single(),
     supabase
       .from("habits")
-      .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, visibility, created_at")
+      .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, visibility, private_checkins, created_at")
       .eq("id", id)
       .eq("user_id", user.id)
       .single(),
@@ -61,7 +62,9 @@ export default async function HabitDetailPage({ params }: Props) {
       .limit(HABIT_ACTIVITY_MAX_ROWS),
     supabase
       .from("completions")
-      .select("id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to")
+      // The embed brings back what a private check-in recorded (039). Inline
+      // rather than PRIVATE_CONTENT_EMBED so postgrest-js can infer the type.
+      .select("id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to, completion_private_content(completion_type, evidence_url, notes)")
       .eq("habit_id", id)
       .order("completed_at", { ascending: false })
       .order("id", { ascending: false })
@@ -85,9 +88,11 @@ export default async function HabitDetailPage({ params }: Props) {
 
   if (!habit) notFound();
 
-  const validatedCompletions = (completions ?? []).filter(
-    (c): c is typeof c & { completed_at: string } => c.completed_at != null,
-  );
+  const validatedCompletions = (completions ?? [])
+    .filter(
+      (c): c is typeof c & { completed_at: string } => c.completed_at != null,
+    )
+    .map(mergePrivateContent);
   const validatedActivity = (activity ?? []).filter(
     (c): c is typeof c & { completed_at: string } => c.completed_at != null,
   );

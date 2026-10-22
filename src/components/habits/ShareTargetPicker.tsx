@@ -27,6 +27,8 @@ export interface PickerHabit {
   /** Friends and groups this habit's check-in already shows up for. */
   partner_ids: string[];
   group_ids: string[];
+  /** The habit's "keep check-in content private" default (039). */
+  private_checkins?: boolean;
 }
 
 export interface PickerFriend {
