@@ -434,7 +434,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       {/* Bottom message input */}
       <div
         ref={inputBarRef}
-        className="fixed inset-x-0 z-30 bg-bg-primary border-t border-bg-secondary"
+        className="fixed inset-x-0 z-30 bg-bg-primary border-t border-border"
         style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}
       >
         <form
@@ -453,7 +453,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
             maxLength={300}
             className={cn(
               "flex-1 min-w-0 rounded-full px-4 py-2.5 text-base",
-              "bg-bg-secondary text-text-primary",
+              "bg-elevated ring-1 ring-border text-text-primary",
               "placeholder:text-text-tertiary",
               "focus:outline-none focus:ring-2 focus:ring-brand-ink/40",
               "transition-shadow",
@@ -467,7 +467,7 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
               "transition-all",
               message.trim()
                 ? "bg-brand text-on-brand active:scale-95"
-                : "bg-bg-secondary text-text-tertiary",
+                : "bg-elevated ring-1 ring-border text-text-tertiary",
             )}
             aria-label="Send message"
           >

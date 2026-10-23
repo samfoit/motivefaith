@@ -74,7 +74,7 @@ export default function DmcaPage() {
         <p>
           Send DMCA takedown notices to:
         </p>
-        <div className="bg-[var(--color-bg-secondary)] rounded-md p-4 text-[var(--color-text-primary)]">
+        <div className="bg-elevated ring-1 ring-border rounded-md p-4 text-[var(--color-text-primary)]">
           <p>DMCA Agent</p>
           <p>MotiveFaith</p>
           <p>

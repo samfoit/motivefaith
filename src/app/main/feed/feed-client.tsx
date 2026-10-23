@@ -257,7 +257,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
 
         {/* Filter tabs (only show if user has both friends and groups) */}
         {hasGroups && effectiveFriends.length > 0 && (
-          <div className="flex gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)]">
+          <div className="flex gap-1 p-1 rounded-lg bg-elevated shadow-sm">
             {(["all", "friends", "groups"] as const).map((tab) => (
               <button
                 key={tab}
@@ -318,7 +318,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
           </div>
         ) : (
           <div className="text-center py-16">
-            <div className="w-14 h-14 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-full bg-elevated shadow-sm flex items-center justify-center mx-auto mb-4">
               <Users className="w-6 h-6 text-[var(--color-text-tertiary)]" />
             </div>
             <h2

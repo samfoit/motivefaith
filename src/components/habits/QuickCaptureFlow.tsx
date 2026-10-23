@@ -511,7 +511,7 @@ export function QuickCaptureFlow() {
                 }}
                 className={cn(
                   "flex-1 min-w-0 rounded-lg border px-4 py-2.5 text-base transition-colors",
-                  "bg-bg-secondary border-surface-hover",
+                  "bg-elevated border-border",
                   "text-text-primary placeholder-text-tertiary",
                   "focus:outline-none focus:ring-2 focus:ring-brand-ink",
                 )}

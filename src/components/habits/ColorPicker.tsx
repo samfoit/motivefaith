@@ -249,7 +249,7 @@ export function ColorPicker({
           onClick={() => onChange(null)}
           className={cn(
             swatch,
-            "bg-bg-secondary border border-surface-hover text-text-tertiary",
+            "bg-elevated border border-border text-text-tertiary",
           )}
         >
           {none ? (

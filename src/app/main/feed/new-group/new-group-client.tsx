@@ -56,8 +56,8 @@ export function NewGroupClient({ userId, friends }: NewGroupClientProps) {
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+    <div>
+      <div className="max-w-lg mx-auto px-4 pt-4 space-y-5">
         {/* Form */}
         <Input
           label="Group name"
@@ -91,15 +91,19 @@ export function NewGroupClient({ userId, friends }: NewGroupClientProps) {
           </div>
         )}
 
-        <Button
-          className="w-full"
-          size="lg"
-          onClick={handleSubmit}
-          loading={createGroup.isPending}
-          disabled={!name.trim() || createGroup.isPending}
-        >
-          Create Group
-        </Button>
+        {/* Pinned above the bottom nav, so a long friend list doesn't push
+            the button out of reach. */}
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-4 border-t border-border bg-[var(--color-bg-primary)] px-4 py-3">
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handleSubmit}
+            loading={createGroup.isPending}
+            disabled={!name.trim() || createGroup.isPending}
+          >
+            Create Group
+          </Button>
+        </div>
       </div>
 
       {ToastElements}

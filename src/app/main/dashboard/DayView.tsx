@@ -107,7 +107,7 @@ export const DayView = memo(function DayView({
               aria-valuemin={0}
               aria-valuemax={todayHabits.length}
               aria-valuenow={completedCount}
-              className="flex-1 h-2 rounded-full bg-bg-secondary overflow-hidden"
+              className="flex-1 h-2 rounded-full bg-surface-hover overflow-hidden"
             >
               <div
                 className="h-full rounded-full bg-brand shadow-[var(--lamp-glow-bar)] dv-progress-bar"

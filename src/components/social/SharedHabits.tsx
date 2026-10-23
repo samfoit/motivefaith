@@ -206,7 +206,7 @@ function Stat({
   value: number;
 }) {
   return (
-    <div className="rounded-lg bg-bg-secondary px-3 py-2">
+    <div className="rounded-lg bg-elevated ring-1 ring-border px-3 py-2">
       <div className="flex items-center gap-1.5">
         {icon}
         <span className="font-mono text-lg font-semibold text-text-primary">

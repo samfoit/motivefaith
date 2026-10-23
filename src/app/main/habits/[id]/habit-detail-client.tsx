@@ -769,7 +769,7 @@ export function HabitDetailClient({
         {/* Tabs */}
         <Tabs.Root defaultValue="overview">
           <Tabs.List
-            className="flex gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)] mb-6"
+            className="flex gap-1 p-1 rounded-lg bg-elevated shadow-sm mb-6"
             aria-label="Habit detail sections"
           >
             <Tabs.Trigger value="overview" className={TAB_TRIGGER_CLASS}>

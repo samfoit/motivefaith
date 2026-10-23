@@ -391,7 +391,7 @@ function TabButton({
         "shrink-0 min-h-9 px-4 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5",
         active
           ? "bg-brand text-on-brand"
-          : "bg-bg-secondary text-text-secondary hover:bg-surface-hover",
+          : "bg-elevated ring-1 ring-border text-text-secondary hover:bg-surface-hover",
       )}
     >
       {children}
@@ -486,7 +486,7 @@ const TargetRow = memo(function TargetRow({
             ? "bg-brand-light/60 cursor-default"
             : selected
               ? "bg-brand-light active:scale-[0.99]"
-              : "bg-bg-secondary hover:bg-surface-hover active:scale-[0.99]",
+              : "bg-elevated ring-1 ring-border hover:bg-surface-hover active:scale-[0.99]",
         )}
       >
         <span className="shrink-0">{item.leading}</span>
