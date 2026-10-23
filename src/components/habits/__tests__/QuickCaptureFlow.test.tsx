@@ -28,6 +28,11 @@ vi.mock("@/lib/supabase/rpc", () => ({
 vi.mock("@/lib/utils/compress-image", () => ({
   compressImage: async () => new Blob(["webp"], { type: "image/webp" }),
 }));
+const checkVideo = vi.fn<(file: File) => Promise<string | null>>();
+vi.mock("@/lib/utils/check-video", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/utils/check-video")>()),
+  checkVideo: (file: File) => checkVideo(file),
+}));
 vi.mock("@/lib/hooks/useAuthUserId", () => ({ useAuthUserId: () => "me" }));
 vi.mock("@/lib/hooks/useShareCapture", () => ({
   useShareCapture: () => ({ mutateAsync: share }),
@@ -207,6 +212,65 @@ describe("QuickCaptureFlow share step", () => {
     const [path, , options] = upload.mock.calls[0];
     expect(path).toMatch(/\.webm$/);
     expect(options).toEqual({ contentType: "video/webm" });
+  });
+
+  it("says a file was too large, not to try again, when the bucket refuses its size", async () => {
+    upload.mockResolvedValue({
+      error: { statusCode: "413", message: "The object exceeded the maximum allowed size" },
+    });
+    useQuickCaptureStore.setState({ captureMode: "video" });
+    useQuickCaptureStore
+      .getState()
+      .setCapturedFile(new File(["mov"], "IMG_0001.MOV", { type: "video/quicktime" }));
+    renderFlow();
+
+    await userEvent.click(await screen.findByText("Bob"));
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    expect(await screen.findAllByText("That file is too large to send.")).not.toHaveLength(0);
+    expect(share).not.toHaveBeenCalled();
+  });
+});
+
+describe("QuickCaptureFlow file picker", () => {
+  // Opened from the camera's "unavailable" screen, as the camera is mocked away.
+  function pick(container: HTMLElement, file: File) {
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+  }
+
+  beforeEach(() => {
+    upload.mockReset().mockResolvedValue({ error: null });
+    share.mockReset().mockResolvedValue({});
+    checkVideo.mockReset().mockResolvedValue(null);
+    useQuickCaptureStore.getState().reset();
+    useQuickCaptureStore.getState().open();
+  });
+
+  it("turns away a video that can't be sent, saying why, before any upload", async () => {
+    const reason = "Videos can be up to 15 seconds. This one is 42.";
+    checkVideo.mockResolvedValue(reason);
+    const { container } = renderFlow();
+    const video = new File(["mov"], "IMG_0001.MOV", { type: "video/quicktime" });
+
+    pick(container, video);
+
+    expect(await screen.findAllByText(reason)).not.toHaveLength(0);
+    expect(checkVideo).toHaveBeenCalledWith(video);
+    expect(useQuickCaptureStore.getState().capturedFile).toBeNull();
+    expect(useQuickCaptureStore.getState().step).toBe("camera");
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it("takes a video that fits on to the send screen", async () => {
+    const { container } = renderFlow();
+    const video = new File(["mov"], "IMG_0001.MOV", { type: "video/quicktime" });
+
+    pick(container, video);
+
+    await waitFor(() => expect(useQuickCaptureStore.getState().step).toBe("share"));
+    expect(useQuickCaptureStore.getState().capturedFile).toBe(video);
+    expect(useQuickCaptureStore.getState().captureMode).toBe("video");
   });
 });
 

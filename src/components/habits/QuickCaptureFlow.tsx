@@ -29,6 +29,7 @@ import {
   ALLOWED_VIDEO_TYPES,
   MIME_TO_EXT,
 } from "@/lib/utils/media-types";
+import { checkVideo, isUploadTooLarge } from "@/lib/utils/check-video";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
 
@@ -45,12 +46,6 @@ const CameraCapture = dynamic(
     import("@/components/habits/CameraCapture").then((m) => m.CameraCapture),
   { loading: () => null },
 );
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-import { MAX_VIDEO_SIZE_MB } from "@/lib/constants/limits";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -261,7 +256,12 @@ export function QuickCaptureFlow() {
         reset();
       } catch (err) {
         console.error("Quick capture send failed:", err);
-        show({ title: "Couldn't send. Try again.", variant: "error" });
+        show({
+          title: isUploadTooLarge(err)
+            ? "That file is too large to send."
+            : "Couldn't send. Try again.",
+          variant: "error",
+        });
         setStep(direct ? "camera" : "share");
       }
     },
@@ -312,33 +312,33 @@ export function QuickCaptureFlow() {
   }, []);
 
   const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = "";
       if (!file) return;
 
-      if (
-        !ALLOWED_IMAGE_TYPES.has(file.type) &&
-        !ALLOWED_VIDEO_TYPES.has(file.type)
-      ) {
-        setError(
-          "Unsupported file type. Use JPEG, PNG, WebP, GIF, MP4, MOV, or WebM.",
-        );
+      // A toast, not the error banner: this picker is opened from the
+      // camera's "unavailable" screen, and the banner is on the send screen.
+      const refuse = (title: string) =>
+        show({ title, variant: "error", duration: 6000 });
+
+      const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
+      if (!ALLOWED_IMAGE_TYPES.has(file.type) && !isVideo) {
+        refuse("Unsupported file type. Use JPEG, PNG, WebP, GIF, MP4, MOV, or WebM.");
         return;
       }
 
-      if (
-        ALLOWED_VIDEO_TYPES.has(file.type) &&
-        file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024
-      ) {
-        setError(`Video must be under ${MAX_VIDEO_SIZE_MB}MB`);
-        return;
+      if (isVideo) {
+        const problem = await checkVideo(file);
+        if (problem) {
+          refuse(problem);
+          return;
+        }
       }
 
-      const mode = ALLOWED_VIDEO_TYPES.has(file.type) ? "video" : "photo";
-      acceptTake(file, mode, "");
+      acceptTake(file, isVideo ? "video" : "photo", "");
     },
-    [acceptTake],
+    [acceptTake, show],
   );
 
   const selectedCount = habitIds.length + friendIds.length + groupIds.length;

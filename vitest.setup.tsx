@@ -122,6 +122,25 @@ if (!Element.prototype.hasPointerCapture) {
   Element.prototype.releasePointerCapture = () => {};
 }
 
+// ---------------------------------------------------------------------------
+// Blob.arrayBuffer
+//
+// jsdom's Blob has slice() but not arrayBuffer(), which every browser the app
+// runs in has had for years. Reading a picked video's header goes through it
+// (see check-video.ts), so it is filled in from jsdom's own FileReader.
+// ---------------------------------------------------------------------------
+
+if (!Blob.prototype.arrayBuffer) {
+  Blob.prototype.arrayBuffer = function arrayBuffer(this: Blob) {
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(this);
+    });
+  };
+}
+
 // Stub IntersectionObserver
 class MockIntersectionObserver {
   observe = vi.fn();

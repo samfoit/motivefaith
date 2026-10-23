@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import dynamic from "next/dynamic";
 import { compressImage } from "@/lib/utils/compress-image";
 import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
+import { checkVideo, isUploadTooLarge } from "@/lib/utils/check-video";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { ModeHeader } from "@/components/ui/ModeHeader";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
@@ -80,11 +81,7 @@ export interface CompletionFormProps {
 // Constants
 // ---------------------------------------------------------------------------
 
-import {
-  MAX_MESSAGE_LENGTH,
-  MAX_IMAGE_SIZE_MB,
-  MAX_VIDEO_SIZE_MB,
-} from "@/lib/constants/limits";
+import { MAX_MESSAGE_LENGTH, MAX_IMAGE_SIZE_MB } from "@/lib/constants/limits";
 import type { CompletionType } from "@/lib/constants/completion";
 import {
   RAIN_CHECK_MOVE_WINDOW_DAYS,
@@ -312,13 +309,20 @@ export function CompletionForm({
 
   // --- File handling ---
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
 
+    // The error banner is in the sheet, which the camera overlay hides in the
+    // fallback flow, so a refusal closes the overlay to bring it into view.
+    const refuse = (message: string) => {
+      setCameraOpen(false);
+      setError(message);
+    };
+
     if (!ALLOWED_IMAGE_TYPES.has(file.type) && !ALLOWED_VIDEO_TYPES.has(file.type)) {
-      setError("Unsupported file type. Use JPEG, PNG, WebP, GIF, MP4, MOV, or WebM.");
+      refuse("Unsupported file type. Use JPEG, PNG, WebP, GIF, MP4, MOV, or WebM.");
       return;
     }
 
@@ -326,20 +330,21 @@ export function CompletionForm({
       ALLOWED_IMAGE_TYPES.has(file.type) &&
       file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024
     ) {
-      setError(`Image must be under ${MAX_IMAGE_SIZE_MB}MB`);
+      refuse(`Image must be under ${MAX_IMAGE_SIZE_MB}MB`);
       return;
     }
 
-    if (
-      ALLOWED_VIDEO_TYPES.has(file.type) &&
-      file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024
-    ) {
-      setError(`Video must be under ${MAX_VIDEO_SIZE_MB}MB`);
-      return;
+    if (ALLOWED_VIDEO_TYPES.has(file.type)) {
+      const problem = await checkVideo(file);
+      if (problem) {
+        refuse(problem);
+        return;
+      }
     }
 
     // Close camera overlay if it was open (fallback flow)
     setCameraOpen(false);
+    setError(null);
     setSelectedFile(file);
     setPreview(URL.createObjectURL(file));
     setMode("content");
@@ -398,7 +403,11 @@ export function CompletionForm({
       handleClose(false);
     } catch (err) {
       console.error("Upload failed:", err);
-      setError("Upload failed. Please try again.");
+      setError(
+        isUploadTooLarge(err)
+          ? "That file is too large to send."
+          : "Upload failed. Please try again.",
+      );
       setIsSubmitting(false);
     }
   };

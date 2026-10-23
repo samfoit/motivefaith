@@ -5,7 +5,15 @@
 
 // --- Upload limits ---
 export const MAX_IMAGE_SIZE_MB = 5;
-export const MAX_VIDEO_SIZE_MB = 10;
+/**
+ * Largest video that can be sent. The `completions` bucket's file_size_limit
+ * (005_storage.sql) is what enforces it; this copy, which must match it, lets
+ * a picked video be refused before it is uploaded instead of after. Phones
+ * record 1080p at about 1 MB a second and 4K at three to seven, so this, not
+ * the length, is what a short 4K clip runs into where it can't be shrunk on
+ * the phone first (see transcode-video, whose 720p comes to about 5 MB).
+ */
+export const MAX_VIDEO_SIZE_MB = 50;
 export const MAX_AUDIO_SIZE_MB = 5;
 export const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
 /**
@@ -17,6 +25,12 @@ export const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
 export const MAX_AVATAR_SOURCE_BYTES = 25 * 1024 * 1024;
 
 // --- Recording limits ---
+/**
+ * Longest video that can be sent: where the camera stops a take, and how much
+ * of a longer video picked from the camera roll is kept. Only the client can
+ * hold anyone to it — the server cannot read a video's length.
+ */
+export const MAX_VIDEO_DURATION_S = 15;
 export const MAX_AUDIO_DURATION_S = 120;
 
 // --- Content limits ---
