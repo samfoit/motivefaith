@@ -24,8 +24,12 @@ import { elementAspect, viewfinderCrop } from "@/lib/utils/viewfinder-crop";
 
 type CaptureStage = "viewfinder" | "recording" | "review";
 
-/** What the shutter makes: a photo or video, or a voice note with no camera. */
-type CaptureMode = "camera" | "voice";
+/**
+ * What the shutter makes. Photo is the default and still records a video on
+ * a hold, the way the system camera's does; Video starts a take on a tap, so
+ * nobody has to hold for it; Voice is a voice note with no camera.
+ */
+type CaptureMode = "video" | "photo" | "voice";
 
 export interface CameraCaptureProps {
   onCapture: (file: File, notes?: string) => void;
@@ -104,10 +108,11 @@ function countCoachOpen() {
   }
 }
 
-const MODES = [
-  { id: "camera", label: "Camera" },
+const MODES: readonly { id: CaptureMode; label: string }[] = [
+  { id: "video", label: "Video" },
+  { id: "photo", label: "Photo" },
   { id: "voice", label: "Voice" },
-] as const;
+];
 
 /**
  * Only a mouse or trackpad device gets the choice. A phone's or tablet's
@@ -150,10 +155,12 @@ function formatTime(seconds: number): string {
  * separate switch, and swiping the viewfinder moves along it too.
  */
 function ModeStrip({
+  modes,
   mode,
   hidden,
   onChange,
 }: {
+  modes: readonly { id: CaptureMode; label: string }[];
   mode: CaptureMode;
   /** Mid-take: keeps its height so the shutter does not jump. */
   hidden: boolean;
@@ -186,7 +193,7 @@ function ModeStrip({
         className="inline-flex h-full items-center gap-5 motion-safe:transition-transform motion-safe:duration-200 ease-out"
         style={{ transform: `translateX(${offset}px)` }}
       >
-        {MODES.map((m) => (
+        {modes.map((m) => (
           <button
             key={m.id}
             type="button"
@@ -237,9 +244,13 @@ export function CameraCapture({
     stopCamera,
   } = useCamera({ audio: true });
 
-  const [mode, setMode] = useState<CaptureMode>(
-    initialCapture?.file.type.startsWith("audio") ? "voice" : "camera",
-  );
+  const [mode, setMode] = useState<CaptureMode>(() => {
+    const type = initialCapture?.file.type ?? "";
+    if (type.startsWith("audio")) return "voice";
+    if (type.startsWith("video")) return "video";
+    return "photo";
+  });
+  const modes = allowVoice ? MODES : MODES.filter((m) => m.id !== "voice");
   const [stage, setStage] = useState<CaptureStage>(
     initialCapture ? "review" : "viewfinder",
   );
@@ -363,7 +374,7 @@ export function CameraCapture({
     return () => clearTimeout(t);
   }, [coach]);
   const showCoach =
-    coach && stage === "viewfinder" && mode === "camera" && !isPressed && !notice;
+    coach && stage === "viewfinder" && mode === "photo" && !isPressed && !notice;
 
   useEffect(() => {
     if (!notice) return;
@@ -383,8 +394,9 @@ export function CameraCapture({
       if (next === mode || stage !== "viewfinder") return;
       if (next === "voice" && !allowVoice) return;
       setMode(next);
-      if (next === "camera") requestCamera(facingMode);
-      else stopCamera();
+      // Photo and Video share the running camera; only Voice lets it go.
+      if (next === "voice") stopCamera();
+      else if (mode === "voice") requestCamera(facingMode);
     },
     [mode, stage, allowVoice, requestCamera, stopCamera, facingMode],
   );
@@ -645,9 +657,9 @@ export function CameraCapture({
     e.currentTarget.setPointerCapture?.(e.pointerId);
     shutterDragRef.current = { y: e.clientY, zoom: zoomRef.current, dragged: false };
 
-    // Only the viewfinder arms the hold: once a take is open, a press on the
-    // shutter is a tap to pause or resume, not another hold.
-    if (stage !== "viewfinder") return;
+    // Only Photo's viewfinder arms the hold: once a take is open, a press on
+    // the shutter is a tap to pause or resume, and Video starts on the tap.
+    if (stage !== "viewfinder" || mode !== "photo") return;
 
     holdTimerRef.current = setTimeout(() => {
       holdTimerRef.current = null;
@@ -656,7 +668,7 @@ export function CameraCapture({
         startRecording();
       }
     }, HOLD_THRESHOLD_MS);
-  }, [stage, startRecording]);
+  }, [stage, mode, startRecording]);
 
   /** Sliding up the shutter zooms in, the way it does while recording. */
   const handleShutterMove = useCallback(
@@ -692,24 +704,39 @@ export function CameraCapture({
       return;
     }
 
-    // Letting go no longer ends a take. The hand comes off the shutter and the
-    // viewfinder gestures are free again; a later tap is what pauses it.
-    if (stage !== "recording" || dragged || startedTake) return;
+    // Video's tap opens the take.
+    if (stage === "viewfinder") {
+      if (mode === "video" && !dragged) startRecording();
+      return;
+    }
+
+    // A take held open in Photo ends when it is let go, the way the system
+    // camera's does. Hands-free takes are what Video is for.
+    if (startedTake) {
+      if (stage === "recording") finishRecording();
+      return;
+    }
+
+    // A take started in Video carries on after the hand comes off the
+    // shutter; a later tap is what pauses it.
+    if (stage !== "recording" || dragged) return;
 
     if (isPaused) resumeRecording();
     else pauseRecording();
-  }, [stage, capturePhoto, isPaused, pauseRecording, resumeRecording]);
+  }, [stage, mode, capturePhoto, startRecording, finishRecording, isPaused, pauseRecording, resumeRecording]);
 
   const handlePointerCancel = useCallback(() => {
     setIsPressed(false);
     shutterDragRef.current = null;
+    // A held take loses its finger here too: keep what was recorded.
+    if (startedTakeRef.current && stage === "recording") finishRecording();
     startedTakeRef.current = false;
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
     isHoldingRef.current = false;
-  }, []);
+  }, [stage, finishRecording]);
 
   // --- Gallery pick ---
   const handleGalleryPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -951,23 +978,29 @@ export function CameraCapture({
     else resumeVoice();
   }, [voiceStatus, startVoice, pauseVoice, resumeVoice]);
 
+  /** One along the mode strip: a swipe left brings the next one over. */
+  const stepMode = (by: 1 | -1) => {
+    const next = modes[modes.findIndex((m) => m.id === mode) + by];
+    if (next) switchMode(next.id);
+  };
+
   // --- Viewfinder gestures ---
   const { handlers: gestureHandlers, isPinching } = useCameraGestures({
     // Off mid voice take: nothing on that screen answers a gesture, and a
     // stray swipe must not close it.
-    enabled: stage !== "review" && (mode === "camera" || voiceStatus === "idle"),
+    enabled: stage !== "review" && (mode !== "voice" || voiceStatus === "idle"),
     onDoubleTap: handleFlip,
     onPinchStart: () => {
       pinchStartZoomRef.current = zoomRef.current;
     },
     onPinch: (scale) => {
-      if (mode === "camera") setZoom(pinchStartZoomRef.current * scale);
+      if (mode !== "voice") setZoom(pinchStartZoomRef.current * scale);
     },
     // Flicking the viewfinder away closes it, and flicking it sideways
     // changes mode, but neither out from under a take in progress.
     onSwipeDown: stage === "viewfinder" ? handleClose : undefined,
-    onSwipeLeft: stage === "viewfinder" ? () => switchMode("voice") : undefined,
-    onSwipeRight: stage === "viewfinder" ? () => switchMode("camera") : undefined,
+    onSwipeLeft: stage === "viewfinder" ? () => stepMode(1) : undefined,
+    onSwipeRight: stage === "viewfinder" ? () => stepMode(-1) : undefined,
   });
 
   // --- Derived ---
@@ -1292,13 +1325,12 @@ export function CameraCapture({
         <div className="flex flex-col items-center justify-center px-6 pt-2 pb-5">
           {(view === "viewfinder" || view === "recording") && (
             <>
-              {allowVoice && (
-                <ModeStrip
-                  mode={mode}
-                  hidden={view === "recording"}
-                  onChange={switchMode}
-                />
-              )}
+              <ModeStrip
+                modes={modes}
+                mode={mode}
+                hidden={view === "recording"}
+                onChange={switchMode}
+              />
               <div className="mt-2 flex items-center justify-center w-full max-w-xs">
                 {/* Gallery button — hidden during recording */}
                 <div className="flex-1 flex justify-center">
@@ -1379,7 +1411,9 @@ export function CameraCapture({
                       view === "viewfinder"
                         ? isVoice
                           ? "Start recording"
-                          : "Tap for photo, hold for video, slide up to zoom"
+                          : mode === "video"
+                            ? "Start video, slide up to zoom"
+                            : "Tap for photo, hold for video, slide up to zoom"
                         : paused
                           ? "Resume recording"
                           : "Pause recording"
@@ -1389,7 +1423,7 @@ export function CameraCapture({
                       <div
                         className={cn(
                           "w-14 h-14 rounded-full transition-transform duration-100",
-                          isVoice ? "bg-red-500" : "bg-white",
+                          mode === "photo" ? "bg-white" : "bg-red-500",
                           isPressed && "scale-90",
                         )}
                       />

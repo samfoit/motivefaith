@@ -154,6 +154,18 @@ async function pressShutter(holdMs: number) {
   });
 }
 
+/** Opens a hands-free take: Video mode, then a tap of the shutter. */
+async function startVideo() {
+  await act(async () => {
+    fireEvent.click(screen.getByRole("radio", { name: "Video" }));
+  });
+  const shutter = screen.getByRole("button", { name: /start video/i });
+  await act(async () => {
+    fireEvent.pointerDown(shutter, { pointerId: 1, clientX: 100, clientY: 600 });
+    fireEvent.pointerUp(shutter, { pointerId: 1, clientX: 100, clientY: 600 });
+  });
+}
+
 async function renderCamera() {
   const onCapture = vi.fn();
   const view = render(
@@ -206,12 +218,22 @@ describe("CameraCapture video takes", () => {
     Reflect.deleteProperty(navigator, "mediaDevices");
   });
 
-  it("keeps recording after the shutter is released", async () => {
+  it("ends a take held open in Photo when the shutter is let go", async () => {
     await renderCamera();
 
     await pressShutter(400); // past the hold threshold
 
     expect(FakeMediaRecorder.latest.start).toHaveBeenCalled();
+    expect(FakeMediaRecorder.latest.stop).toHaveBeenCalledTimes(1);
+    expect(FakeMediaRecorder.latest.pause).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /use video/i })).toBeInTheDocument();
+  });
+
+  it("keeps a Video take recording after the shutter is released", async () => {
+    await renderCamera();
+
+    await startVideo();
+
     expect(FakeMediaRecorder.latest.state).toBe("recording");
     expect(FakeMediaRecorder.latest.stop).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Pause recording" })).toBeInTheDocument();
@@ -219,7 +241,7 @@ describe("CameraCapture video takes", () => {
 
   it("pauses on the next tap and picks up again on the one after", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     await pressShutter(50);
     expect(FakeMediaRecorder.latest.pause).toHaveBeenCalledTimes(1);
@@ -235,14 +257,14 @@ describe("CameraCapture video takes", () => {
   it("does not pause on the release of the press that opened the take", async () => {
     await renderCamera();
 
-    await pressShutter(400);
+    await startVideo();
 
     expect(FakeMediaRecorder.latest.pause).not.toHaveBeenCalled();
   });
 
   it("counts only the time actually recorded against the limit", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     await act(async () => void vi.advanceTimersByTime(3000));
     expect(screen.getByText("00:03")).toBeInTheDocument();
@@ -258,7 +280,7 @@ describe("CameraCapture video takes", () => {
 
   it("finishes on the check, from a paused take too", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     await pressShutter(50); // pause
 
     await act(async () => {
@@ -271,17 +293,43 @@ describe("CameraCapture video takes", () => {
 
   it("stops itself once the take reaches the limit", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     await act(async () => void vi.advanceTimersByTime(15_000));
 
     expect(FakeMediaRecorder.latest.stop).toHaveBeenCalledTimes(1);
   });
 
+  it("opens on Photo, where a tap takes a picture rather than a video", async () => {
+    await renderCamera();
+
+    expect(screen.getByRole("radio", { name: "Photo" })).toHaveAttribute("aria-checked", "true");
+    await pressShutter(50);
+
+    expect(FakeMediaRecorder.instances).toHaveLength(0);
+  });
+
+  it("starts a take on a tap in Video, with no hold", async () => {
+    await renderCamera();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "Video" }));
+    });
+
+    const shutter = screen.getByRole("button", { name: /start video/i });
+    await act(async () => {
+      fireEvent.pointerDown(shutter, { pointerId: 1, clientX: 100, clientY: 600 });
+      fireEvent.pointerUp(shutter, { pointerId: 1, clientX: 100, clientY: 600 });
+    });
+
+    expect(FakeMediaRecorder.latest.start).toHaveBeenCalled();
+    expect(FakeMediaRecorder.latest.pause).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Pause recording" })).toBeInTheDocument();
+  });
+
   it("ends the take on a tap where the recorder cannot pause", async () => {
     // Safari before 14.1 exposes no pause().
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     const recorder = FakeMediaRecorder.latest;
     (recorder as { pause?: unknown }).pause = undefined;
@@ -318,7 +366,7 @@ describe("CameraCapture retake", () => {
       fireEvent.click(screen.getByRole("button", { name: /switch camera/i }));
     });
 
-    await pressShutter(400);
+    await startVideo();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /finish video/i }));
     });
@@ -434,7 +482,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("records the canvas paired with the microphone, not the camera track", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     const recorded = FakeMediaRecorder.latest.stream;
     expect(recorded.getVideoTracks().map((t) => t.label)).toEqual(["canvas"]);
@@ -443,7 +491,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("leaves the take running across a flip", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     const recorder = FakeMediaRecorder.latest;
 
     camera.getUserMedia.mockClear();
@@ -460,7 +508,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("does not disturb the microphone it is recording", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     await flip();
 
@@ -469,7 +517,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("keeps the clock running across a flip", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     await act(async () => void vi.advanceTimersByTime(2000));
 
     await flip();
@@ -480,7 +528,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("offers the flip during a take but not in review", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     expect(screen.getByRole("button", { name: /switch camera/i })).toBeInTheDocument();
 
     await act(async () => {
@@ -498,7 +546,7 @@ describe("CameraCapture mid-take flip", () => {
     ) as unknown as HTMLCanvasElement["getContext"];
 
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     const recorder = FakeMediaRecorder.latest;
     expect(recorder.stream.getVideoTracks().map((t) => t.label)).toEqual(["camera-1"]);
 
@@ -590,7 +638,7 @@ describe("CameraCapture framing", () => {
   it("hides the framing switch mid-take, when the shape is already fixed", async () => {
     finePointer(true);
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     expect(screen.queryByRole("button", { name: /Fill the screen|Show the whole frame/ })).toBeNull();
   });
 
@@ -617,7 +665,7 @@ describe("CameraCapture framing", () => {
       return el;
     });
 
-    await pressShutter(400);
+    await startVideo();
 
     const take = created.at(-1)!;
     expect(take.width / take.height).toBeCloseTo(16 / 9, 2);
@@ -684,7 +732,7 @@ describe("CameraCapture voice mode", () => {
     expect(camera.getUserMedia).toHaveBeenCalledWith({ audio: true, video: false });
     expect(FakeMediaRecorder.latest.state).toBe("recording");
     // The mode belongs to the take now.
-    expect(screen.queryByRole("radio", { name: "Camera" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Photo" })).not.toBeInTheDocument();
 
     await act(async () => void vi.advanceTimersByTime(2000));
     await tapVoiceShutter();
@@ -790,6 +838,8 @@ describe("CameraCapture voice mode", () => {
     await act(async () => {});
 
     expect(screen.queryByRole("radio", { name: "Voice" })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Video" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Photo" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("offers no voice note on a denied camera when voice is off", async () => {
@@ -864,7 +914,10 @@ describe("CameraCapture first-opens tip and mode swipes", () => {
       fireEvent.pointerMove(voiceSurface, { pointerId: 3, clientX: 300, clientY: 305, timeStamp: 100 });
       fireEvent.pointerUp(voiceSurface, { pointerId: 3, clientX: 300, clientY: 305, timeStamp: 150 });
     });
-    expect(screen.getByRole("radio", { name: "Camera" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Photo" })).toHaveAttribute("aria-checked", "true");
+
+    await swipe(100, 300);
+    expect(screen.getByRole("radio", { name: "Video" })).toHaveAttribute("aria-checked", "true");
   });
 });
 
