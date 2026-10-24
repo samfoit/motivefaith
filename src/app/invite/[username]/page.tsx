@@ -72,7 +72,7 @@ async function resolve(userId: string, username: string): Promise<InviteState> {
 
   const { data: me } = await supabase
     .from("profiles")
-    .select("username, date_of_birth")
+    .select("username, has_date_of_birth")
     .eq("id", userId)
     .single();
 
@@ -81,7 +81,7 @@ async function resolve(userId: string, username: string): Promise<InviteState> {
   // who abandoned that form and opened an invite link would otherwise send a
   // friend request under a placeholder `user_xxxxxxxx` username. The invite is
   // held rather than dropped: the client stores it and comes back here.
-  if (!me?.date_of_birth) return { kind: "incomplete_profile" };
+  if (!me?.has_date_of_birth) return { kind: "incomplete_profile" };
 
   // Checked before the lookup, because `search_profiles` excludes the caller
   // and would otherwise report the viewer's own link as a dead one.

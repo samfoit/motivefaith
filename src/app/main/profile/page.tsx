@@ -4,7 +4,7 @@ import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import { ProfileClient } from "./profile-client";
 import ProfileLoading from "./loading";
-import type { Tables, Json } from "@/lib/supabase/types";
+import type { Json } from "@/lib/supabase/types";
 
 export const revalidate = 120;
 
@@ -27,10 +27,12 @@ async function ProfileData({ userId }: { userId: string }) {
 
   type NotificationSettings = { push_subscription: Json | null; notification_prefs: Json | null };
 
+  // Only the columns anyone may read are selected here; notification settings
+  // are the owner's alone and come through their own function (042).
   const [{ data: profile }, settingsResult, { data: isAdmin }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, display_name, username, avatar_url, timezone, date_of_birth, created_at")
+      .select("display_name, username, avatar_url")
       .eq("id", userId)
       .single(),
     untypedRpc<NotificationSettings[]>(supabase, "get_own_notification_settings"),
@@ -39,8 +41,8 @@ async function ProfileData({ userId }: { userId: string }) {
 
   const settings = settingsResult.data?.[0] ?? null;
 
-  const fullProfile: Tables<"profiles"> | null = profile
-    ? { ...profile, push_subscription: settings?.push_subscription ?? null, notification_prefs: settings?.notification_prefs ?? null }
+  const fullProfile = profile
+    ? { ...profile, notification_prefs: settings?.notification_prefs ?? null }
     : null;
 
   return <ProfileClient userId={userId} profile={fullProfile} isAdmin={!!isAdmin} />;

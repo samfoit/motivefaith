@@ -98,10 +98,10 @@ export async function destinationAfterGoogle(): Promise<string> {
   if (!user) return "/auth/login";
   const { data: profile } = await supabase
     .from("profiles")
-    .select("avatar_url, date_of_birth")
+    .select("avatar_url, has_date_of_birth")
     .eq("id", user.id)
     .single();
-  if (!profile?.date_of_birth) return "/auth/complete-profile";
+  if (!profile?.has_date_of_birth) return "/auth/complete-profile";
   if (!profile.avatar_url) return "/auth/onboarding";
   return destinationAfterAuth();
 }

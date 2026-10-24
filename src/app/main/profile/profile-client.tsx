@@ -36,7 +36,14 @@ import { ShareInviteSheet } from "@/components/social/ShareInviteSheet";
 
 interface ProfileClientProps {
   userId: string;
-  profile: Tables<"profiles"> | null;
+  /**
+   * What this page shows and edits. Notification settings come from
+   * get_own_notification_settings: the column can't be read directly (042).
+   */
+  profile: Pick<
+    Tables<"profiles">,
+    "display_name" | "username" | "avatar_url" | "notification_prefs"
+  > | null;
   isAdmin?: boolean;
 }
 

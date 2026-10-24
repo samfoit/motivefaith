@@ -1,13 +1,15 @@
 -- =============================================================================
--- What a user may write to their own profile (migration 041)
+-- What a user may write and read in profiles (migrations 041, 042)
 -- =============================================================================
 --   psql "postgresql://postgres:postgres@localhost:54322/postgres" -f tests/profile-privileges.test.sql
 --
--- RLS lets a user write their own profile row; privileges decide which of its
--- columns. Before 041 that was all of them, is_admin included, so any user
--- could make themselves an admin with one update. This checks the way in is
--- shut — by update, upsert and insert — and that every way the app really
--- changes a profile still works.
+-- RLS decides which profile rows a user may touch; privileges decide which of
+-- their columns. Before 041 that was all of them, is_admin included, so any
+-- user could make themselves an admin with one update. This checks the way in
+-- is shut — by update, upsert and insert — and that every way the app really
+-- changes a profile still works. Before 042 it was all of them for reading
+-- too, so friends saw each other's date of birth: the second half checks only
+-- the public columns are left.
 --
 -- Everything is rolled back at the end.
 -- =============================================================================
@@ -231,6 +233,119 @@ END $$;
 
 RESET role;
 
+-- ===========================================================================
+-- Reads (migration 042)
+-- ===========================================================================
+-- Friends may read each other's rows, but only the columns that are anyone's
+-- business. pam's date of birth and notification settings were set above.
+
+INSERT INTO public.friendships (register_id, addressee_id, status) VALUES
+  ('81000000-0000-4000-8000-000000000001', '82000000-0000-4000-8000-000000000002', 'accepted');
+
+-- ---------------------------------------------------------------------------
+-- Test 9: a friend sees who someone is, and nothing private
+-- ---------------------------------------------------------------------------
+
+SET LOCAL role TO authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"82000000-0000-4000-8000-000000000002","role":"authenticated"}';
+
+DO $$
+DECLARE
+  private_column TEXT;
+BEGIN
+  ASSERT (SELECT count(*) FROM public.profiles
+          WHERE id = '81000000-0000-4000-8000-000000000001'
+            AND display_name IS NOT NULL AND username IS NOT NULL
+            AND timezone IS NOT NULL AND created_at IS NOT NULL
+            AND has_date_of_birth) = 1,
+    'TEST 9 FAILED: a friend should still see who pam is';
+
+  FOREACH private_column IN ARRAY ARRAY[
+    'date_of_birth', 'notification_prefs', 'push_subscription', 'is_admin',
+    'last_weekly_summary_date', 'checkin_sharing_confirmed_at'
+  ] LOOP
+    BEGIN
+      EXECUTE format(
+        'SELECT %I FROM public.profiles WHERE id = %L',
+        private_column, '81000000-0000-4000-8000-000000000001'
+      );
+      RAISE EXCEPTION 'TEST 9 FAILED: a friend read pam''s %', private_column;
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+  END LOOP;
+  RAISE NOTICE 'TEST 9 PASSED: a friend sees who someone is, and nothing private';
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Test 10: the owner gets their own private fields only through functions
+-- ---------------------------------------------------------------------------
+
+SET LOCAL request.jwt.claims TO '{"sub":"81000000-0000-4000-8000-000000000001","role":"authenticated"}';
+
+DO $$
+BEGIN
+  -- Column privileges hold for every row, the owner's included: what is
+  -- theirs comes from functions that answer only for the caller.
+  BEGIN
+    PERFORM date_of_birth FROM public.profiles WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST 10 FAILED: date_of_birth was readable directly';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  -- And select("*") is refused outright, so it can't creep back in.
+  BEGIN
+    PERFORM * FROM public.profiles WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST 10 FAILED: select * was allowed';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  ASSERT (SELECT notification_prefs->>'enabled' FROM public.get_own_notification_settings()) = 'false',
+    'TEST 10 FAILED: get_own_notification_settings no longer answers';
+  ASSERT (SELECT has_date_of_birth FROM public.profiles WHERE id = auth.uid()),
+    'TEST 10 FAILED: the owner can''t tell their profile is finished';
+  RAISE NOTICE 'TEST 10 PASSED: the owner gets their own private fields only through functions';
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Test 11: has_date_of_birth follows the date, and can't be set by hand
+-- ---------------------------------------------------------------------------
+
+SET LOCAL request.jwt.claims TO '{"sub":"82000000-0000-4000-8000-000000000002","role":"authenticated"}';
+
+DO $$
+BEGIN
+  ASSERT NOT (SELECT has_date_of_birth FROM public.profiles WHERE id = auth.uid()),
+    'TEST 11 FAILED: quin has no date of birth yet';
+
+  BEGIN
+    UPDATE public.profiles SET has_date_of_birth = true WHERE id = auth.uid();
+    RAISE EXCEPTION 'TEST 11 FAILED: has_date_of_birth was written';
+  -- Refused before privileges are even looked at: it is generated.
+  EXCEPTION WHEN generated_always OR insufficient_privilege THEN NULL;
+  END;
+
+  PERFORM public.complete_oauth_profile('Quin', 'pp_quin', '1991-02-03');
+  ASSERT (SELECT has_date_of_birth FROM public.profiles WHERE id = auth.uid()),
+    'TEST 11 FAILED: finishing the profile did not show';
+  RAISE NOTICE 'TEST 11 PASSED: has_date_of_birth follows the date, and can''t be set by hand';
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Test 12: signed out, reads still come back empty rather than failing
+-- ---------------------------------------------------------------------------
+
+RESET role;
+SET LOCAL role TO anon;
+
+DO $$
+BEGIN
+  ASSERT (SELECT count(*) FROM public.profiles
+          WHERE id = '81000000-0000-4000-8000-000000000001') = 0,
+    'TEST 12 FAILED: anon saw a profile';
+  RAISE NOTICE 'TEST 12 PASSED: signed out, reads still come back empty rather than failing';
+END $$;
+
+RESET role;
 
 -- ---------------------------------------------------------------------------
 

@@ -820,6 +820,7 @@ export type Database = {
           created_at: string | null
           date_of_birth: string | null
           display_name: string
+          has_date_of_birth: boolean
           id: string
           notification_prefs: Json | null
           push_subscription: Json | null
@@ -831,6 +832,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           display_name: string
+          has_date_of_birth?: never
           id: string
           notification_prefs?: Json | null
           push_subscription?: Json | null
@@ -842,6 +844,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           display_name?: string
+          has_date_of_birth?: never
           id?: string
           notification_prefs?: Json | null
           push_subscription?: Json | null

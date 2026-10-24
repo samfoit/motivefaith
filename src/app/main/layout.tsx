@@ -53,7 +53,7 @@ async function AuthGate({ children }: { children: React.ReactNode }) {
     redirect("/auth/stale");
   }
 
-  if (!profile.date_of_birth) {
+  if (!profile.has_date_of_birth) {
     redirect("/auth/complete-profile");
   }
 

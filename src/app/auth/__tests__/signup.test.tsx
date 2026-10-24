@@ -261,7 +261,7 @@ describe("SignupPage with Google", () => {
   });
 
   it("sends someone new on to finish their profile, where the age check and terms are", async () => {
-    mockProfile.mockResolvedValue({ data: { avatar_url: null, date_of_birth: null } });
+    mockProfile.mockResolvedValue({ data: { avatar_url: null, has_date_of_birth: false } });
     render(<SignupPage />);
 
     await signInWithGoogle();
@@ -272,7 +272,7 @@ describe("SignupPage with Google", () => {
 
   it("takes someone who already has an account straight in", async () => {
     mockProfile.mockResolvedValue({
-      data: { avatar_url: "me.png", date_of_birth: "2000-01-15" },
+      data: { avatar_url: "me.png", has_date_of_birth: true },
     });
     render(<SignupPage />);
 
