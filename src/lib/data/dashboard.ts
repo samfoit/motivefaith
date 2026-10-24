@@ -132,10 +132,15 @@ export async function fetchDashboard(
           c.completed_at != null &&
           c.completion_type != null,
       )
-      .map(({ id, completed_at, completion_type }) => ({
+      // rain_check_moved_to is what puts a makeup on the day it was moved
+      // to, says "Moved to …" on the day it was taken, and lets a broken
+      // promise end the streak below. Left out, every moved rain check read
+      // as a plain skip.
+      .map(({ id, completed_at, completion_type, rain_check_moved_to }) => ({
         id,
         completed_at,
         completion_type,
+        rain_check_moved_to,
       }));
 
     return {
