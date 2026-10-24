@@ -15,17 +15,11 @@ const CONFIRM_PHRASE = "delete my account";
 interface DeleteAccountSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  hasMfa: boolean;
 }
 
-export function DeleteAccountSheet({
-  open,
-  onOpenChange,
-  hasMfa,
-}: DeleteAccountSheetProps) {
+export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetProps) {
   const queryClient = useQueryClient();
   const [password, setPassword] = useState("");
-  const [totpCode, setTotpCode] = useState("");
   const [phrase, setPhrase] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,13 +30,10 @@ export function DeleteAccountSheet({
   } = useCaptcha();
 
   const phraseMatches = phrase.trim().toLowerCase() === CONFIRM_PHRASE;
-  const totpValid = !hasMfa || /^\d{6}$/.test(totpCode);
-  const canSubmit =
-    password.length > 0 && phraseMatches && totpValid && !loading;
+  const canSubmit = password.length > 0 && phraseMatches && !loading;
 
   const reset = () => {
     setPassword("");
-    setTotpCode("");
     setPhrase("");
     setError(null);
   };
@@ -57,7 +48,6 @@ export function DeleteAccountSheet({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           password,
-          totpCode: hasMfa ? totpCode : undefined,
           captchaToken: captchaToken ?? undefined,
         }),
       });
@@ -163,28 +153,6 @@ export function DeleteAccountSheet({
                 )}
               />
             </div>
-
-            {hasMfa && (
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-text-primary">
-                  Two-factor code
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={totpCode}
-                  onChange={(e) =>
-                    setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  className={cn(
-                    "w-full rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary text-center font-mono tracking-widest",
-                    "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
-                  )}
-                />
-              </div>
-            )}
 
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-text-primary">

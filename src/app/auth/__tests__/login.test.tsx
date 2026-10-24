@@ -1,29 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 
-// Mock supabase client.
-//
-// After a successful sign-in the page checks the session's assurance level to
-// decide whether to run an MFA challenge, so `auth.mfa` has to exist or the
-// success path throws before it ever redirects. The default here is "no MFA
-// enrolled" (already at the required level); the MFA tests override it.
+// Mock supabase client
 const mockSignInWithPassword = vi.fn();
 const mockSignInWithOAuth = vi.fn();
-const mockGetAal = vi.fn();
-const mockListFactors = vi.fn();
-const mockChallenge = vi.fn();
-const mockVerify = vi.fn();
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     auth: {
       signInWithPassword: mockSignInWithPassword,
       signInWithOAuth: mockSignInWithOAuth,
-      mfa: {
-        getAuthenticatorAssuranceLevel: mockGetAal,
-        listFactors: mockListFactors,
-        challenge: mockChallenge,
-        verify: mockVerify,
-      },
     },
   }),
 }));
@@ -84,12 +69,6 @@ import LoginPage from "../login/page";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: the session already satisfies the required assurance level, i.e.
-  // the user has no MFA factor enrolled.
-  mockGetAal.mockResolvedValue({
-    data: { currentLevel: "aal1", nextLevel: "aal1" },
-  });
-  mockListFactors.mockResolvedValue({ data: { totp: [] } });
 });
 
 function fillAndSubmit(email = "test@test.com", password = "password123") {
