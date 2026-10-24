@@ -21,7 +21,8 @@
     "test:capture-share": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/capture-share.test.sql",
     "test:push-subscriptions": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/push-subscriptions.test.sql",
     "test:checkin-sharing": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/checkin-sharing.test.sql",
-    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share && npm run test:push-subscriptions && npm run test:checkin-sharing",
+    "test:profile-privileges": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/profile-privileges.test.sql",
+    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share && npm run test:push-subscriptions && npm run test:checkin-sharing && npm run test:profile-privileges",
     "analyze": "ANALYZE=true next build"
   },
   "dependencies": {

@@ -121,24 +121,36 @@ BEGIN
   RAISE NOTICE 'TEST 1a PASSED: Bob can read Alice profile';
 END $$;
 
--- As Bob: CANNOT update Alice's profile
+-- As Bob: CANNOT update Alice's profile. Only avatar_url and timezone may be
+-- written directly at all (041); on those, RLS keeps him to his own row.
 DO $$
 BEGIN
-  UPDATE public.profiles SET display_name = 'Hacked' WHERE id = '11111111-1111-1111-1111-111111111111';
-  ASSERT NOT FOUND OR (SELECT display_name FROM public.profiles WHERE id = '11111111-1111-1111-1111-111111111111') = 'Alice',
+  BEGIN
+    UPDATE public.profiles SET display_name = 'Hacked' WHERE id = '11111111-1111-1111-1111-111111111111';
+    RAISE EXCEPTION 'TEST 1b FAILED: display_name should not be writable directly';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE public.profiles SET timezone = 'Hacked/Zone' WHERE id = '11111111-1111-1111-1111-111111111111';
+  ASSERT NOT FOUND,
     'TEST 1b FAILED: Bob should NOT be able to update Alice profile';
   RAISE NOTICE 'TEST 1b PASSED: Bob cannot update Alice profile';
 END $$;
 
--- As Bob: CAN update own profile
+-- As Bob: CAN update own profile — his name through update_own_profile, his
+-- timezone directly, as the app does.
 DO $$
+DECLARE v_timezone TEXT;
 BEGIN
-  UPDATE public.profiles SET display_name = 'Bobby' WHERE id = '22222222-2222-2222-2222-222222222222';
-  ASSERT (SELECT display_name FROM public.profiles WHERE id = '22222222-2222-2222-2222-222222222222') = 'Bobby',
+  SELECT timezone INTO v_timezone FROM public.profiles WHERE id = '22222222-2222-2222-2222-222222222222';
+  PERFORM public.update_own_profile(p_display_name := 'Bobby');
+  UPDATE public.profiles SET timezone = 'Europe/Paris' WHERE id = '22222222-2222-2222-2222-222222222222';
+  ASSERT (SELECT display_name = 'Bobby' AND timezone = 'Europe/Paris'
+          FROM public.profiles WHERE id = '22222222-2222-2222-2222-222222222222'),
     'TEST 1c FAILED: Bob should be able to update own profile';
   RAISE NOTICE 'TEST 1c PASSED: Bob can update own profile';
   -- Reset
-  UPDATE public.profiles SET display_name = 'Bob' WHERE id = '22222222-2222-2222-2222-222222222222';
+  PERFORM public.update_own_profile(p_display_name := 'Bob');
+  UPDATE public.profiles SET timezone = v_timezone WHERE id = '22222222-2222-2222-2222-222222222222';
 END $$;
 
 -- ---------------------------------------------------------------------------
