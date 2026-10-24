@@ -24,7 +24,9 @@ function pendingCount(page: Page): Promise<number> {
   return page.evaluate(
     () =>
       new Promise<number>((resolve) => {
-        const open = indexedDB.open("motive-offline", 1);
+        // No version: asking for one below the page's DB_VERSION fails,
+        // and the count would read -1.
+        const open = indexedDB.open("motive-offline");
         open.onsuccess = () => {
           const db = open.result;
           if (!db.objectStoreNames.contains("pending-completions")) return resolve(0);

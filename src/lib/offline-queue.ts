@@ -72,7 +72,12 @@ function openDB(): Promise<IDBDatabase> {
     };
 
     request.onsuccess = (event) => {
-      resolve((event.target as IDBOpenDBRequest).result);
+      const db = (event.target as IDBOpenDBRequest).result;
+      // Every call opens its own connection and none is ever closed. Hand
+      // them over when a newer page — in another tab, or after an update —
+      // raises DB_VERSION, or its upgrade waits until this tab is closed.
+      db.onversionchange = () => db.close();
+      resolve(db);
     };
 
     request.onerror = () => {
