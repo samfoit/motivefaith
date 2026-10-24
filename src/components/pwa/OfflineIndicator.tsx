@@ -1,28 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getPendingCount, getOutboxCount } from "@/lib/offline-queue";
 import { subscribeToPending } from "@/lib/outbox-drain";
-
-function subscribe(callback: () => void) {
-  window.addEventListener("online", callback);
-  window.addEventListener("offline", callback);
-  return () => {
-    window.removeEventListener("online", callback);
-    window.removeEventListener("offline", callback);
-  };
-}
-
-function getSnapshot() {
-  return navigator.onLine;
-}
-
-function getServerSnapshot() {
-  return true;
-}
+import { useOnline } from "@/lib/hooks/useOnline";
 
 export function OfflineIndicator() {
-  const online = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const online = useOnline();
   const [pending, setPending] = useState(0);
 
   const refresh = useCallback(() => {

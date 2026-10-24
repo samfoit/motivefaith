@@ -30,13 +30,18 @@ export interface ShareCaptureResult {
  * Send one uploaded capture to any mix of habits, friends and groups.
  *
  * `share_capture` inserts every row in one transaction, so a send either
- * lands everywhere or nowhere. Not queued offline: the upload before it needs
- * the network anyway, the same as a photo check-in.
+ * lands everywhere or nowhere. Offline, the caller queues the take instead
+ * (`queueCaptureShare`), and the outbox drain sends it once the connection is
+ * back.
  */
 export function useShareCapture() {
   const supabase = createClient();
 
   return useMutation({
+    // Run even when React Query thinks the device is offline: paused, a send
+    // whose connection dropped after the upload would sit on "Uploading…"
+    // until it came back, when the caller could have queued it instead.
+    networkMode: "always",
     mutationFn: async (params: ShareCaptureParams) => {
       const { data, error } = await untypedRpc<ShareCaptureResult>(
         supabase,

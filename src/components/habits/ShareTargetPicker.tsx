@@ -62,6 +62,12 @@ type Tab = "all" | ShareTarget;
 interface ShareTargetPickerProps {
   habits: PickerHabit[];
   habitsLoading: boolean;
+  /**
+   * Why today's habits couldn't be listed, said where they would be. Without
+   * it an empty list reads "All done for today!", which is only true when
+   * the list actually arrived.
+   */
+  habitsUnavailable?: string | null;
   friends: PickerFriend[];
   groups: PickerGroup[];
   selected: Record<ShareTarget, string[]>;
@@ -126,6 +132,7 @@ export function reachedByHabits(
 export function ShareTargetPicker({
   habits,
   habitsLoading,
+  habitsUnavailable,
   friends,
   groups,
   selected,
@@ -266,7 +273,7 @@ export function ShareTargetPicker({
                 </p>
               ) : kind === "habit" && rows.length === 0 ? (
                 <p className="text-sm text-text-secondary py-3">
-                  All done for today!
+                  {habitsUnavailable ?? "All done for today!"}
                 </p>
               ) : (
                 <ul className="space-y-1.5">
@@ -326,7 +333,7 @@ export function SelectedTargets({
   groups,
   selected,
   onToggle,
-}: Omit<ShareTargetPickerProps, "habitsLoading">) {
+}: Omit<ShareTargetPickerProps, "habitsLoading" | "habitsUnavailable">) {
   const chips = useMemo(() => {
     const habitById = new Map(habits.map((h) => [h.id, `${h.emoji} ${h.title}`]));
     const friendById = new Map(friends.map((f) => [f.id, f.display_name]));

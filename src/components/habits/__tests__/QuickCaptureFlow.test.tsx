@@ -1,29 +1,32 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ToastProvider } from "@/components/ui/Toast";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
+import type { DashboardData } from "@/lib/data/dashboard";
+import type { CaptureSharePayload } from "@/lib/offline-write";
 import { QuickCaptureFlow } from "../QuickCaptureFlow";
 
 const upload = vi.fn();
 const share = vi.fn();
+const rpc = vi.fn();
+const queueCapture =
+  vi.fn<(entry: { id: string; userId: string; payload: CaptureSharePayload }) => Promise<void>>();
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
-    auth: { getUser: async () => ({ data: { user: { id: "me" } } }) },
     storage: { from: () => ({ upload }) },
   }),
 }));
 vi.mock("@/lib/supabase/rpc", () => ({
-  untypedRpc: async () => ({
-    data: [
-      { id: "h1", title: "Pray", emoji: "🙏", color: null, streak_current: 0, frequency: "daily", partner_ids: [], group_ids: [] },
-      // Its check-in already shows in Bob's thread and on Prayer Circle.
-      { id: "h2", title: "Fast", emoji: "🍞", color: null, streak_current: 0, frequency: "daily", partner_ids: ["f1"], group_ids: ["g1"] },
-    ],
-    error: null,
-  }),
+  untypedRpc: (...args: unknown[]) => rpc(...args),
+}));
+// The real outbox needs IndexedDB; what's handed to it is what matters here.
+vi.mock("@/lib/offline-write", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/offline-write")>()),
+  queueCaptureShare: (entry: { id: string; userId: string; payload: CaptureSharePayload }) =>
+    queueCapture(entry),
 }));
 vi.mock("@/lib/utils/compress-image", () => ({
   compressImage: async () => new Blob(["webp"], { type: "image/webp" }),
@@ -56,14 +59,75 @@ vi.mock("@/lib/hooks/useGroups", () => ({
 URL.createObjectURL = vi.fn(() => "blob:preview");
 URL.revokeObjectURL = vi.fn();
 
-function renderFlow() {
-  return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <ToastProvider>
-        <QuickCaptureFlow />
-      </ToastProvider>
-    </QueryClientProvider>,
-  );
+const HABITS = [
+  { id: "h1", title: "Pray", emoji: "🙏", color: null, streak_current: 0, frequency: "daily", partner_ids: [], group_ids: [] },
+  // Its check-in already shows in Bob's thread and on Prayer Circle.
+  { id: "h2", title: "Fast", emoji: "🍞", color: null, streak_current: 0, frequency: "daily", partner_ids: ["f1"], group_ids: ["g1"] },
+];
+
+/** What PostgREST hands back when the request never got anywhere. */
+const NO_CONNECTION = { message: "TypeError: Failed to fetch", details: "", hint: "", code: "" };
+
+let onLine = true;
+Object.defineProperty(navigator, "onLine", { configurable: true, get: () => onLine });
+
+function goOffline() {
+  onLine = false;
+  act(() => {
+    window.dispatchEvent(new Event("offline"));
+  });
+}
+
+beforeEach(() => {
+  onLine = true;
+  rpc.mockReset().mockResolvedValue({ data: HABITS, error: null });
+  queueCapture.mockReset().mockResolvedValue();
+});
+
+function renderFlow(queryClient = new QueryClient()) {
+  return {
+    queryClient,
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <QuickCaptureFlow />
+        </ToastProvider>
+      </QueryClientProvider>,
+    ),
+  };
+}
+
+/** The dashboard as the persisted cache holds it: both habits daily, nothing logged. */
+function withCachedDashboard(
+  completions: Record<string, { id: string; completed_at: string; completion_type: "quick" }[]> = {},
+) {
+  const queryClient = new QueryClient();
+  const habit = (id: string, title: string) => ({
+    id,
+    user_id: "me",
+    title,
+    description: null,
+    emoji: null,
+    color: null,
+    frequency: "daily",
+    schedule: null,
+    time_window: null,
+    streak_current: 0,
+    streak_best: 0,
+    total_completions: 0,
+    is_paused: false,
+    visibility: "private",
+    private_checkins: false,
+    created_at: "2026-01-01T00:00:00Z",
+    completions: completions[id] ?? [],
+    challenge: null,
+  });
+  queryClient.setQueryData(["dashboard", "me"], {
+    habits: [habit("h1", "Pray"), habit("h2", "Fast")],
+    timezone: "UTC",
+    firstName: "Sam",
+  });
+  return queryClient;
 }
 
 describe("QuickCaptureFlow share step", () => {
@@ -142,6 +206,16 @@ describe("QuickCaptureFlow share step", () => {
 
     await waitFor(() => expect(useQuickCaptureStore.getState().step).toBe("share"));
     expect(useQuickCaptureStore.getState().habitIds).toEqual(["h1"]);
+    // Refused, not cut off: nothing is promised for later.
+    expect(queueCapture).not.toHaveBeenCalled();
+  });
+
+  it("keeps the picker's list for when it can't be fetched", async () => {
+    const { queryClient } = renderFlow();
+
+    await screen.findByText("Pray");
+
+    expect(queryClient.getQueryData(["capture-habits", "me"])).toEqual(HABITS);
   });
 
   it("back returns to the preview with the take, caption and picks intact", async () => {
@@ -232,6 +306,128 @@ describe("QuickCaptureFlow share step", () => {
   });
 });
 
+describe("QuickCaptureFlow offline", () => {
+  beforeEach(() => {
+    upload.mockReset().mockResolvedValue({ error: null });
+    share.mockReset().mockResolvedValue({});
+    rpc.mockResolvedValue({ data: null, error: NO_CONNECTION });
+    useQuickCaptureStore.getState().reset();
+    useQuickCaptureStore.setState({ captureMode: "photo" });
+    useQuickCaptureStore
+      .getState()
+      .setCapturedFile(new File(["jpg"], "shot.jpg", { type: "image/jpeg" }));
+  });
+
+  it("lists today's habits from the cached dashboard instead of failing to load them", async () => {
+    goOffline();
+    renderFlow(
+      withCachedDashboard({
+        h2: [{ id: "c1", completed_at: new Date().toISOString(), completion_type: "quick" }],
+      }),
+    );
+
+    expect(await screen.findByText("Pray")).toBeInTheDocument();
+    // Checked in already today.
+    expect(screen.queryByText("Fast")).not.toBeInTheDocument();
+    expect(screen.queryByText(/load/i)).not.toBeInTheDocument();
+  });
+
+  it("says the habits need a connection when none are cached — not that they're all done", async () => {
+    goOffline();
+    renderFlow();
+
+    expect(await screen.findByText("Your habits need a connection.")).toBeInTheDocument();
+    expect(screen.queryByText("All done for today!")).not.toBeInTheDocument();
+    // Friends and groups come from their own cache, and can still be picked.
+    expect(screen.getByText("Bob")).toBeInTheDocument();
+  });
+
+  it("still locks in who a habit already reaches, from the last list it fetched", async () => {
+    goOffline();
+    const queryClient = withCachedDashboard();
+    queryClient.setQueryData(["capture-habits", "me"], HABITS);
+    renderFlow(queryClient);
+
+    await userEvent.click(await screen.findByText("Bob"));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Fast" }));
+
+    expect(useQuickCaptureStore.getState().friendIds).toEqual([]);
+  });
+
+  it("keeps the take to send once back online, checking the habit in meanwhile", async () => {
+    goOffline();
+    const { queryClient } = renderFlow(withCachedDashboard());
+
+    await userEvent.click(await screen.findByText("Pray"));
+    await userEvent.click(screen.getByText("Bob"));
+    await userEvent.type(screen.getByPlaceholderText(/Add a caption/), "morning");
+    await userEvent.click(screen.getByRole("button", { name: "Send to 2 when online" }));
+
+    await waitFor(() => expect(queueCapture).toHaveBeenCalledTimes(1));
+    expect(upload).not.toHaveBeenCalled();
+    expect(share).not.toHaveBeenCalled();
+
+    const { id, userId, payload } = queueCapture.mock.calls[0][0];
+    expect(userId).toBe("me");
+    expect(payload).toEqual({
+      mediaPath: `me/capture/${id}.webp`,
+      mediaType: "photo",
+      caption: "morning",
+      habitIds: ["h1"],
+      friendIds: ["f1"],
+      groupIds: [],
+      isPrivate: false,
+      contentType: "image/webp",
+      media: expect.anything(),
+    });
+    // The compressed photo, not the original.
+    expect(new TextDecoder().decode(payload.media)).toBe("webp");
+
+    expect(useQuickCaptureStore.getState().step).toBe("closed");
+    expect(await screen.findByText("It'll send when you're back online.")).toBeInTheDocument();
+
+    const dashboard = queryClient.getQueryData<DashboardData>(["dashboard", "me"]);
+    expect(dashboard?.habits.find((h) => h.id === "h1")?.completions).toEqual([
+      expect.objectContaining({ completion_type: "photo" }),
+    ]);
+  });
+
+  it("keeps a take whose connection drops partway, under the path it was going up to", async () => {
+    rpc.mockResolvedValue({ data: HABITS, error: null });
+    // Online by navigator.onLine, but the upload never arrives.
+    upload.mockResolvedValue({
+      error: {
+        name: "StorageUnknownError",
+        message: "Failed to fetch",
+        originalError: new TypeError("Failed to fetch"),
+      },
+    });
+    renderFlow();
+
+    await userEvent.click(await screen.findByText("Pray"));
+    await userEvent.click(screen.getByRole("button", { name: "Send to 1" }));
+
+    await waitFor(() => expect(queueCapture).toHaveBeenCalledTimes(1));
+    const [path] = upload.mock.calls[0];
+    expect(queueCapture.mock.calls[0][0].payload.mediaPath).toBe(path);
+    expect(share).not.toHaveBeenCalled();
+    expect(useQuickCaptureStore.getState().step).toBe("closed");
+  });
+
+  it("keeps the take on screen when it can't even be stored", async () => {
+    goOffline();
+    queueCapture.mockRejectedValue(new DOMException("Quota exceeded", "QuotaExceededError"));
+    renderFlow(withCachedDashboard());
+
+    await userEvent.click(await screen.findByText("Pray"));
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    expect(await screen.findAllByText("Couldn't send. Try again.")).not.toHaveLength(0);
+    expect(useQuickCaptureStore.getState().step).toBe("share");
+    expect(useQuickCaptureStore.getState().capturedFile).not.toBeNull();
+  });
+});
+
 describe("QuickCaptureFlow file picker", () => {
   // Opened from the camera's "unavailable" screen, as the camera is mocked away.
   function pick(container: HTMLElement, file: File) {
@@ -317,6 +513,26 @@ describe("QuickCaptureFlow opened from a chat", () => {
     expect(share).toHaveBeenCalledWith(
       expect.objectContaining({ habitIds: [], friendIds: [], groupIds: ["g1"] }),
     );
+  });
+
+  it("offline, keeps the take for that chat and says so, without refreshing it", async () => {
+    goOffline();
+    const onSent = vi.fn();
+    useQuickCaptureStore.getState().openTo({ kind: "friend", id: "f1", name: "Bob", onSent });
+    const { container } = renderFlow();
+
+    takePhoto(container);
+
+    await waitFor(() => expect(queueCapture).toHaveBeenCalledTimes(1));
+    expect(queueCapture.mock.calls[0][0].payload).toEqual(
+      expect.objectContaining({ habitIds: [], friendIds: ["f1"], groupIds: [] }),
+    );
+    expect(upload).not.toHaveBeenCalled();
+    // The refresh would fetch a chat that doesn't have it yet — and fails offline.
+    expect(onSent).not.toHaveBeenCalled();
+    expect(useQuickCaptureStore.getState().step).toBe("closed");
+    // The chat can't show it yet, so here it is said.
+    expect(await screen.findByText("It'll send when you're back online.")).toBeInTheDocument();
   });
 
   it("goes back to the take's preview, not the picker, when the send fails", async () => {

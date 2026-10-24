@@ -253,12 +253,18 @@ export async function getPendingCount(): Promise<number> {
  * policies constrain `user_id`, not `id`, so the client may choose it. A
  * replayed create then collides on the primary key instead of inserting a
  * second row, and a replayed delete is a no-op.
+ *
+ * A "capture.share" makes many rows in one transaction, so it has no single
+ * id to collide on. What the client mints there is the media's storage path,
+ * which every one of those rows carries; replay checks for it before sending
+ * (see `replayCaptureShare`).
  */
 export type OutboxKind =
   | "habit.create"
   | "habit.update"
   | "encouragement.create"
-  | "encouragement.delete";
+  | "encouragement.delete"
+  | "capture.share";
 
 export interface OutboxRecord {
   /** The outbox row's own id — also the created row's id, where it makes one. */
