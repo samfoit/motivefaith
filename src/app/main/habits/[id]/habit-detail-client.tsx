@@ -46,6 +46,7 @@ import { HISTORY_PAGE_SIZE } from "@/lib/constants/limits";
 import { FriendPicker } from "@/components/social/FriendPicker";
 import { CalendarHeatmap } from "@/components/habits/CalendarHeatmap";
 import { useCompleteHabit, PrivateOfflineError } from "@/lib/hooks/useCompleteHabit";
+import { useConfirmSharing } from "@/lib/hooks/useConfirmSharing";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
@@ -220,6 +221,7 @@ export function HabitDetailClient({
   const router = useRouter();
   const queryClient = useQueryClient();
   const completeHabit = useCompleteHabit();
+  const confirmSharing = useConfirmSharing();
   const { show: showToast, ToastElements } = useToast();
   const [habit, setHabit] = useState(initialHabit);
   const [completions, setCompletions] = useState(initialCompletions);
@@ -725,7 +727,12 @@ export function HabitDetailClient({
           >
             <Button
               className="w-full"
-              onClick={() => setCompletionOpen(true)}
+              onClick={async () => {
+                // The first check-in that would reach a partner or a group
+                // waits for a yes — asked before the sheet opens, so "not
+                // now" never throws away a take or a note.
+                if (await confirmSharing([habit.id])) setCompletionOpen(true);
+              }}
             >
               Log completion
             </Button>

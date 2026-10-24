@@ -12,6 +12,7 @@ import {
   type ShareCaptureParams,
 } from "@/lib/hooks/useShareCapture";
 import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+import { useConfirmSharing } from "@/lib/hooks/useConfirmSharing";
 import { useOnline } from "@/lib/hooks/useOnline";
 import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
@@ -72,6 +73,7 @@ export function QuickCaptureFlow() {
   const queryClient = useQueryClient();
   const { show, ToastElements } = useToast();
   const shareCapture = useShareCapture();
+  const confirmSharing = useConfirmSharing();
   const userId = useAuthUserId() ?? undefined;
   const online = useOnline();
 
@@ -475,8 +477,15 @@ export function QuickCaptureFlow() {
     [habits, toggleTarget, deselectTargets, setPrivateOverride],
   );
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     if (!capturedFile || !captureMode || selectedCount === 0) return;
+    // The picked habits' check-ins go to their partners and groups too, and
+    // the first time that reaches anybody it waits for a yes. Friends and
+    // groups picked by hand are being sent to on purpose, so they never ask.
+    if (!(await confirmSharing(habitIds))) return;
+    // A second tap made while that was answering waits on the same answer;
+    // the first send has left the picker by now, so this one stops here.
+    if (useQuickCaptureStore.getState().step !== "share") return;
     void send(
       capturedFile,
       captureMode,
@@ -488,6 +497,7 @@ export function QuickCaptureFlow() {
     capturedFile,
     captureMode,
     selectedCount,
+    confirmSharing,
     send,
     notes,
     habitIds,

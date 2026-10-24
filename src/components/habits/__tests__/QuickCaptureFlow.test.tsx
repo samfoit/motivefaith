@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -6,7 +6,10 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import type { DashboardData } from "@/lib/data/dashboard";
 import type { CaptureSharePayload } from "@/lib/offline-write";
+import { checkinSharingKey, type AudienceMember } from "@/lib/data/checkin-sharing";
+import { useCheckinSharingStore } from "@/lib/stores/checkin-sharing-store";
 import { QuickCaptureFlow } from "../QuickCaptureFlow";
+import { CheckinSharingDialog } from "../CheckinSharingDialog";
 
 const upload = vi.fn();
 const share = vi.fn();
@@ -85,12 +88,22 @@ beforeEach(() => {
 });
 
 function renderFlow(queryClient = new QueryClient()) {
+  // Someone who has already said their check-ins may be shared; the one-time
+  // question has its own tests at the end.
+  if (!queryClient.getQueryData(checkinSharingKey("me"))) {
+    queryClient.setQueryData(checkinSharingKey("me"), {
+      confirmed: true,
+      audience: [],
+    });
+  }
   return {
     queryClient,
     ...render(
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <QuickCaptureFlow />
+          {/* Mounted beside it by the layout. */}
+          <CheckinSharingDialog />
         </ToastProvider>
       </QueryClientProvider>,
     ),
@@ -546,5 +559,102 @@ describe("QuickCaptureFlow opened from a chat", () => {
     await waitFor(() => expect(useQuickCaptureStore.getState().step).toBe("camera"));
     expect(useQuickCaptureStore.getState().capturedFile).not.toBeNull();
     expect(useQuickCaptureStore.getState().direct?.id).toBe("f1");
+  });
+});
+
+describe("QuickCaptureFlow sharing the first check-in", () => {
+  // Fast's check-in already reaches Bob and Prayer Circle (HABITS above).
+  const FAST_AUDIENCE: AudienceMember[] = [
+    { habit_id: "h2", kind: "partner", id: "f1", name: "Bob", avatar_url: null },
+    { habit_id: "h2", kind: "group", id: "g1", name: "Prayer Circle", avatar_url: null },
+  ];
+
+  /** A user who has never said yes. */
+  function unconfirmed() {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(checkinSharingKey("me"), {
+      confirmed: false,
+      audience: FAST_AUDIENCE,
+    });
+    return queryClient;
+  }
+
+  beforeEach(() => {
+    upload.mockReset().mockResolvedValue({ error: null });
+    share.mockReset().mockResolvedValue({});
+    useCheckinSharingStore.setState({ question: null, waiting: [] });
+    useQuickCaptureStore.getState().reset();
+    useQuickCaptureStore.setState({ captureMode: "photo" });
+    useQuickCaptureStore
+      .getState()
+      .setCapturedFile(new File(["jpg"], "shot.jpg", { type: "image/jpeg" }));
+  });
+
+  it("asks before a habit's check-in first reaches anybody, keeping the take on \"Not now\"", async () => {
+    renderFlow(unconfirmed());
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Fast" }));
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Bob");
+    expect(dialog).toHaveTextContent("Prayer Circle");
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Not now" }));
+
+    // Nothing went anywhere, and the take and its picks are still there.
+    expect(upload).not.toHaveBeenCalled();
+    expect(share).not.toHaveBeenCalled();
+    const state = useQuickCaptureStore.getState();
+    expect(state.step).toBe("share");
+    expect(state.habitIds).toEqual(["h2"]);
+    expect(state.capturedFile).not.toBeNull();
+  });
+
+  it("sends once the user says yes", async () => {
+    renderFlow(unconfirmed());
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Fast" }));
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(share).toHaveBeenCalledWith(expect.objectContaining({ habitIds: ["h2"] }));
+  });
+
+  it("sends once for a second tap made while the question was coming up", async () => {
+    renderFlow(unconfirmed());
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Fast" }));
+    const send = screen.getByRole("button", { name: /Send to 1/ });
+    fireEvent.click(send);
+    fireEvent.click(send);
+    const dialog = await screen.findByRole("alertdialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't ask about friends and groups picked by hand", async () => {
+    renderFlow(unconfirmed());
+
+    await userEvent.click(await screen.findByText("Bob"));
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("doesn't ask about a habit nobody else sees", async () => {
+    renderFlow(unconfirmed());
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Pray" }));
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    await waitFor(() => expect(share).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 });
