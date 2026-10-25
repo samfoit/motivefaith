@@ -13,6 +13,7 @@
 import type { DashboardData } from "@/lib/data/dashboard";
 import type { Database } from "@/lib/supabase/types";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import { countsTowardStreak } from "@/lib/utils/streak";
 
 export interface OptimisticCompletion {
   habitId: string;
@@ -26,8 +27,9 @@ export interface OptimisticCompletion {
 /**
  * Add a completion to the cached habit.
  *
- * A rain check holds the streak exactly where it is: it accounts for the day
- * without advancing the count, so it can never cross a milestone either.
+ * Only the day's first real check-in advances the streak. A rain check holds
+ * it exactly where it is, and so does doing the habit again the same day: both
+ * are recorded, but neither moves the count or can cross a milestone.
  */
 export function applyCompletion(
   data: DashboardData | undefined,
@@ -51,9 +53,11 @@ export function applyCompletion(
               rain_check_moved_to: rainCheckMovedTo ?? null,
             },
           ],
-          streak_current: rainCheck
-            ? (habit.streak_current ?? 0)
-            : (habit.streak_current ?? 0) + 1,
+          streak_current:
+            !rainCheck &&
+            countsTowardStreak(habit, habit.completions, data.timezone)
+              ? (habit.streak_current ?? 0) + 1
+              : (habit.streak_current ?? 0),
         }
         : habit,
     ),

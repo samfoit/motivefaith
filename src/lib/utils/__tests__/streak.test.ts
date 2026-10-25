@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { computeEffectiveStreak } from "../streak";
+import { computeEffectiveStreak, countsTowardStreak } from "../streak";
 
 // Pin time to Sunday June 15, 2025 at noon UTC
 const FAKE_NOW = new Date("2025-06-15T12:00:00Z");
@@ -382,6 +382,80 @@ describe("computeEffectiveStreak", () => {
         "UTC",
       );
       expect(result).toBe(7);
+    });
+  });
+});
+
+describe("countsTowardStreak", () => {
+  const daily = { frequency: "daily" };
+
+  it("counts the first check-in of the day", () => {
+    expect(countsTowardStreak(daily, [], "UTC")).toBe(true);
+  });
+
+  it("does not count another check-in the same day", () => {
+    expect(
+      countsTowardStreak(
+        daily,
+        [{ completed_at: "2025-06-15T08:00:00Z", completion_type: "photo" }],
+        "UTC",
+      ),
+    ).toBe(false);
+  });
+
+  it("counts again the next day", () => {
+    expect(
+      countsTowardStreak(
+        daily,
+        [{ completed_at: "2025-06-14T20:00:00Z", completion_type: "quick" }],
+        "UTC",
+      ),
+    ).toBe(true);
+  });
+
+  it("still counts the check-in after a rain check the same day", () => {
+    expect(
+      countsTowardStreak(
+        daily,
+        [{ completed_at: "2025-06-15T08:00:00Z", completion_type: "rain_check" }],
+        "UTC",
+      ),
+    ).toBe(true);
+  });
+
+  it("reads the day in the user's timezone", () => {
+    // 22:00 on Saturday in Chicago, though already Sunday in UTC.
+    const lastNight = [{ completed_at: "2025-06-15T03:00:00Z", completion_type: "quick" }];
+    expect(countsTowardStreak(daily, lastNight, "America/Chicago")).toBe(true);
+    expect(countsTowardStreak(daily, lastNight, "UTC")).toBe(false);
+  });
+
+  describe("weekly", () => {
+    const weekly = { frequency: "weekly" };
+
+    // Wednesday 18 June, so the week (from Sunday the 15th) is underway.
+    beforeEach(() => {
+      vi.setSystemTime(new Date("2025-06-18T12:00:00Z"));
+    });
+
+    it("does not count a second check-in in the same week", () => {
+      expect(
+        countsTowardStreak(
+          weekly,
+          [{ completed_at: "2025-06-16T10:00:00Z", completion_type: "quick" }],
+          "UTC",
+        ),
+      ).toBe(false);
+    });
+
+    it("counts the first check-in of a new week", () => {
+      expect(
+        countsTowardStreak(
+          weekly,
+          [{ completed_at: "2025-06-14T10:00:00Z", completion_type: "quick" }],
+          "UTC",
+        ),
+      ).toBe(true);
     });
   });
 });

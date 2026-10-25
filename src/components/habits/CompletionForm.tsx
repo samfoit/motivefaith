@@ -65,6 +65,12 @@ export interface CompletionFormProps {
    * this one check-in.
    */
   defaultPrivate?: boolean;
+  /**
+   * Whether the picker offers a rain check. Off once the habit is done for
+   * the day — the sheet then logs doing it again, and there is nothing left
+   * to skip — or when today can't be skipped for another reason.
+   */
+  allowRainCheck?: boolean;
   onComplete: (params: {
     type: CompletionType;
     evidenceUrl?: string;
@@ -133,6 +139,7 @@ export function CompletionForm({
   initialAction,
   timezone,
   defaultPrivate = false,
+  allowRainCheck = true,
   onComplete,
 }: CompletionFormProps) {
   const [mode, setMode] = useState<Mode>("select");
@@ -510,13 +517,15 @@ export function CompletionForm({
                 hint="Just log it"
                 onClick={handleQuickCheckin}
               />
-              <CheckInTile
-                action="rain_check"
-                title="Rain check"
-                hint="Skip today, keep your streak"
-                onClick={handleRainCheckSelect}
-                wide
-              />
+              {allowRainCheck && (
+                <CheckInTile
+                  action="rain_check"
+                  title="Rain check"
+                  hint="Skip today, keep your streak"
+                  onClick={handleRainCheckSelect}
+                  wide
+                />
+              )}
             </div>
           )}
 

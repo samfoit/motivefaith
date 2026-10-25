@@ -223,7 +223,7 @@ Deno.serve(async (req) => {
   const now = new Date();
   const { thisStart, thisEnd, prevStart, prevEnd } = getWeekBounds(now);
 
-  type Completion = { user_id: string; habit_id: string };
+  type Completion = { user_id: string; habit_id: string; completed_date: string | null };
   type Habit = { id: string; user_id: string; title: string; emoji: string; schedule: unknown; streak_current: number };
 
   let sent = 0;
@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       supabase
         .from("completions")
-        .select("user_id, habit_id")
+        .select("user_id, habit_id, completed_date")
         .in("user_id", userIds)
         .gte("completed_at", thisStart)
         .lte("completed_at", thisEnd),
@@ -320,8 +320,13 @@ Deno.serve(async (req) => {
       }
 
       const totalCompletions = thisWeekCompletions.length;
+      // A habit counts once a day toward the rate: done twice in a day, it is
+      // two completions but one scheduled day.
+      const habitDaysDone = new Set(
+        thisWeekCompletions.map((c) => `${c.habit_id}:${c.completed_date}`),
+      ).size;
       const completionRate = totalScheduled > 0
-        ? (totalCompletions / totalScheduled) * 100
+        ? (habitDaysDone / totalScheduled) * 100
         : 0;
 
       const habitCounts = new Map<string, number>();

@@ -333,22 +333,85 @@ describe("HabitCard", () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
-  it("offers no check-in drawer once the habit is done for the day", () => {
+  it("still offers a check-in once the habit is done for the day", async () => {
+    const user = userEvent.setup();
+    const onCheckIn = vi.fn();
+
     render(
       <HabitCard
         habit={makeHabit()}
         completedToday={true}
         onQuickComplete={vi.fn()}
+        onCheckIn={onCheckIn}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Show check-in options for Morning Run" }),
+    );
+    // Doing it again is a check-in like any other — but there is nothing
+    // left to skip.
+    for (const option of ["Quick check-in", "Photo or video", "Voice note", "Written note"]) {
+      expect(
+        screen.getByRole("button", { name: `${option} for Morning Run` }),
+      ).toBeInTheDocument();
+    }
+    expect(
+      screen.queryByRole("button", { name: "Rain check for Morning Run" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Photo or video for Morning Run" }),
+    );
+    expect(onCheckIn).toHaveBeenCalledWith(
+      "habit-1",
+      "content",
+      { x: expect.any(Number), y: expect.any(Number) },
+    );
+  });
+
+  it("says how many times it was done today, from the second time on", () => {
+    const { rerender } = render(
+      <HabitCard
+        habit={makeHabit()}
+        completedToday
+        checkInsToday={1}
+        onQuickComplete={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/check-ins today/)).not.toBeInTheDocument();
+
+    rerender(
+      <HabitCard
+        habit={makeHabit()}
+        completedToday
+        checkInsToday={3}
+        onQuickComplete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("3 check-ins today")).toBeInTheDocument();
+  });
+
+  it("closes an open drawer when the circle checks the habit in", async () => {
+    const user = userEvent.setup();
+    const onQuickComplete = vi.fn();
+
+    render(
+      <HabitCard
+        habit={makeHabit()}
+        completedToday={false}
+        onQuickComplete={onQuickComplete}
         onCheckIn={vi.fn()}
       />,
     );
 
-    expect(
-      screen.queryByRole("button", { name: /check-in options/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Quick check-in/ }),
-    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Show check-in options for Morning Run" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Complete Morning Run" }));
+
+    expect(onQuickComplete).toHaveBeenCalledTimes(1);
+    expect(useHabitDrawerStore.getState().openHabitId).toBeNull();
   });
 
   describe("rain check", () => {
@@ -414,7 +477,7 @@ describe("HabitCard", () => {
       ).toBeInTheDocument();
     });
 
-    it("hides the drawer once the habit is genuinely completed", () => {
+    it("is no longer offered once the habit is genuinely completed", () => {
       render(
         <HabitCard
           habit={makeHabit()}

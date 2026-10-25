@@ -57,6 +57,7 @@ import { applyHabitUpdate, removeHabit } from "@/lib/data/dashboard-mutations";
 import { mergePrivateContent } from "@/lib/utils/private-checkin";
 import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import { countsTowardStreak } from "@/lib/utils/streak";
 import {
   rainCheckReasonLabel,
   type RainCheckReason,
@@ -146,6 +147,11 @@ interface HabitDetailClientProps {
   completions: Completion[];
   /** Every completion in the heatmap's window, dates only. */
   activity: ActivityRow[];
+  /**
+   * Days the habit has been done on, ever. Not total_completions: a habit can
+   * be done more than once a day, and the rate counts days.
+   */
+  daysDone: number;
   partnerRows: PartnerRow[];
   availableFriends?: Partner[];
   sharedGroups?: SharedGroup[];
@@ -212,6 +218,7 @@ export function HabitDetailClient({
   habit: initialHabit,
   completions: initialCompletions,
   activity: initialActivity,
+  daysDone: initialDaysDone,
   partnerRows,
   availableFriends = [],
   sharedGroups = [],
@@ -226,6 +233,7 @@ export function HabitDetailClient({
   const [habit, setHabit] = useState(initialHabit);
   const [completions, setCompletions] = useState(initialCompletions);
   const [activity, setActivity] = useState(initialActivity);
+  const [daysDone, setDaysDone] = useState(initialDaysDone);
   const [completionOpen, setCompletionOpen] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialCompletions.length >= HISTORY_PAGE_SIZE);
@@ -377,14 +385,17 @@ export function HabitDetailClient({
     return null;
   }, [activity, timezone]);
 
-  const completedToday = useMemo(() => {
+  // Real check-ins today. The first completes the habit for the day; doing
+  // it again is logged too, it just doesn't add to the streak.
+  const checkInsToday = useMemo(() => {
     const today = todayDateKey(timezone);
-    return activity.some(
+    return activity.filter(
       (c) =>
         !isRainCheck(c.completion_type) &&
         toDateKey(c.completed_at, timezone) === today,
-    );
+    ).length;
   }, [activity, timezone]);
+  const completedToday = checkInsToday > 0;
 
   const rainCheckedToday = useMemo(
     () => rainCheckDates.has(todayDateKey(timezone)),
@@ -393,8 +404,9 @@ export function HabitDetailClient({
 
   const [mountTime] = useState(() => Date.now());
   const completionRate = useMemo(() => {
-    const totalComp = habit.total_completions ?? 0;
-    if (totalComp === 0) return 0;
+    // Days done, not check-ins: a habit done three times today was still
+    // only done on one day.
+    if (daysDone === 0) return 0;
     const createdMs = habit.created_at
       ? new Date(habit.created_at).getTime()
       : mountTime;
@@ -405,8 +417,8 @@ export function HabitDetailClient({
     // Rain-checked days were excused, not failed, so they leave the
     // denominator entirely rather than counting against the rate.
     const eligibleDays = Math.max(1, daysSinceCreation - rainCheckDates.size);
-    return Math.min(100, Math.round((totalComp / eligibleDays) * 100));
-  }, [habit.total_completions, habit.created_at, mountTime, rainCheckDates]);
+    return Math.min(100, Math.round((daysDone / eligibleDays) * 100));
+  }, [daysDone, habit.created_at, mountTime, rainCheckDates]);
 
   // --- Handlers ---
 
@@ -449,6 +461,9 @@ export function HabitDetailClient({
     const prevStreak = habit.streak_current ?? 0;
     // A rain check holds the streak and is never counted as a completion.
     const rainCheck = isRainCheck(type);
+    // Only the day's first real check-in advances the streak, so only it can
+    // cross a milestone. Doing the habit again still adds to the total.
+    const counts = !rainCheck && countsTowardStreak(habit, activity, timezone);
 
     // Optimistic update
     const tempCompletion: Completion = {
@@ -467,9 +482,10 @@ export function HabitDetailClient({
     if (!rainCheck) {
       setHabit((h) => ({
         ...h,
-        streak_current: (h.streak_current ?? 0) + 1,
+        streak_current: (h.streak_current ?? 0) + (counts ? 1 : 0),
         total_completions: (h.total_completions ?? 0) + 1,
       }));
+      if (!completedToday) setDaysDone((n) => n + 1);
     }
 
     try {
@@ -482,7 +498,7 @@ export function HabitDetailClient({
         rainCheckMovedTo,
         isPrivate,
       });
-      if (!rainCheck) checkMilestone(prevStreak + 1);
+      if (counts) checkMilestone(prevStreak + 1);
       router.refresh();
     } catch (err) {
       // Take back only this entry: resetting to the first page would also
@@ -490,6 +506,7 @@ export function HabitDetailClient({
       setCompletions((prev) => prev.filter((c) => c.id !== tempCompletion.id));
       setActivity((prev) => prev.filter((c) => c.id !== tempCompletion.id));
       setHabit(initialHabit);
+      setDaysDone(initialDaysDone);
       showToast({
         variant: "error",
         title:
@@ -718,8 +735,10 @@ export function HabitDetailClient({
         </div>
 
 
-        {/* Complete button */}
-        {!completedToday && !habit.is_paused && (
+        {/* Complete button. Still there once the habit is done today: doing
+            it again is logged and shared like the first time, it just
+            doesn't add to the streak. */}
+        {!habit.is_paused && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -727,6 +746,7 @@ export function HabitDetailClient({
           >
             <Button
               className="w-full"
+              variant={completedToday ? "secondary" : "primary"}
               onClick={async () => {
                 // The first check-in that would reach a partner or a group
                 // waits for a yes — asked before the sheet opens, so "not
@@ -734,7 +754,7 @@ export function HabitDetailClient({
                 if (await confirmSharing([habit.id])) setCompletionOpen(true);
               }}
             >
-              Log completion
+              {completedToday ? "Log another check-in" : "Log completion"}
             </Button>
           </motion.div>
         )}
@@ -742,7 +762,10 @@ export function HabitDetailClient({
         {completedToday && (
           <div className="mb-6 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
             <Zap className="w-4 h-4" />
-            <span>Completed today</span>
+            <span>
+              Completed today
+              {checkInsToday > 1 && ` · ${checkInsToday} check-ins`}
+            </span>
           </div>
         )}
 
@@ -1204,6 +1227,7 @@ export function HabitDetailClient({
         habitSchedule={habit.schedule}
         timezone={timezone}
         defaultPrivate={habit.private_checkins}
+        allowRainCheck={!completedToday && !rainCheckedToday}
         onComplete={handleCompletion}
       />
 

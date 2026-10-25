@@ -32,6 +32,8 @@ interface DayViewProps {
   groupedHabits: Record<TimeGroup, HabitWithCompletions[]>;
   topStreaks: HabitWithCompletions[];
   completionMap: Map<string, boolean>;
+  /** Real check-ins logged today, per habit — a habit can be done more than once. */
+  checkInCountMap?: Map<string, number>;
   rainCheckMap?: Map<string, boolean>;
   /** Per-habit move labels: what moved away today, and what landed. */
   moveMap?: Map<string, MoveLabels>;
@@ -52,6 +54,7 @@ export const DayView = memo(function DayView({
   groupedHabits,
   topStreaks,
   completionMap,
+  checkInCountMap,
   rainCheckMap,
   moveMap,
   completedCount,
@@ -84,7 +87,7 @@ export const DayView = memo(function DayView({
   }
 
   // The card that demonstrates the check-in drawer: the first one on screen
-  // that still has a drawer to show.
+  // still to do today.
   const peekHabitId = TIME_GROUP_ORDER.flatMap((g) => groupedHabits[g]).find(
     (h) => !completionMap.get(h.id),
   )?.id;
@@ -191,6 +194,7 @@ export const DayView = memo(function DayView({
                       <HabitCard
                         habit={habit}
                         completedToday={completionMap.get(habit.id) ?? false}
+                        checkInsToday={checkInCountMap?.get(habit.id) ?? 0}
                         rainCheckedToday={rainCheckMap?.get(habit.id) ?? false}
                         rainCheckMovedTo={
                           moveMap?.get(habit.id)?.movedTo ?? null

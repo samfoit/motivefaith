@@ -191,6 +191,103 @@ describe("DashboardClient quick check-in", () => {
   });
 });
 
+/**
+ * A habit can be done more than once a day. The first check-in completes it
+ * and advances the streak; every one after it is logged and shared the same
+ * way, but the day is already in the streak.
+ */
+describe("DashboardClient checking in again", () => {
+  // Noon on Wednesday 18 June 2025, UTC, with Morning Run done at 8.
+  const NOW = new Date("2025-06-18T12:00:00Z");
+  const doneToday: HabitWithCompletions = {
+    ...habit,
+    completions: [
+      { id: "c1", completed_at: "2025-06-18T08:00:00Z", completion_type: "quick" },
+    ],
+  };
+
+  beforeEach(() => {
+    mutateAsync.mockClear();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function openDrawer(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+  }
+
+  it("logs a quick check-in on a habit already done, without moving the streak", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithHabits([doneToday]);
+
+    // The circle stays done: a second tap there is not how you do it again.
+    expect(
+      await screen.findByRole("button", { name: "Morning Run completed" }),
+    ).toBeDisabled();
+
+    await openDrawer(user);
+    await user.click(
+      screen.getByRole("button", { name: "Quick check-in for Morning Run" }),
+    );
+
+    expect(screen.getByText("Checked in again", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("2 check-ins today")).toBeInTheDocument();
+    expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(6000);
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({ habitId: "habit-1", type: "quick" }),
+    );
+  });
+
+  it("does not celebrate a milestone the first check-in already reached", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    // Day 7 was this morning's check-in; a note now is not day 8.
+    renderWithHabits([{ ...doneToday, streak_current: 6 }]);
+
+    await openDrawer(user);
+    await user.click(
+      screen.getByRole("button", { name: "Written note for Morning Run" }),
+    );
+    await user.type(await screen.findByRole("textbox"), "Ran it again at lunch");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "message", notes: "Ran it again at lunch" }),
+      ),
+    );
+    expect(screen.getByLabelText("6-day streak")).toBeInTheDocument();
+    expect(screen.queryByText(/One week faithful/)).not.toBeInTheDocument();
+  });
+
+  it("offers no rain check once the habit is done", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithHabits([doneToday]);
+
+    await openDrawer(user);
+    expect(
+      screen.queryByRole("button", { name: "Rain check for Morning Run" }),
+    ).not.toBeInTheDocument();
+
+    // Nor from the sheet's own picker, reached by backing out of a note.
+    await user.click(
+      screen.getByRole("button", { name: "Written note for Morning Run" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Go back" }));
+    expect(await screen.findByText("Just log it")).toBeInTheDocument();
+    expect(screen.queryByText("Rain check")).not.toBeInTheDocument();
+  });
+});
+
 describe("DashboardClient rain check", () => {
   beforeEach(() => {
     mutateAsync.mockClear();

@@ -18,7 +18,7 @@ import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
 import type { DashboardData } from "@/lib/data/dashboard";
 import { applyCompletion } from "@/lib/data/dashboard-mutations";
-import { habitsLeftToday } from "@/lib/data/capture-habits";
+import { habitsDueToday } from "@/lib/data/capture-habits";
 import { isOfflineError, queueCaptureShare } from "@/lib/offline-write";
 import { notifyPendingChanged } from "@/lib/outbox-drain";
 import {
@@ -148,14 +148,15 @@ export function QuickCaptureFlow() {
     }
   }, [capturedFile]);
 
-  // Fetch today's incomplete habits when entering the share step.
+  // Fetch today's habits when entering the share step — done ones too, after
+  // the rest: a take can go to a habit already checked in today.
   // Uses a single RPC instead of 3 sequential client queries.
   useEffect(() => {
     if (step !== "share") return;
 
     let canceled = false;
 
-    async function fetchIncompleteHabits() {
+    async function fetchTodaysHabits() {
       setHabitsLoading(true);
       setHabitsUnavailable(null);
 
@@ -167,7 +168,7 @@ export function QuickCaptureFlow() {
 
         const { data, error: rpcError } = await untypedRpc<PickerHabit[]>(
           supabase,
-          "get_incomplete_habits_today",
+          "get_habits_due_today",
           { p_timezone: tz },
         );
 
@@ -191,7 +192,7 @@ export function QuickCaptureFlow() {
         );
         if (cached) {
           setHabits(
-            habitsLeftToday(
+            habitsDueToday(
               cached,
               queryClient.getQueryData<PickerHabit[]>(captureHabitsKey(userId)),
             ),
@@ -208,7 +209,7 @@ export function QuickCaptureFlow() {
       setHabitsLoading(false);
     }
 
-    fetchIncompleteHabits();
+    fetchTodaysHabits();
     return () => {
       canceled = true;
     };
@@ -295,8 +296,7 @@ export function QuickCaptureFlow() {
           });
           notifyPendingChanged();
           // Checked in on the dashboard now, as an offline quick check-in
-          // is, so the habit doesn't look undone — or come back to this
-          // picker — while the take waits.
+          // is, so the habit doesn't look undone while the take waits.
           if (habitIds.length > 0) {
             const key = dashboardKey(userId);
             void queryClient.cancelQueries({ queryKey: key });

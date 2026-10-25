@@ -234,7 +234,7 @@ SET LOCAL request.jwt.claims TO '{"sub":"d1000000-0000-4000-8000-000000000001","
 DO $$
 DECLARE r JSONB;
 BEGIN
-  ASSERT (SELECT private_checkins FROM public.get_incomplete_habits_today('UTC')
+  ASSERT (SELECT private_checkins FROM public.get_habits_due_today('UTC')
           WHERE id = 'd5000000-0000-4000-8000-000000000002') = false,
     'TEST 4a FAILED: today''s habits should carry the private default';
 

@@ -11,6 +11,11 @@ import { getScheduledDays } from "@/lib/utils/schedule";
 
 export interface WeeklySummaryData {
   totalCompletions: number;
+  /**
+   * Days each habit was done on, summed: what the rate counts. A habit done
+   * twice in a day is two completions but one of its scheduled days.
+   */
+  habitDaysDone: number;
   totalScheduled: number;
   completionRate: number;
   bestStreak: number;
@@ -114,10 +119,18 @@ async function fetchWeeklySummary(
     totalScheduled += getScheduledDays(habit.schedule).length;
   }
 
+  // Days are keyed in the user's timezone, as the heatmap below keys them.
+  const tz = getBrowserTimezone();
+
   const completions = thisWeekCompletions ?? [];
   const totalCompletions = completions.length;
+  const habitDaysDone = new Set(
+    completions.flatMap((c) =>
+      c.completed_at ? [`${c.habit_id}:${toDateKey(c.completed_at, tz)}`] : [],
+    ),
+  ).size;
   const completionRate =
-    totalScheduled > 0 ? (totalCompletions / totalScheduled) * 100 : 0;
+    totalScheduled > 0 ? (habitDaysDone / totalScheduled) * 100 : 0;
 
   // Most consistent habit
   const habitCounts = new Map<string, number>();
@@ -144,7 +157,6 @@ async function fetchWeeklySummary(
   );
 
   // Daily completions map for heatmap (keyed by user's timezone date)
-  const tz = getBrowserTimezone();
   const dailyCompletions: Record<string, number> = {};
   for (const c of completions) {
     if (!c.completed_at) continue;
@@ -156,6 +168,7 @@ async function fetchWeeklySummary(
 
   return {
     totalCompletions,
+    habitDaysDone,
     totalScheduled,
     completionRate,
     bestStreak,

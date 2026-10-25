@@ -2,6 +2,35 @@ import { toDateKey, todayDateKey, subtractDays, getDayOfWeek } from "./timezone"
 import { parseSchedule, type CompletionRow } from "./schedule";
 import { isRainCheck } from "@/lib/constants/completion";
 
+/** The Sunday a day's week starts on — the week update_streak() counts in. */
+function weekStartOf(dayKey: string): string {
+  return subtractDays(dayKey, new Date(dayKey + "T12:00:00Z").getUTCDay());
+}
+
+/**
+ * Would a check-in made now move the streak?
+ *
+ * Only the first real check-in of the day does — of the week, for a weekly
+ * habit. Doing a habit again the same day is still recorded, still shared and
+ * still adds to its total, but the day is already in the streak. Mirrors the
+ * already_counted guard in update_streak() (027), which is what decides; this
+ * keeps the optimistic streak and the milestone toast in step with it. A rain
+ * check is not a check-in, so one earlier today leaves the next one counting.
+ */
+export function countsTowardStreak(
+  habit: { frequency?: string | null },
+  completions: CompletionRow[],
+  timeZone: string,
+): boolean {
+  const today = todayDateKey(timeZone);
+  const since = habit.frequency === "weekly" ? weekStartOf(today) : today;
+  return !completions.some(
+    (c) =>
+      !isRainCheck(c.completion_type) &&
+      toDateKey(c.completed_at, timeZone) >= since,
+  );
+}
+
 /**
  * Validates whether a habit's DB streak is still active by checking if the
  * most recent scheduled day has a completion. The DB trigger only updates
@@ -62,10 +91,7 @@ export function computeEffectiveStreak(
 
   // ── Weekly frequency: streak valid if a covered day in current or previous week ──
   if (habit.frequency === "weekly") {
-    const todayDate = new Date(today + "T12:00:00Z");
-    const dow = todayDate.getUTCDay(); // 0=Sun
-    const weekStartKey = subtractDays(today, dow);
-    const prevWeekStartKey = subtractDays(weekStartKey, 7);
+    const prevWeekStartKey = subtractDays(weekStartOf(today), 7);
 
     for (const dk of realDateKeys) {
       if (dk >= prevWeekStartKey) return dbStreak;

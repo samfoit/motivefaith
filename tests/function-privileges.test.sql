@@ -170,7 +170,7 @@ DECLARE
   r RECORD;
 BEGIN
   -- The capture picker, through habit_partner_ids and habit_group_ids.
-  SELECT * INTO r FROM public.get_incomplete_habits_today('UTC')
+  SELECT * INTO r FROM public.get_habits_due_today('UTC')
   WHERE id = '97000000-0000-4000-8000-000000000001';
   ASSERT r.partner_ids = ARRAY['92000000-0000-4000-8000-000000000002']::uuid[],
     format('TEST 3b FAILED: picker partner_ids were %s', r.partner_ids);

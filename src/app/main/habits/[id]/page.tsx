@@ -4,6 +4,7 @@ import { HabitDetailClient } from "./habit-detail-client";
 import { DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 import { computeEffectiveStreak } from "@/lib/utils/streak";
 import { mergePrivateContent } from "@/lib/utils/private-checkin";
+import { untypedRpc } from "@/lib/supabase/rpc";
 import {
   HABIT_ACTIVITY_DAYS,
   HABIT_ACTIVITY_MAX_ROWS,
@@ -36,12 +37,14 @@ export default async function HabitDetailPage({ params }: Props) {
   // heatmap, streak and "done today" need every day in the recent window, but
   // only its dates. The History tab needs whole rows, but only one page of
   // them at a time, reaching as far back as the habit goes — years of
-  // logging is never fetched in one go.
+  // logging is never fetched in one go. A third, counted in the database,
+  // gives the rate its days done over the habit's whole life.
   const [
     { data: profileTz },
     { data: habit },
     { data: activity },
     { data: completions },
+    { data: daysDone },
     { data: shares },
     { data: groupShares },
     { data: friendships },
@@ -69,6 +72,7 @@ export default async function HabitDetailPage({ params }: Props) {
       .order("completed_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(HISTORY_PAGE_SIZE),
+    untypedRpc<number>(supabase, "get_habit_days_done", { p_habit_id: id }),
     supabase
       .from("habit_shares")
       .select("id, shared_with, notify_complete, notify_miss, created_at, status, initiated_by")
@@ -159,6 +163,9 @@ export default async function HabitDetailPage({ params }: Props) {
       habit={{ ...habit, streak_current: effectiveStreak }}
       completions={validatedCompletions}
       activity={validatedActivity}
+      // No count until migration 044 is applied: fall back to check-ins, which
+      // is what the rate counted before.
+      daysDone={daysDone ?? habit.total_completions ?? 0}
       partnerRows={partnerRows}
       availableFriends={availableFriends}
       sharedGroups={sharedGroups}
