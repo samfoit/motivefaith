@@ -83,10 +83,14 @@ export function HabitTitleRow({
 
           The flame says "streak" on its own, so the pill is just the number;
           only the label spells out the unit, since a screen reader gets no
-          flame. */}
+          flame.
+
+          A whole 20px tall, with the number's line no taller than its text:
+          padding around an inherited 16.5px line made the pill 20.5px, and
+          at 100% zoom that half pixel rounds the flame and the number apart. */}
       {(streak ?? 0) > 0 && (
         <span
-          className="shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+          className="shrink-0 h-5 px-1.5 text-[11px] leading-none font-medium rounded-full flex items-center gap-0.5"
           style={{
             color: "var(--color-streak)",
             backgroundColor:

@@ -127,47 +127,55 @@ export const DayView = memo(function DayView({
         </div>
       )}
 
-      {/* Streak Summary Row: plain words, the lamp in the look (flame in its glow) */}
-      {topStreaks.length > 0 && (
-        <div>
-          <h2 className="text-sm font-medium text-text-secondary mb-3">
-            Active Streaks
-          </h2>
-          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-            {topStreaks.map((habit) => (
-              <button
-                key={habit.id}
-                className={cn(
-                  "shrink-0 flex items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-3.5",
-                  "bg-bg-elevated border border-border",
-                  "text-left dv-streak-btn",
-                )}
-                onClick={() => onHabitPress(habit.id)}
-              >
-                <span
-                  aria-hidden
-                  className="flex items-center justify-center w-8 h-8 rounded-full text-streak"
-                  style={{ background: "var(--lamp-halo)" }}
-                >
-                  <Flame className="w-4.5 h-4.5" fill="currentColor" strokeWidth={1.5} />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[13px] text-text-primary truncate max-w-25">
-                    {habit.title}
-                  </p>
-                  <p className="text-xs text-text-secondary tabular-nums">
-                    {habit.streak_current} {habit.streak_current === 1 ? "day" : "days"}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Habit List by Time Group */}
-      {todayHabits.length > 0 && (
+      {/* Every labeled section, streaks included, in one rhythm: 24px apart at
+          every width (the page's own spacing is 16px on a phone), 12px from a
+          label to its cards. */}
+      {(topStreaks.length > 0 || todayHabits.length > 0) && (
         <div className="space-y-6">
+          {/* Streak Summary Row: plain words, the lamp in the look (flame in its glow) */}
+          {topStreaks.length > 0 && (
+            <div>
+              <h2 className="text-sm font-medium text-text-secondary mb-3">
+                Active Streaks
+              </h2>
+              {/* The scroller clips what overflows it, so py-1 leaves room for
+                  a card's hover scale; -my-1 keeps that room out of the gaps. */}
+              <div className="flex gap-3 overflow-x-auto py-1 -my-1 -mx-4 px-4">
+                {topStreaks.map((habit) => (
+                  <button
+                    key={habit.id}
+                    className={cn(
+                      "shrink-0 flex items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-3.5",
+                      "bg-bg-elevated border border-border",
+                      "text-left dv-streak-btn",
+                    )}
+                    onClick={() => onHabitPress(habit.id)}
+                  >
+                    <span
+                      aria-hidden
+                      className="flex items-center justify-center w-8 h-8 rounded-full text-streak"
+                      style={{ background: "var(--lamp-halo)" }}
+                    >
+                      <Flame className="w-4.5 h-4.5" fill="currentColor" strokeWidth={1.5} />
+                    </span>
+                    {/* Two 16px lines fill the flame's 32px exactly, so the card
+                        is a whole 54px. At 57.5px every habit card below it sat
+                        on half pixels, where icons and text round apart. */}
+                    <div className="min-w-0">
+                      <p className="text-[13px] leading-4 text-text-primary truncate max-w-25">
+                        {habit.title}
+                      </p>
+                      <p className="text-xs text-text-secondary tabular-nums">
+                        {habit.streak_current} {habit.streak_current === 1 ? "day" : "days"}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Habit List by Time Group */}
           {TIME_GROUP_ORDER.map((group) => {
             const groupHabits = groupedHabits[group];
             if (groupHabits.length === 0) return null;

@@ -39,24 +39,22 @@ export function DashboardContentSkeleton() {
         <Skeleton variant="text" width={32} height={20} />
       </div>
 
-      {/* Active streaks */}
-      <div className="space-y-3">
-        <Skeleton variant="text" width={100} height={16} />
-        <div className="flex gap-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton
-              key={i}
-              variant="rect"
-              width={140}
-              height={54}
-              className="rounded-xl flex-shrink-0"
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Habit groups */}
+      {/* Active streaks, then the habit groups, 24px apart as in DayView */}
       <div className="space-y-6">
+        <div className="space-y-3">
+          <Skeleton variant="text" width={100} height={16} />
+          <div className="flex gap-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton
+                key={i}
+                variant="rect"
+                width={140}
+                height={54}
+                className="rounded-xl flex-shrink-0"
+              />
+            ))}
+          </div>
+        </div>
         <div className="space-y-3">
           <Skeleton variant="text" width={80} height={16} />
           <HabitCardSkeleton />
