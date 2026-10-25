@@ -4,6 +4,7 @@ import { getAuthUser, getProfile } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureFlow } from "@/components/habits/QuickCaptureFlow";
+import { CheckinSharingDialog } from "@/components/habits/CheckinSharingDialog";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
@@ -52,7 +53,7 @@ async function AuthGate({ children }: { children: React.ReactNode }) {
     redirect("/auth/stale");
   }
 
-  if (!profile.date_of_birth) {
+  if (!profile.has_date_of_birth) {
     redirect("/auth/complete-profile");
   }
 
@@ -91,6 +92,7 @@ export default function MainLayout({
       </main>
       <BottomNav />
       <QuickCaptureFlow />
+      <CheckinSharingDialog />
       <InstallPrompt />
     </div>
   );

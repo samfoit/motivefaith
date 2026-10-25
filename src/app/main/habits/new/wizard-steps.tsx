@@ -141,16 +141,16 @@ export function StepName({
         <label className="text-sm font-medium text-gray-700 mb-2 block">
           Choose an icon
         </label>
-        <div className="grid grid-cols-10 gap-1.5 p-4">
+        <div className="grid grid-cols-8 gap-1.5">
           {HABIT_EMOJIS.map((emoji) => (
             <button
               key={emoji}
               type="button"
               onClick={() => update("emoji", emoji)}
               className={cn(
-                "w-9 h-9 flex items-center justify-center rounded-lg text-lg transition-all",
+                "aspect-square w-full flex items-center justify-center rounded-lg text-xl transition-all",
                 form.emoji === emoji
-                  ? "bg-brand-light ring-2 ring-brand-ink scale-110"
+                  ? "bg-brand-light ring-2 ring-brand-ink"
                   : "hover:bg-[var(--color-surface-hover)]",
               )}
             >
@@ -165,7 +165,7 @@ export function StepName({
         placeholder="Why is this habit important to you?"
         value={form.description}
         onChange={(e) => update("description", e.target.value)}
-        rows={3}
+        rows={2}
       />
 
       {/* Live preview */}
@@ -173,7 +173,6 @@ export function StepName({
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-4"
         >
           <p className="text-xs text-[var(--color-text-tertiary)] mb-2">
             Preview
@@ -235,7 +234,7 @@ export function StepSchedule({
               "px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
               form.frequency === freq.value
                 ? "bg-brand text-on-brand shadow-sm"
-                : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
+                : "bg-elevated ring-1 ring-border text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
             )}
           >
             {freq.label}
@@ -264,7 +263,7 @@ export function StepSchedule({
                   "w-10 h-10 rounded-full text-sm font-medium transition-all flex items-center justify-center",
                   form.scheduleDays.includes(day.value)
                     ? "bg-brand text-on-brand"
-                    : "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
+                    : "bg-elevated ring-1 ring-border text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
                 )}
               >
                 {day.label}
@@ -434,7 +433,7 @@ export function StepSharing({
             <div className="w-5 h-5 border-2 border-brand-ink border-t-transparent rounded-full animate-spin" />
           </div>
         ) : !friends?.length ? (
-          <div className="rounded-lg bg-[var(--color-bg-secondary)] p-4">
+          <div className="rounded-lg bg-elevated shadow-sm p-4">
             <p className="text-sm text-[var(--color-text-secondary)] text-center">
               No friends yet. Add friends from the Friends tab to invite
               partners.

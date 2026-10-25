@@ -34,12 +34,12 @@ export async function GET(request: NextRequest) {
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("avatar_url, date_of_birth")
+      .select("avatar_url, has_date_of_birth")
       .eq("id", user.id)
       .single();
 
     // OAuth user who hasn't completed profile (no DOB = never filled out the form)
-    if (!profile?.date_of_birth) {
+    if (!profile?.has_date_of_birth) {
       return NextResponse.redirect(`${origin}/auth/complete-profile`);
     }
 

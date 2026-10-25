@@ -27,7 +27,7 @@ export default async function JoinGroupPage({ params }: Props) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center max-w-sm">
-          <div className="w-14 h-14 rounded-full bg-bg-secondary flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 rounded-full bg-elevated shadow-sm flex items-center justify-center mx-auto mb-4">
             <Users className="w-6 h-6 text-text-tertiary" />
           </div>
           <h2

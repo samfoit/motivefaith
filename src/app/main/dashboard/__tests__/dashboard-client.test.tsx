@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
@@ -26,10 +26,24 @@ vi.mock("@/lib/hooks/useAuthUserId", () => ({
   useAuthUserId: () => TEST_USER,
 }));
 
+// Only the sharing question calls an RPC from here: recording the yes.
+const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({}) }));
+vi.mock("@/lib/supabase/rpc", () => ({
+  untypedRpc: (_client: unknown, name: string) => rpc(name),
+}));
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DashboardClient } from "../dashboard-client";
 import { dashboardKey } from "@/lib/hooks/useDashboard";
 import type { DashboardData } from "@/lib/data/dashboard";
+import {
+  checkinSharingKey,
+  type AudienceMember,
+  type CheckinSharing,
+} from "@/lib/data/checkin-sharing";
+import { useCheckinSharingStore } from "@/lib/stores/checkin-sharing-store";
+import { CheckinSharingDialog } from "@/components/habits/CheckinSharingDialog";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const habit: HabitWithCompletions = {
@@ -43,6 +57,7 @@ const habit: HabitWithCompletions = {
   schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
   time_window: null,
   visibility: "private" as const,
+  private_checkins: false,
   streak_current: 4,
   streak_best: 12,
   total_completions: 30,
@@ -56,12 +71,18 @@ const habit: HabitWithCompletions = {
  * so tests seed the cache. `queryFn` is never reached: seeded data with an
  * infinite staleTime is already fresh.
  */
-function renderWithHabits(habits: HabitWithCompletions[]) {
+function renderWithHabits(
+  habits: HabitWithCompletions[],
+  // Someone who has already said their check-ins may be shared, unless a
+  // test says otherwise. The one-time question has its own tests at the end.
+  sharing: CheckinSharing = { confirmed: true, audience: [] },
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
   const data: DashboardData = { habits, timezone: "UTC", firstName: "Alice" };
   queryClient.setQueryData(dashboardKey(TEST_USER), data);
+  queryClient.setQueryData(checkinSharingKey(TEST_USER), sharing);
 
   render(
     <QueryClientProvider client={queryClient}>
@@ -69,6 +90,8 @@ function renderWithHabits(habits: HabitWithCompletions[]) {
         <Suspense fallback={null}>
           <DashboardClient />
         </Suspense>
+        {/* Mounted beside every page by the layout. */}
+        <CheckinSharingDialog />
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -436,5 +459,144 @@ describe("DashboardClient moved rain check", () => {
       name: "Morning Run rain-checked today — check in anyway",
     });
     expect(screen.getByText("Moved to Tuesday")).toBeInTheDocument();
+  });
+});
+
+describe("DashboardClient sharing the first check-in", () => {
+  const PAT: AudienceMember = {
+    habit_id: "habit-1",
+    kind: "partner",
+    id: "pat",
+    name: "Pat",
+    avatar_url: null,
+  };
+  /** A user who has never said yes, with Pat watching Morning Run. */
+  const UNCONFIRMED: CheckinSharing = { confirmed: false, audience: [PAT] };
+
+  const nap: HabitWithCompletions = {
+    ...habit,
+    id: "habit-2",
+    title: "Nap",
+    emoji: "😴",
+  };
+
+  beforeEach(() => {
+    mutateAsync.mockClear();
+    rpc.mockClear();
+    useCheckinSharingStore.setState({ question: null, waiting: [] });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("asks before the first check-in a partner would see, and sends nothing on \"Not now\"", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithHabits([habit], UNCONFIRMED);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Complete Morning Run" }),
+    );
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Your partners will see this",
+    });
+    expect(dialog).toHaveTextContent("Pat");
+
+    await user.click(within(dialog).getByRole("button", { name: "Not now" }));
+
+    // Never marked done, never offered an undo, never sent.
+    expect(
+      screen.getByRole("button", { name: "Complete Morning Run" }),
+    ).not.toBeDisabled();
+    expect(screen.queryByText("Checked in", { exact: false })).not.toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("checks in on yes, and never asks again", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithHabits([habit, nap], {
+      confirmed: false,
+      audience: [PAT, { ...PAT, habit_id: "habit-2" }],
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Complete Morning Run" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+
+    expect(
+      screen.getByRole("button", { name: "Morning Run completed" }),
+    ).toBeDisabled();
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith("confirm_checkin_sharing"),
+    );
+
+    // Pat watches Nap too, and that goes straight through.
+    await user.click(screen.getByRole("button", { name: "Complete Nap" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nap completed" })).toBeDisabled();
+
+    await vi.advanceTimersByTimeAsync(6000);
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
+  });
+
+  it("checks in once for a second tap made while the question was coming up", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithHabits([habit], UNCONFIRMED);
+
+    const complete = await screen.findByRole("button", {
+      name: "Complete Morning Run",
+    });
+    fireEvent.click(complete);
+    fireEvent.click(complete);
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByLabelText("5-day streak")).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(6000);
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks before the note is written, so \"Not now\" loses nothing", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithHabits([habit], UNCONFIRMED);
+    await screen.findByRole("button", { name: "Complete Morning Run" });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Written note for Morning Run" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+
+    // The sheet waits behind the question rather than opening under it.
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("lets a check-in nobody else sees straight through", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    // Pat watches some other habit; Morning Run has nobody on it.
+    renderWithHabits([habit], {
+      confirmed: false,
+      audience: [{ ...PAT, habit_id: "habit-elsewhere" }],
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Complete Morning Run" }),
+    );
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Morning Run completed" }),
+    ).toBeDisabled();
   });
 });

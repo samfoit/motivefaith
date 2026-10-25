@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   LogOut,
@@ -36,7 +36,14 @@ import { ShareInviteSheet } from "@/components/social/ShareInviteSheet";
 
 interface ProfileClientProps {
   userId: string;
-  profile: Tables<"profiles"> | null;
+  /**
+   * What this page shows and edits. Notification settings come from
+   * get_own_notification_settings: the column can't be read directly (042).
+   */
+  profile: Pick<
+    Tables<"profiles">,
+    "display_name" | "username" | "avatar_url" | "notification_prefs"
+  > | null;
   isAdmin?: boolean;
 }
 
@@ -54,18 +61,6 @@ export function ProfileClient({
   const [editName, setEditName] = useState(profile?.display_name ?? "");
   const [isSavingName, setIsSavingName] = useState(false);
 
-  // MFA state
-  const [mfaEnabled, setMfaEnabled] = useState(false);
-  const [mfaLoading, setMfaLoading] = useState(false);
-  const [mfaEnrolling, setMfaEnrolling] = useState(false);
-  const [mfaQr, setMfaQr] = useState<string | null>(null);
-  const [mfaSecret, setMfaSecret] = useState<string | null>(null);
-  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
-  const [mfaVerifyCode, setMfaVerifyCode] = useState("");
-  const [mfaError, setMfaError] = useState<string | null>(null);
-  const [mfaDisabling, setMfaDisabling] = useState(false);
-  const [mfaDisableCode, setMfaDisableCode] = useState("");
-
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [notifSettingsOpen, setNotifSettingsOpen] = useState(false);
@@ -74,19 +69,6 @@ export function ProfileClient({
   const [notificationPrefs, setNotificationPrefs] = useState<Json | null>(
     profile?.notification_prefs ?? null,
   );
-
-  // Check current MFA status on mount
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.mfa.listFactors().then(({ data }) => {
-      const totp = data?.totp ?? [];
-      const verified = totp.find((f) => f.status === "verified");
-      if (verified) {
-        setMfaEnabled(true);
-        setMfaFactorId(verified.id);
-      }
-    });
-  }, []);
 
   // Push subscription state (shared with NotificationToggle)
   const {
@@ -342,278 +324,6 @@ export function ProfileClient({
             />
           </section>
 
-          {/* Security — MFA */}
-          <section>
-            <div className="flex items-center gap-2 mb-3">
-              <Shield className="w-4 h-4 text-text-tertiary" />
-              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider">
-                Security
-              </h2>
-            </div>
-            <div className="rounded-lg bg-elevated p-4 shadow-sm space-y-4">
-              {mfaEnabled && !mfaDisabling ? (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">
-                      Two-factor authentication
-                    </p>
-                    <p className="text-xs text-text-secondary">
-                      Enabled via authenticator app
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-miss"
-                    onClick={() => {
-                      setMfaDisabling(true);
-                      setMfaDisableCode("");
-                      setMfaError(null);
-                    }}
-                  >
-                    Disable
-                  </Button>
-                </div>
-              ) : mfaEnabled && mfaDisabling ? (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-text-primary">
-                    Enter your authenticator code to disable 2FA
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      placeholder="Enter 6-digit code"
-                      value={mfaDisableCode}
-                      onChange={(e) => {
-                        setMfaDisableCode(
-                          e.target.value.replace(/\D/g, "").slice(0, 6),
-                        );
-                        setMfaError(null);
-                      }}
-                      className={cn(
-                        "flex-1 rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary text-center font-mono tracking-widest",
-                        "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
-                      )}
-                    />
-                    <Button
-                      size="md"
-                      loading={mfaLoading}
-                      disabled={mfaDisableCode.length !== 6}
-                      className="bg-miss hover:bg-miss/80 text-white"
-                      onClick={async () => {
-                        if (!mfaFactorId) return;
-                        setMfaLoading(true);
-                        setMfaError(null);
-                        const supabase = createClient();
-                        const challenge = await supabase.auth.mfa.challenge({
-                          factorId: mfaFactorId,
-                        });
-                        if (challenge.error) {
-                          setMfaError("Failed to create challenge");
-                          setMfaLoading(false);
-                          return;
-                        }
-                        const verify = await supabase.auth.mfa.verify({
-                          factorId: mfaFactorId,
-                          challengeId: challenge.data.id,
-                          code: mfaDisableCode,
-                        });
-                        if (verify.error) {
-                          setMfaError("Invalid code. Please try again.");
-                          setMfaLoading(false);
-                          return;
-                        }
-                        const { error } = await supabase.auth.mfa.unenroll({
-                          factorId: mfaFactorId,
-                        });
-                        if (error) {
-                          setMfaError("Failed to disable 2FA");
-                        } else {
-                          setMfaEnabled(false);
-                          setMfaFactorId(null);
-                          setMfaDisabling(false);
-                          setMfaDisableCode("");
-                          showToast({
-                            variant: "success",
-                            title: "Two-factor authentication disabled",
-                          });
-                        }
-                        setMfaLoading(false);
-                      }}
-                    >
-                      Confirm
-                    </Button>
-                  </div>
-                  {mfaError && <p className="text-xs text-miss">{mfaError}</p>}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      setMfaDisabling(false);
-                      setMfaDisableCode("");
-                      setMfaError(null);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : mfaEnrolling ? (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-text-primary">
-                    Scan this QR code with your authenticator app
-                  </p>
-                  {mfaQr && (
-                    <div className="flex justify-center">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={mfaQr}
-                        alt="TOTP QR Code"
-                        className="w-48 h-48 rounded-lg"
-                      />
-                    </div>
-                  )}
-                  {mfaSecret && (
-                    <p className="text-xs text-center text-text-secondary break-all">
-                      Manual entry:{" "}
-                      <span className="font-mono font-medium">{mfaSecret}</span>
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      placeholder="Enter 6-digit code"
-                      value={mfaVerifyCode}
-                      onChange={(e) => {
-                        setMfaVerifyCode(
-                          e.target.value.replace(/\D/g, "").slice(0, 6),
-                        );
-                        setMfaError(null);
-                      }}
-                      className={cn(
-                        "flex-1 rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary text-center font-mono tracking-widest",
-                        "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
-                      )}
-                    />
-                    <Button
-                      size="md"
-                      loading={mfaLoading}
-                      disabled={mfaVerifyCode.length !== 6}
-                      onClick={async () => {
-                        if (!mfaFactorId) return;
-                        setMfaLoading(true);
-                        setMfaError(null);
-                        const supabase = createClient();
-                        const challenge = await supabase.auth.mfa.challenge({
-                          factorId: mfaFactorId,
-                        });
-                        if (challenge.error) {
-                          setMfaError("Failed to create challenge");
-                          setMfaLoading(false);
-                          return;
-                        }
-                        const verify = await supabase.auth.mfa.verify({
-                          factorId: mfaFactorId,
-                          challengeId: challenge.data.id,
-                          code: mfaVerifyCode,
-                        });
-                        if (verify.error) {
-                          setMfaError("Invalid code. Please try again.");
-                        } else {
-                          setMfaEnabled(true);
-                          setMfaEnrolling(false);
-                          setMfaQr(null);
-                          setMfaSecret(null);
-                          setMfaVerifyCode("");
-                          showToast({
-                            variant: "success",
-                            title: "Two-factor authentication enabled",
-                          });
-                        }
-                        setMfaLoading(false);
-                      }}
-                    >
-                      Verify
-                    </Button>
-                  </div>
-                  {mfaError && <p className="text-xs text-miss">{mfaError}</p>}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={async () => {
-                      setMfaEnrolling(false);
-                      setMfaQr(null);
-                      setMfaSecret(null);
-                      setMfaVerifyCode("");
-                      setMfaError(null);
-                      // Unenroll the unverified factor
-                      if (mfaFactorId) {
-                        const supabase = createClient();
-                        const { error } = await supabase.auth.mfa.unenroll({
-                          factorId: mfaFactorId,
-                        });
-                        if (error) {
-                          console.error(
-                            "Failed to unenroll MFA factor:",
-                            error.message,
-                          );
-                        }
-                        setMfaFactorId(null);
-                      }
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">
-                      Two-factor authentication
-                    </p>
-                    <p className="text-xs text-text-secondary">
-                      Add an extra layer of security with an authenticator app
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={mfaLoading}
-                    onClick={async () => {
-                      setMfaLoading(true);
-                      const supabase = createClient();
-                      const { data, error } = await supabase.auth.mfa.enroll({
-                        factorType: "totp",
-                        friendlyName: "MotiveFaith Authenticator",
-                      });
-                      if (error || !data) {
-                        showToast({
-                          variant: "error",
-                          title: "Failed to set up 2FA",
-                        });
-                      } else {
-                        setMfaFactorId(data.id);
-                        setMfaQr(data.totp.qr_code);
-                        setMfaSecret(data.totp.secret);
-                        setMfaEnrolling(true);
-                      }
-                      setMfaLoading(false);
-                    }}
-                  >
-                    Enable
-                  </Button>
-                </div>
-              )}
-            </div>
-          </section>
-
           {/* Support */}
           <section>
             <div className="flex items-center gap-2 mb-3">
@@ -690,11 +400,7 @@ export function ProfileClient({
         </div>
       </div>
 
-      <DeleteAccountSheet
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        hasMfa={mfaEnabled}
-      />
+      <DeleteAccountSheet open={deleteOpen} onOpenChange={setDeleteOpen} />
 
       <Sheet
         open={notifSettingsOpen && pushState === "subscribed"}

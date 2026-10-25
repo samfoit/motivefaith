@@ -13,12 +13,15 @@
  * their RLS policies constrain `user_id` rather than `id`, so the client may
  * choose it. That is what makes replay idempotent — a drain interrupted after
  * the server accepted the write replays into a primary-key collision instead
- * of creating a duplicate.
+ * of creating a duplicate. (A queued capture mints its media's storage path
+ * instead; see `replayCaptureShare`.)
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
+import type { ShareCaptureParams } from "@/lib/hooks/useShareCapture";
 import { untypedRpc } from "@/lib/supabase/rpc";
+import { isUploadTooLarge } from "@/lib/utils/check-video";
 import {
   queueWrite,
   claimOutbox,
@@ -49,10 +52,32 @@ interface Postgrestish {
  * covers offline, lie-fi and captive portals. `navigator.onLine` is checked
  * first only as a shortcut — it is unreliable on its own, which is why the
  * catch exists at all.
+ *
+ * supabase-js never lets that TypeError reach the caller: each of its clients
+ * hands it back as an error value, and each wraps it differently.
  */
 export function isOfflineError(err: unknown): boolean {
   if (typeof navigator !== "undefined" && !navigator.onLine) return true;
-  return err instanceof TypeError;
+  if (err instanceof TypeError) return true;
+  if (typeof err !== "object" || err === null) return false;
+
+  const e = err as {
+    originalError?: unknown;
+    name?: unknown;
+    status?: unknown;
+    code?: unknown;
+    message?: unknown;
+  };
+  // Storage: a StorageUnknownError holding the TypeError.
+  if (e.originalError instanceof TypeError) return true;
+  // Auth: a retryable error with no HTTP status, because there was no reply.
+  if (e.name === "AuthRetryableFetchError" && e.status === 0) return true;
+  // PostgREST: the TypeError's name and message as text, with no SQLSTATE.
+  return (
+    e.code === "" &&
+    typeof e.message === "string" &&
+    /^(TypeError|FetchError):/.test(e.message)
+  );
 }
 
 /**
@@ -148,6 +173,131 @@ async function replayHabitCreate(
   return "done";
 }
 
+/**
+ * A camera take waiting to be sent: the file, and everything the send would
+ * have handed `share_capture`.
+ */
+export type CaptureSharePayload = ShareCaptureParams & {
+  /**
+   * The take itself, as bytes rather than the Blob it came as: Safari's
+   * IndexedDB has had releases that couldn't keep a Blob, and bytes store
+   * everywhere.
+   */
+  media: ArrayBuffer;
+  contentType: string;
+};
+
+/**
+ * Keep a take to send once the connection is back.
+ *
+ * `payload.mediaPath` is minted before anything is sent, the same path an
+ * online attempt used, so a take that reached storage before the connection
+ * dropped is found there rather than uploaded twice.
+ *
+ * A private take may be queued, unlike a private check-in (see
+ * `PrivateOfflineError`): those go to the completions queue, which a service
+ * worker from before 039 can drain without the private flag. Only the page
+ * replays the outbox, and the code that queued a take is the code that sends
+ * it.
+ */
+export function queueCaptureShare(entry: {
+  id: string;
+  userId: string;
+  payload: CaptureSharePayload;
+}): Promise<void> {
+  return queueWrite({ ...entry, kind: "capture.share" });
+}
+
+/** Storage refuses a second upload to a path as a 409, "already exists". */
+function isAlreadyUploaded(error: { statusCode?: unknown }): boolean {
+  return String(error.statusCode) === "409";
+}
+
+/**
+ * The rows `share_capture` makes that carry this take's path — one is enough.
+ *
+ * A habit always gets its row, where a friend or group the habit's check-in
+ * already reaches is skipped, so the habits are the ones to ask about.
+ */
+function rowCarrying(supabase: Client, userId: string, p: CaptureSharePayload) {
+  if (p.habitIds.length > 0) {
+    return p.isPrivate
+      ? supabase
+          .from("completion_private_content")
+          .select("completion_id")
+          .eq("user_id", userId)
+          .eq("evidence_url", p.mediaPath)
+          .limit(1)
+      : supabase
+          .from("completions")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("evidence_url", p.mediaPath)
+          .limit(1);
+  }
+  if (p.friendIds.length > 0) {
+    return supabase
+      .from("encouragements")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("media_path", p.mediaPath)
+      .limit(1);
+  }
+  return supabase
+    .from("group_messages")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("media_path", p.mediaPath)
+    .limit(1);
+}
+
+/**
+ * Send a queued take the way the online path does: upload, then
+ * `share_capture`.
+ *
+ * The upload repeats safely — a second one to the same path is refused as
+ * already there. That refusal means an earlier attempt got at least that far,
+ * and may have sent it too before being cut off, ahead of taking the row off
+ * the queue. `share_capture` writes every row in one transaction, so one row
+ * carrying the path means it all landed, and sending again would only
+ * duplicate it.
+ */
+async function replayCaptureShare(
+  supabase: Client,
+  userId: string,
+  p: CaptureSharePayload,
+): Promise<ReplayOutcome> {
+  const { error: uploadError } = await supabase.storage
+    .from("completions")
+    .upload(p.mediaPath, new Blob([p.media], { type: p.contentType }), {
+      contentType: p.contentType,
+    });
+
+  if (uploadError) {
+    // Too large stays too large. Anything else — offline again, storage
+    // down, a session not yet refreshed — is worth another try, and
+    // MAX_ATTEMPTS bounds how many.
+    if (!isAlreadyUploaded(uploadError)) {
+      return isUploadTooLarge(uploadError) ? "permanent" : "transient";
+    }
+    const { data, error } = await rowCarrying(supabase, userId, p);
+    if (error) return "transient";
+    if (data.length > 0) return "done";
+  }
+
+  const { error } = await untypedRpc(supabase, "share_capture", {
+    p_media_path: p.mediaPath,
+    p_media_type: p.mediaType,
+    p_caption: p.caption ?? null,
+    p_habit_ids: p.habitIds,
+    p_friend_ids: p.friendIds,
+    p_group_ids: p.groupIds,
+    p_private: p.isPrivate ?? false,
+  });
+  if (!error) return "done";
+  return isPermanent(error) ? "permanent" : "transient";
+}
+
 async function replayOne(
   supabase: Client,
   row: OutboxRecord,
@@ -200,6 +350,13 @@ async function replayOne(
       if (!error) return "done";
       return isPermanent(error) ? "permanent" : "transient";
     }
+
+    case "capture.share":
+      return replayCaptureShare(
+        supabase,
+        row.userId,
+        row.payload as CaptureSharePayload,
+      );
   }
 }
 

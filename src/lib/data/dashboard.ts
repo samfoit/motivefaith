@@ -34,7 +34,7 @@ async function fetchHabits(supabase: SupabaseServerClient, userId: string) {
     .from("habits")
     // Inline literal, not a constant: postgrest-js infers the row type from
     // this string, and a `const` widens it to `string` and erases the types.
-    .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, visibility, created_at")
+    .select("id, user_id, title, description, emoji, color, frequency, schedule, time_window, streak_current, streak_best, total_completions, is_paused, visibility, private_checkins, created_at")
     .eq("user_id", userId)
     .eq("is_paused", false)
     .order("created_at");
@@ -132,10 +132,15 @@ export async function fetchDashboard(
           c.completed_at != null &&
           c.completion_type != null,
       )
-      .map(({ id, completed_at, completion_type }) => ({
+      // rain_check_moved_to is what puts a makeup on the day it was moved
+      // to, says "Moved to …" on the day it was taken, and lets a broken
+      // promise end the streak below. Left out, every moved rain check read
+      // as a plain skip.
+      .map(({ id, completed_at, completion_type, rain_check_moved_to }) => ({
         id,
         completed_at,
         completion_type,
+        rain_check_moved_to,
       }));
 
     return {

@@ -16,11 +16,10 @@ import type { Database } from "@/lib/supabase/types";
  *   1. CSRF + session auth.
  *   2. Re-verify password against an isolated anon client (so cookies
  *      aren't touched).
- *   3. If the caller has a verified TOTP factor, require + verify a code.
- *   4. Call delete_own_account() RPC — atomically clears public-schema
+ *   3. Call delete_own_account() RPC — atomically clears public-schema
  *      rows, hands off groups, AND removes the auth.users row (via the
  *      _delete_auth_user_self helper owned by supabase_auth_admin).
- *   5. Strip storage prefixes (avatars/<uid>/*, completions/<uid>/*) —
+ *   4. Strip storage prefixes (avatars/<uid>/*, completions/<uid>/*) —
  *      best-effort; failure is logged but doesn't fail the request.
  *
  * Note: we used to call auth.admin.deleteUser() over REST as the last
@@ -53,11 +52,6 @@ export async function DELETE(request: Request) {
     return jsonResponse({ error: "Password is required" }, { status: 400 });
   }
 
-  const totpCode = body.totpCode;
-  if (totpCode !== undefined && typeof totpCode !== "string") {
-    return jsonResponse({ error: "Invalid totpCode" }, { status: 400 });
-  }
-
   const captchaToken = body.captchaToken;
   if (captchaToken !== undefined && typeof captchaToken !== "string") {
     return jsonResponse({ error: "Invalid captchaToken" }, { status: 400 });
@@ -82,7 +76,7 @@ export async function DELETE(request: Request) {
   }
 
   // Isolated anon client — does NOT share cookies with the caller's
-  // session, so signing in / MFA here doesn't disturb their cookies.
+  // session, so signing in here doesn't disturb their cookies.
   const reauth = createClient<Database>(supabaseUrl, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -103,39 +97,6 @@ export async function DELETE(request: Request) {
       },
       { status: 401 },
     );
-  }
-
-  // Check for a verified TOTP factor on the freshly-authenticated session.
-  const { data: factors } = await reauth.auth.mfa.listFactors();
-  const verifiedTotp = factors?.totp?.find((f) => f.status === "verified");
-
-  if (verifiedTotp) {
-    if (typeof totpCode !== "string" || !/^\d{6}$/.test(totpCode)) {
-      return jsonResponse(
-        { error: "Two-factor code required" },
-        { status: 401 },
-      );
-    }
-    const challenge = await reauth.auth.mfa.challenge({
-      factorId: verifiedTotp.id,
-    });
-    if (challenge.error) {
-      return jsonResponse(
-        { error: "Failed to create MFA challenge" },
-        { status: 500 },
-      );
-    }
-    const verify = await reauth.auth.mfa.verify({
-      factorId: verifiedTotp.id,
-      challengeId: challenge.data.id,
-      code: totpCode,
-    });
-    if (verify.error) {
-      return jsonResponse(
-        { error: "Invalid two-factor code" },
-        { status: 401 },
-      );
-    }
   }
 
   // RPC runs as the user's session so its auth.uid() check passes. The

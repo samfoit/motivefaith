@@ -1,16 +1,26 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
+import { useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { DASHBOARD_KEY_PREFIX, dashboardKey } from "@/lib/hooks/useDashboard";
 import { ChevronLeft, Loader2, Mic, Send } from "lucide-react";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { Button } from "@/components/ui/Button";
 import dynamic from "next/dynamic";
-import { useShareCapture } from "@/lib/hooks/useShareCapture";
+import {
+  useShareCapture,
+  type ShareCaptureParams,
+} from "@/lib/hooks/useShareCapture";
 import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+import { useConfirmSharing } from "@/lib/hooks/useConfirmSharing";
+import { useOnline } from "@/lib/hooks/useOnline";
 import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
+import type { DashboardData } from "@/lib/data/dashboard";
+import { applyCompletion } from "@/lib/data/dashboard-mutations";
+import { habitsLeftToday } from "@/lib/data/capture-habits";
+import { isOfflineError, queueCaptureShare } from "@/lib/offline-write";
+import { notifyPendingChanged } from "@/lib/outbox-drain";
 import {
   ShareTargetPicker,
   SelectedTargets,
@@ -29,7 +39,8 @@ import {
   ALLOWED_VIDEO_TYPES,
   MIME_TO_EXT,
 } from "@/lib/utils/media-types";
-import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { checkVideo, isUploadTooLarge } from "@/lib/utils/check-video";
+import { PrivateToggle } from "@/components/habits/PrivateToggle";
 
 /**
  * Interaction-only: the camera UI is reachable only after the user taps the
@@ -45,11 +56,14 @@ const CameraCapture = dynamic(
   { loading: () => null },
 );
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-import { MAX_VIDEO_SIZE_MB } from "@/lib/constants/limits";
+/**
+ * The picker's last list from the server, kept in the persisted cache for
+ * offline: the dashboard's data stands in for it then, but doesn't know who
+ * each habit's check-in reaches.
+ */
+function captureHabitsKey(userId: string | undefined): QueryKey {
+  return ["capture-habits", userId ?? null];
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -59,7 +73,9 @@ export function QuickCaptureFlow() {
   const queryClient = useQueryClient();
   const { show, ToastElements } = useToast();
   const shareCapture = useShareCapture();
+  const confirmSharing = useConfirmSharing();
   const userId = useAuthUserId() ?? undefined;
+  const online = useOnline();
 
   const step = useQuickCaptureStore((s) => s.step);
   const captureMode = useQuickCaptureStore((s) => s.captureMode);
@@ -75,6 +91,8 @@ export function QuickCaptureFlow() {
   const toggleTarget = useQuickCaptureStore((s) => s.toggleTarget);
   const deselectTargets = useQuickCaptureStore((s) => s.deselectTargets);
   const direct = useQuickCaptureStore((s) => s.direct);
+  const privateOverride = useQuickCaptureStore((s) => s.privateOverride);
+  const setPrivateOverride = useQuickCaptureStore((s) => s.setPrivateOverride);
 
   // Only fetched once the flow is open; both are cached across opens.
   const { data: friends } = useFriendsList(step !== "closed" ? userId : undefined);
@@ -101,8 +119,8 @@ export function QuickCaptureFlow() {
 
   const [habits, setHabits] = useState<PickerHabit[]>([]);
   const [habitsLoading, setHabitsLoading] = useState(false);
+  const [habitsUnavailable, setHabitsUnavailable] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -139,8 +157,10 @@ export function QuickCaptureFlow() {
 
     async function fetchIncompleteHabits() {
       setHabitsLoading(true);
-      setError(null);
+      setHabitsUnavailable(null);
 
+      let rows: PickerHabit[] | null = null;
+      let failure: unknown = null;
       try {
         const supabase = createClient();
         const tz = getBrowserTimezone();
@@ -152,34 +172,56 @@ export function QuickCaptureFlow() {
         );
 
         if (rpcError) throw rpcError;
+        rows = data ?? [];
+      } catch (err) {
+        failure = err;
+      }
+      if (canceled) return;
 
-        if (!canceled) {
-          // Rows come back exactly as the dashboard card draws them: no
-          // made-up emoji or color for a habit that has none.
-          setHabits(data ?? []);
-          setHabitsLoading(false);
-        }
-      } catch {
-        if (!canceled) {
-          setError("Failed to load habits");
-          setHabitsLoading(false);
+      if (rows) {
+        // Rows come back exactly as the dashboard card draws them: no
+        // made-up emoji or color for a habit that has none.
+        setHabits(rows);
+        queryClient.setQueryData(captureHabitsKey(userId), rows);
+      } else {
+        // Offline, or the server couldn't answer: today's habits as the
+        // cached dashboard has them, so the take can still go to one.
+        const cached = queryClient.getQueryData<DashboardData>(
+          dashboardKey(userId ?? null),
+        );
+        if (cached) {
+          setHabits(
+            habitsLeftToday(
+              cached,
+              queryClient.getQueryData<PickerHabit[]>(captureHabitsKey(userId)),
+            ),
+          );
+        } else {
+          setHabits([]);
+          setHabitsUnavailable(
+            isOfflineError(failure)
+              ? "Your habits need a connection."
+              : "Couldn't load your habits.",
+          );
         }
       }
+      setHabitsLoading(false);
     }
 
     fetchIncompleteHabits();
     return () => {
       canceled = true;
     };
-  }, [step]);
+  }, [step, queryClient, userId]);
 
   // ---------------------------------------------------------------------------
   // Handlers
   // ---------------------------------------------------------------------------
 
   /**
-   * Uploads the take once and sends it everywhere picked. A failure goes back
-   * to where the targets were chosen: the picker, or for a chat's own camera,
+   * Uploads the take once and sends it everywhere picked — or, without a
+   * connection, keeps it to send once there is one. A failure goes back to
+   * where the targets were chosen: the picker, or for a chat's own camera,
    * the preview with its Send button.
    */
   const send = useCallback(
@@ -188,17 +230,16 @@ export function QuickCaptureFlow() {
       mode: "photo" | "video" | "voice",
       caption: string,
       targets: { habitIds: string[]; friendIds: string[]; groupIds: string[] },
+      isPrivate = false,
     ) => {
       const direct = useQuickCaptureStore.getState().direct;
       setStep("uploading");
-      setError(null);
 
       try {
-        const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) throw new Error("Not authenticated");
+        // From the session cookie, which needs no network; storage and
+        // share_capture both check the path's folder against the real
+        // session, so a wrong one is refused there.
+        if (!userId) throw new Error("Not authenticated");
 
         // The bare type: a recorder's "video/webm;codecs=vp9" is neither in
         // MIME_TO_EXT nor in the bucket's allowed types.
@@ -214,52 +255,108 @@ export function QuickCaptureFlow() {
 
         // Uploaded once; every destination row points at this path, and those
         // rows are what let a friend or group member read it (migration 034).
-        const path = `${user.id}/capture/${crypto.randomUUID()}.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("completions")
-          .upload(path, uploadBlob, { contentType });
-
-        if (uploadError) throw uploadError;
-
-        await shareCapture.mutateAsync({
-          mediaPath: path,
+        // A private take goes where no shared row can point (039). Minted
+        // before anything is sent, so a take that has to be queued keeps the
+        // path it may already have reached storage under.
+        const id = crypto.randomUUID();
+        const share: ShareCaptureParams = {
+          mediaPath: `${userId}/${isPrivate ? "private" : "capture"}/${id}.${ext}`,
           mediaType: mode,
           caption: caption.trim() || undefined,
           ...targets,
-        });
+          isPrivate,
+        };
+
+        // Offline it is kept without trying, as a check-in is, and so is a
+        // send the connection drops partway. A refusal from the server is
+        // still an error to show, not a promise to send later.
+        let queued = !navigator.onLine;
+        if (!queued) {
+          try {
+            const { error: uploadError } = await createClient()
+              .storage.from("completions")
+              .upload(share.mediaPath, uploadBlob, { contentType });
+
+            if (uploadError) throw uploadError;
+
+            await shareCapture.mutateAsync(share);
+          } catch (err) {
+            if (!isOfflineError(err)) throw err;
+            queued = true;
+          }
+        }
 
         const { habitIds } = targets;
-        const count =
-          habitIds.length + targets.friendIds.length + targets.groupIds.length;
-        // From a chat's own camera the take shows up in that chat, which is
-        // confirmation enough; a toast over it would only cover it. From the
-        // picker it goes somewhere you can't see, so it's said.
-        if (!direct) {
-          show({
-            title:
-              habitIds.length > 0 && count === habitIds.length
-                ? "Habit completed!"
-                : "Sent!",
-            variant: "success",
+        if (queued) {
+          await queueCaptureShare({
+            id,
+            userId,
+            payload: { ...share, media: await uploadBlob.arrayBuffer(), contentType },
           });
+          notifyPendingChanged();
+          // Checked in on the dashboard now, as an offline quick check-in
+          // is, so the habit doesn't look undone — or come back to this
+          // picker — while the take waits.
+          if (habitIds.length > 0) {
+            const key = dashboardKey(userId);
+            void queryClient.cancelQueries({ queryKey: key });
+            queryClient.setQueryData<DashboardData>(key, (old) =>
+              habitIds.reduce(
+                (data, habitId) =>
+                  applyCompletion(data, {
+                    habitId,
+                    tempId: `${id}:${habitId}`,
+                    type: mode,
+                  }),
+                old,
+              ),
+            );
+          }
+          // Said from a chat's camera too: the chat can't show the take
+          // until it has been sent. And no onSent — that refreshes the chat
+          // from a server that doesn't have it yet, and fails offline.
+          show({
+            title: "Saved",
+            description: "It'll send when you're back online.",
+            variant: "info",
+          });
+        } else {
+          const count =
+            habitIds.length + targets.friendIds.length + targets.groupIds.length;
+          // From a chat's own camera the take shows up in that chat, which is
+          // confirmation enough; a toast over it would only cover it. From the
+          // picker it goes somewhere you can't see, so it's said.
+          if (!direct) {
+            show({
+              title:
+                habitIds.length > 0 && count === habitIds.length
+                  ? "Habit completed!"
+                  : "Sent!",
+              variant: "success",
+            });
+          }
+          // The dashboard reads from the query cache now, not from server props,
+          // so router.refresh() would be a wasted round trip — and one that
+          // fails outright offline.
+          if (habitIds.length > 0) {
+            void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
+          }
+          direct?.onSent?.();
         }
-        // The dashboard reads from the query cache now, not from server props,
-        // so router.refresh() would be a wasted round trip — and one that
-        // fails outright offline.
-        if (habitIds.length > 0) {
-          void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
-        }
-        direct?.onSent?.();
         setNotes("");
         reset();
       } catch (err) {
         console.error("Quick capture send failed:", err);
-        show({ title: "Couldn't send. Try again.", variant: "error" });
+        show({
+          title: isUploadTooLarge(err)
+            ? "That file is too large to send."
+            : "Couldn't send. Try again.",
+          variant: "error",
+        });
         setStep(direct ? "camera" : "share");
       }
     },
-    [shareCapture, reset, queryClient, setStep, show],
+    [shareCapture, reset, queryClient, setStep, show, userId],
   );
 
   /**
@@ -306,36 +403,58 @@ export function QuickCaptureFlow() {
   }, []);
 
   const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = "";
       if (!file) return;
 
-      if (
-        !ALLOWED_IMAGE_TYPES.has(file.type) &&
-        !ALLOWED_VIDEO_TYPES.has(file.type)
-      ) {
-        setError(
-          "Unsupported file type. Use JPEG, PNG, WebP, GIF, MP4, MOV, or WebM.",
-        );
+      // A toast, not the error banner: this picker is opened from the
+      // camera's "unavailable" screen, and the banner is on the send screen.
+      const refuse = (title: string) =>
+        show({ title, variant: "error", duration: 6000 });
+
+      const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
+      if (!ALLOWED_IMAGE_TYPES.has(file.type) && !isVideo) {
+        refuse("Unsupported file type. Use JPEG, PNG, WebP, GIF, MP4, MOV, or WebM.");
         return;
       }
 
-      if (
-        ALLOWED_VIDEO_TYPES.has(file.type) &&
-        file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024
-      ) {
-        setError(`Video must be under ${MAX_VIDEO_SIZE_MB}MB`);
-        return;
+      if (isVideo) {
+        const problem = await checkVideo(file);
+        if (problem) {
+          refuse(problem);
+          return;
+        }
       }
 
-      const mode = ALLOWED_VIDEO_TYPES.has(file.type) ? "video" : "photo";
-      acceptTake(file, mode, "");
+      acceptTake(file, isVideo ? "video" : "photo", "");
     },
-    [acceptTake],
+    [acceptTake, show],
   );
 
   const selectedCount = habitIds.length + friendIds.length + groupIds.length;
+
+  // Private only means anything for habits alone: a friend or group picked is
+  // someone it is being sent to. Untouched, it follows the picked habits —
+  // private when every one of them keeps its check-ins private.
+  const onlyHabits =
+    habitIds.length > 0 && friendIds.length === 0 && groupIds.length === 0;
+  const habitsDefaultPrivate =
+    habitIds.length > 0 &&
+    habitIds.every((id) => habits.find((h) => h.id === id)?.private_checkins);
+  const isPrivate = onlyHabits && (privateOverride ?? habitsDefaultPrivate);
+
+  const handlePrivateChange = useCallback(
+    (next: boolean) => {
+      setPrivateOverride(next);
+      if (!next) return;
+      // Going private takes back anyone it was about to be sent to.
+      const s = useQuickCaptureStore.getState();
+      deselectTargets("friend", s.friendIds);
+      deselectTargets("group", s.groupIds);
+    },
+    [setPrivateOverride, deselectTargets],
+  );
 
   // Picking a habit takes over whoever its check-in already reaches: drop
   // them from the hand-picked lists so the picker shows them locked, and so
@@ -343,7 +462,11 @@ export function QuickCaptureFlow() {
   const handleToggle = useCallback(
     (kind: ShareTarget, id: string) => {
       toggleTarget(kind, id);
-      if (kind !== "habit") return;
+      // Picking a person or a group is sharing it, so it is no longer private.
+      if (kind !== "habit") {
+        setPrivateOverride(false);
+        return;
+      }
       const reached = reachedByHabits(
         habits,
         useQuickCaptureStore.getState().habitIds,
@@ -351,26 +474,41 @@ export function QuickCaptureFlow() {
       deselectTargets("friend", reached.friend.keys());
       deselectTargets("group", reached.group.keys());
     },
-    [habits, toggleTarget, deselectTargets],
+    [habits, toggleTarget, deselectTargets, setPrivateOverride],
   );
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     if (!capturedFile || !captureMode || selectedCount === 0) return;
-    void send(capturedFile, captureMode, notes, { habitIds, friendIds, groupIds });
+    // The picked habits' check-ins go to their partners and groups too, and
+    // the first time that reaches anybody it waits for a yes. Friends and
+    // groups picked by hand are being sent to on purpose, so they never ask.
+    if (!(await confirmSharing(habitIds))) return;
+    // A second tap made while that was answering waits on the same answer;
+    // the first send has left the picker by now, so this one stops here.
+    if (useQuickCaptureStore.getState().step !== "share") return;
+    void send(
+      capturedFile,
+      captureMode,
+      notes,
+      { habitIds, friendIds, groupIds },
+      isPrivate,
+    );
   }, [
     capturedFile,
     captureMode,
     selectedCount,
+    confirmSharing,
     send,
     notes,
     habitIds,
     friendIds,
     groupIds,
+    isPrivate,
   ]);
 
   const handleClose = useCallback(() => {
     close();
-    setError(null);
+    setHabitsUnavailable(null);
     setHabits([]);
     setNotes("");
   }, [close]);
@@ -472,18 +610,17 @@ export function QuickCaptureFlow() {
                 }}
                 className={cn(
                   "flex-1 min-w-0 rounded-lg border px-4 py-2.5 text-base transition-colors",
-                  "bg-bg-secondary border-surface-hover",
+                  "bg-elevated border-border",
                   "text-text-primary placeholder-text-tertiary",
                   "focus:outline-none focus:ring-2 focus:ring-brand-ink",
                 )}
               />
             </div>
 
-            {error && <ErrorBanner message={error} className="mb-3" />}
-
             <ShareTargetPicker
               habits={habits}
               habitsLoading={habitsLoading}
+              habitsUnavailable={habitsUnavailable}
               friends={pickerFriends}
               groups={pickerGroups}
               selected={selected}
@@ -499,6 +636,14 @@ export function QuickCaptureFlow() {
               selected={selected}
               onToggle={handleToggle}
             />
+            {habitIds.length > 0 && (
+              <div className="flex justify-end pb-3">
+                <PrivateToggle
+                  isPrivate={isPrivate}
+                  onChange={handlePrivateChange}
+                />
+              </div>
+            )}
             <Button
               className="w-full min-h-12"
               disabled={selectedCount === 0}
@@ -507,19 +652,21 @@ export function QuickCaptureFlow() {
               <Send className="inline w-4 h-4 mr-2 -mt-0.5" aria-hidden />
               {selectedCount === 0
                 ? "Pick where to send it"
-                : `Send to ${selectedCount}`}
+                : online
+                  ? `Send to ${selectedCount}`
+                  : `Send to ${selectedCount} when online`}
             </Button>
           </div>
         </div>
       )}
 
-      {/* Uploading overlay */}
+      {/* Uploading overlay — offline, the take is only being stored */}
       {step === "uploading" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-3 rounded-xl bg-bg-elevated p-8 shadow-lg">
             <Loader2 className="w-8 h-8 animate-spin text-brand-ink" />
             <p className="text-sm font-medium text-text-primary">
-              Uploading...
+              {online ? "Uploading..." : "Saving..."}
             </p>
           </div>
         </div>

@@ -2,6 +2,26 @@ import { StrictMode } from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { CameraCapture } from "../CameraCapture";
+import { TranscodeError, type TranscodeOptions } from "@/lib/utils/transcode-video";
+
+// What a picked video is measured against, and how it is trimmed and shrunk,
+// have tests of their own; here it is only whether the camera asks, and what
+// it does with the answer.
+const checkVideo = vi.fn<(file: File) => Promise<string | null>>();
+const readVideoDuration = vi.fn<(file: Blob) => Promise<number | null>>();
+vi.mock("@/lib/utils/check-video", () => ({
+  checkVideo: (file: File) => checkVideo(file),
+  readVideoDuration: (file: Blob) => readVideoDuration(file),
+}));
+
+/** Whether this "browser" can trim and shrink a picked video. */
+const transcoding = { supported: false };
+const transcodeVideo = vi.fn<(file: Blob, options: TranscodeOptions) => Promise<File>>();
+vi.mock("@/lib/utils/transcode-video", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/utils/transcode-video")>()),
+  canTranscodeVideo: () => transcoding.supported,
+  transcodeVideo: (file: Blob, options: TranscodeOptions) => transcodeVideo(file, options),
+}));
 
 /**
  * A video take latches: holding the shutter opens it, and letting go leaves it
@@ -134,6 +154,18 @@ async function pressShutter(holdMs: number) {
   });
 }
 
+/** Opens a hands-free take: Video mode, then a tap of the shutter. */
+async function startVideo() {
+  await act(async () => {
+    fireEvent.click(screen.getByRole("radio", { name: "Video" }));
+  });
+  const shutter = screen.getByRole("button", { name: /start video/i });
+  await act(async () => {
+    fireEvent.pointerDown(shutter, { pointerId: 1, clientX: 100, clientY: 600 });
+    fireEvent.pointerUp(shutter, { pointerId: 1, clientX: 100, clientY: 600 });
+  });
+}
+
 async function renderCamera() {
   const onCapture = vi.fn();
   const view = render(
@@ -186,12 +218,22 @@ describe("CameraCapture video takes", () => {
     Reflect.deleteProperty(navigator, "mediaDevices");
   });
 
-  it("keeps recording after the shutter is released", async () => {
+  it("ends a take held open in Photo when the shutter is let go", async () => {
     await renderCamera();
 
     await pressShutter(400); // past the hold threshold
 
     expect(FakeMediaRecorder.latest.start).toHaveBeenCalled();
+    expect(FakeMediaRecorder.latest.stop).toHaveBeenCalledTimes(1);
+    expect(FakeMediaRecorder.latest.pause).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /use video/i })).toBeInTheDocument();
+  });
+
+  it("keeps a Video take recording after the shutter is released", async () => {
+    await renderCamera();
+
+    await startVideo();
+
     expect(FakeMediaRecorder.latest.state).toBe("recording");
     expect(FakeMediaRecorder.latest.stop).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Pause recording" })).toBeInTheDocument();
@@ -199,7 +241,7 @@ describe("CameraCapture video takes", () => {
 
   it("pauses on the next tap and picks up again on the one after", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     await pressShutter(50);
     expect(FakeMediaRecorder.latest.pause).toHaveBeenCalledTimes(1);
@@ -215,14 +257,14 @@ describe("CameraCapture video takes", () => {
   it("does not pause on the release of the press that opened the take", async () => {
     await renderCamera();
 
-    await pressShutter(400);
+    await startVideo();
 
     expect(FakeMediaRecorder.latest.pause).not.toHaveBeenCalled();
   });
 
   it("counts only the time actually recorded against the limit", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     await act(async () => void vi.advanceTimersByTime(3000));
     expect(screen.getByText("00:03")).toBeInTheDocument();
@@ -238,7 +280,7 @@ describe("CameraCapture video takes", () => {
 
   it("finishes on the check, from a paused take too", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     await pressShutter(50); // pause
 
     await act(async () => {
@@ -251,17 +293,43 @@ describe("CameraCapture video takes", () => {
 
   it("stops itself once the take reaches the limit", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     await act(async () => void vi.advanceTimersByTime(15_000));
 
     expect(FakeMediaRecorder.latest.stop).toHaveBeenCalledTimes(1);
   });
 
+  it("opens on Photo, where a tap takes a picture rather than a video", async () => {
+    await renderCamera();
+
+    expect(screen.getByRole("radio", { name: "Photo" })).toHaveAttribute("aria-checked", "true");
+    await pressShutter(50);
+
+    expect(FakeMediaRecorder.instances).toHaveLength(0);
+  });
+
+  it("starts a take on a tap in Video, with no hold", async () => {
+    await renderCamera();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "Video" }));
+    });
+
+    const shutter = screen.getByRole("button", { name: /start video/i });
+    await act(async () => {
+      fireEvent.pointerDown(shutter, { pointerId: 1, clientX: 100, clientY: 600 });
+      fireEvent.pointerUp(shutter, { pointerId: 1, clientX: 100, clientY: 600 });
+    });
+
+    expect(FakeMediaRecorder.latest.start).toHaveBeenCalled();
+    expect(FakeMediaRecorder.latest.pause).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Pause recording" })).toBeInTheDocument();
+  });
+
   it("ends the take on a tap where the recorder cannot pause", async () => {
     // Safari before 14.1 exposes no pause().
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     const recorder = FakeMediaRecorder.latest;
     (recorder as { pause?: unknown }).pause = undefined;
@@ -298,7 +366,7 @@ describe("CameraCapture retake", () => {
       fireEvent.click(screen.getByRole("button", { name: /switch camera/i }));
     });
 
-    await pressShutter(400);
+    await startVideo();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /finish video/i }));
     });
@@ -414,7 +482,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("records the canvas paired with the microphone, not the camera track", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     const recorded = FakeMediaRecorder.latest.stream;
     expect(recorded.getVideoTracks().map((t) => t.label)).toEqual(["canvas"]);
@@ -423,7 +491,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("leaves the take running across a flip", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     const recorder = FakeMediaRecorder.latest;
 
     camera.getUserMedia.mockClear();
@@ -440,7 +508,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("does not disturb the microphone it is recording", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
 
     await flip();
 
@@ -449,7 +517,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("keeps the clock running across a flip", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     await act(async () => void vi.advanceTimersByTime(2000));
 
     await flip();
@@ -460,7 +528,7 @@ describe("CameraCapture mid-take flip", () => {
 
   it("offers the flip during a take but not in review", async () => {
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     expect(screen.getByRole("button", { name: /switch camera/i })).toBeInTheDocument();
 
     await act(async () => {
@@ -478,7 +546,7 @@ describe("CameraCapture mid-take flip", () => {
     ) as unknown as HTMLCanvasElement["getContext"];
 
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     const recorder = FakeMediaRecorder.latest;
     expect(recorder.stream.getVideoTracks().map((t) => t.label)).toEqual(["camera-1"]);
 
@@ -570,7 +638,7 @@ describe("CameraCapture framing", () => {
   it("hides the framing switch mid-take, when the shape is already fixed", async () => {
     finePointer(true);
     await renderCamera();
-    await pressShutter(400);
+    await startVideo();
     expect(screen.queryByRole("button", { name: /Fill the screen|Show the whole frame/ })).toBeNull();
   });
 
@@ -597,7 +665,7 @@ describe("CameraCapture framing", () => {
       return el;
     });
 
-    await pressShutter(400);
+    await startVideo();
 
     const take = created.at(-1)!;
     expect(take.width / take.height).toBeCloseTo(16 / 9, 2);
@@ -664,7 +732,7 @@ describe("CameraCapture voice mode", () => {
     expect(camera.getUserMedia).toHaveBeenCalledWith({ audio: true, video: false });
     expect(FakeMediaRecorder.latest.state).toBe("recording");
     // The mode belongs to the take now.
-    expect(screen.queryByRole("radio", { name: "Camera" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Photo" })).not.toBeInTheDocument();
 
     await act(async () => void vi.advanceTimersByTime(2000));
     await tapVoiceShutter();
@@ -770,6 +838,8 @@ describe("CameraCapture voice mode", () => {
     await act(async () => {});
 
     expect(screen.queryByRole("radio", { name: "Voice" })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Video" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Photo" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("offers no voice note on a denied camera when voice is off", async () => {
@@ -844,6 +914,337 @@ describe("CameraCapture first-opens tip and mode swipes", () => {
       fireEvent.pointerMove(voiceSurface, { pointerId: 3, clientX: 300, clientY: 305, timeStamp: 100 });
       fireEvent.pointerUp(voiceSurface, { pointerId: 3, clientX: 300, clientY: 305, timeStamp: 150 });
     });
-    expect(screen.getByRole("radio", { name: "Camera" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Photo" })).toHaveAttribute("aria-checked", "true");
+
+    await swipe(100, 300);
+    expect(screen.getByRole("radio", { name: "Video" })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
+/**
+ * The camera stops its own takes at the limit, but a video picked from the
+ * gallery can be any length or size. Where the phone can't trim and shrink it,
+ * it is sent as it is, and the bucket would refuse an oversized one only after
+ * all of it had been uploaded. So there it is checked as it is picked, and
+ * turned away with the reason.
+ */
+describe("CameraCapture gallery pick, where a video can't be prepared", () => {
+  const TOO_LONG = "Videos can be up to 15 seconds. This one is 42.";
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    URL.createObjectURL = vi.fn(() => "blob:picked");
+    URL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("MediaStream", FakeMediaStream);
+    installCamera();
+    transcoding.supported = false;
+    checkVideo.mockReset().mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  async function pick(container: HTMLElement, file: File) {
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+  }
+
+  const movie = (name = "IMG_0001.MOV") =>
+    new File(["mov"], name, { type: "video/quicktime" });
+
+  it("turns away a video that can't be sent, says why, and stays on the camera", async () => {
+    checkVideo.mockResolvedValue(TOO_LONG);
+    const { container, onCapture } = await renderCamera();
+    const video = movie();
+
+    await pick(container, video);
+
+    expect(checkVideo).toHaveBeenCalledWith(video);
+    expect(screen.getByRole("alert")).toHaveTextContent(TOO_LONG);
+    expect(screen.queryByRole("button", { name: "Use Video" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pick from gallery" })).toBeInTheDocument();
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("lets the reason fade after a few seconds", async () => {
+    checkVideo.mockResolvedValue(TOO_LONG);
+    const { container } = await renderCamera();
+
+    await pick(container, movie());
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    await act(async () => void vi.advanceTimersByTime(6000));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("takes a video that fits to its review, and from there to the caller", async () => {
+    const { container, onCapture } = await renderCamera();
+    const video = movie();
+
+    await pick(container, video);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Use Video" }));
+    });
+
+    expect(onCapture).toHaveBeenCalledWith(video, undefined);
+  });
+
+  it("clears the reason once a video that fits is picked", async () => {
+    checkVideo.mockResolvedValueOnce(TOO_LONG).mockResolvedValueOnce(null);
+    const { container } = await renderCamera();
+
+    await pick(container, movie("long.MOV"));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    await pick(container, movie("trimmed.MOV"));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use Video" })).toBeInTheDocument();
+  });
+
+  it("leaves a photo from the gallery alone: it is shrunk before upload anyway", async () => {
+    const { container } = await renderCamera();
+
+    await pick(container, new File(["jpg"], "IMG_0002.JPG", { type: "image/jpeg" }));
+
+    expect(checkVideo).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Use Photo" })).toBeInTheDocument();
+  });
+});
+
+/**
+ * Where the phone can, a picked video of any length goes to its review: a
+ * long one with a window to choose the part to send, and either way it is
+ * trimmed to that part and shrunk when it is used.
+ */
+describe("CameraCapture picked video, trimmed and shrunk", () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:picked");
+    URL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("MediaStream", FakeMediaStream);
+    installCamera();
+    transcoding.supported = true;
+    checkVideo.mockReset().mockResolvedValue(null);
+    readVideoDuration.mockReset().mockResolvedValue(42);
+    transcodeVideo.mockReset();
+    // jsdom plays no media; the preview is only told to play and pause.
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    transcoding.supported = false;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  async function pick(container: HTMLElement, file: File) {
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+  }
+
+  const movie = () => new File(["mov"], "IMG_0001.MOV", { type: "video/quicktime" });
+  const slider = () => screen.getByRole("slider", { name: "Part of the video to send" });
+  const use = () => {
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Use Video" }));
+    });
+  };
+
+  /** A transcode that is told by the test how it ends. */
+  function pendingTranscode() {
+    let finish!: (file: File) => void;
+    let fail!: (err: unknown) => void;
+    transcodeVideo.mockImplementation(
+      () =>
+        new Promise<File>((resolve, reject) => {
+          finish = resolve;
+          fail = reject;
+        }),
+    );
+    return {
+      options: () => transcodeVideo.mock.calls[0][1],
+      finish: (file: File) => act(async () => finish(file)),
+      fail: (err: unknown) => act(async () => fail(err)),
+    };
+  }
+
+  it("takes a video of any length to its review, offering to trim a long one", async () => {
+    const { container } = await renderCamera();
+
+    await pick(container, movie());
+
+    expect(checkVideo).not.toHaveBeenCalled();
+    expect(slider()).toHaveAttribute("aria-valuetext", "0:00 to 0:15");
+    expect(screen.getByRole("button", { name: "Use Video" })).toBeInTheDocument();
+  });
+
+  it("offers no trim for a video short enough to send whole", async () => {
+    readVideoDuration.mockResolvedValue(9);
+    const { container } = await renderCamera();
+
+    await pick(container, movie());
+
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  });
+
+  it("prepares the part chosen from the tap itself, and hands on what comes out", async () => {
+    const run = pendingTranscode();
+    const { container, onCapture } = await renderCamera();
+    const video = movie();
+    await pick(container, video);
+
+    fireEvent.keyDown(slider(), { key: "End" });
+    fireEvent.change(screen.getByPlaceholderText("Add a caption..."), {
+      target: { value: "sunrise" },
+    });
+    use();
+
+    // Called inside the click, with nothing awaited first.
+    expect(transcodeVideo).toHaveBeenCalledWith(
+      video,
+      expect.objectContaining({ start: 27, length: 15 }),
+    );
+
+    await act(async () => run.options().onProgress?.(0.4));
+    expect(screen.getByRole("progressbar", { name: "Preparing video" })).toHaveAttribute(
+      "aria-valuenow",
+      "40",
+    );
+    expect(onCapture).not.toHaveBeenCalled();
+
+    const prepared = new File(["mp4"], "video-1.mp4", { type: "video/mp4" });
+    await run.finish(prepared);
+
+    expect(onCapture).toHaveBeenCalledWith(prepared, "sunrise");
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("stops on Cancel and leaves the review as it was", async () => {
+    const run = pendingTranscode();
+    const { container, onCapture } = await renderCamera();
+    await pick(container, movie());
+    use();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    });
+    expect(run.options().signal?.aborted).toBe(true);
+    await run.fail(new TranscodeError("cancelled"));
+
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use Video" })).toBeInTheDocument();
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("sends a short video as it is when it can't be prepared here and fits", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    readVideoDuration.mockResolvedValue(9);
+    transcodeVideo.mockRejectedValue(new TranscodeError("decode"));
+    const { container, onCapture } = await renderCamera();
+    const video = movie();
+    await pick(container, video);
+
+    use();
+    await act(async () => {});
+
+    expect(checkVideo).toHaveBeenCalledWith(video);
+    expect(onCapture).toHaveBeenCalledWith(video, undefined);
+  });
+
+  it("says so when a long video can't be prepared, rather than send all of it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    transcodeVideo.mockRejectedValue(new TranscodeError("decode"));
+    const { container, onCapture } = await renderCamera();
+    await pick(container, movie());
+
+    use();
+    await act(async () => {});
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This video couldn't be prepared here. Try another, or trim it to 15 seconds first.",
+    );
+    expect(checkVideo).not.toHaveBeenCalled();
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("keeps the preview to the part chosen", async () => {
+    const { container } = await renderCamera();
+    await pick(container, movie());
+    fireEvent.keyDown(slider(), { key: "End" });
+    const preview = container.querySelector("video")!;
+    expect(preview.currentTime).toBe(27);
+
+    preview.currentTime = 42.2;
+    fireEvent.timeUpdate(preview);
+
+    expect(preview.currentTime).toBe(27);
+  });
+
+  it("doesn't prepare again a take reopened from the send screen", async () => {
+    const onCapture = vi.fn();
+    const prepared = new File(["mp4"], "video-1.mp4", { type: "video/mp4" });
+    render(
+      <CameraCapture
+        onCapture={onCapture}
+        onClose={vi.fn()}
+        onFallback={vi.fn()}
+        initialCapture={{ file: prepared }}
+      />,
+    );
+    await act(async () => {});
+
+    use();
+
+    expect(transcodeVideo).not.toHaveBeenCalled();
+    expect(onCapture).toHaveBeenCalledWith(prepared, undefined);
+  });
+});
+
+describe("CameraCapture picked video, a double tap on Use", () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:picked");
+    URL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("MediaStream", FakeMediaStream);
+    installCamera();
+    transcoding.supported = true;
+    readVideoDuration.mockReset().mockResolvedValue(9);
+    transcodeVideo.mockReset().mockReturnValue(new Promise<File>(() => {}));
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    transcoding.supported = false;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  it("prepares the video once", async () => {
+    const { container } = await renderCamera();
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, {
+        target: { files: [new File(["mov"], "IMG_0001.MOV", { type: "video/quicktime" })] },
+      });
+    });
+
+    // Both taps land before React has drawn the overlay over the button.
+    const button = screen.getByRole("button", { name: "Use Video" });
+    act(() => {
+      fireEvent.click(button);
+      fireEvent.click(button);
+    });
+
+    expect(transcodeVideo).toHaveBeenCalledTimes(1);
   });
 });

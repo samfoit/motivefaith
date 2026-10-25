@@ -86,7 +86,7 @@ export const MonthView = memo(function MonthView({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg bg-bg-secondary px-2 pt-3 pb-2">
+      <div className="rounded-lg bg-elevated shadow-sm px-2 pt-3 pb-2">
         <div className="flex items-baseline justify-between gap-3 px-2 mb-2">
           <h2 className="font-display font-medium text-text-primary text-base">
             {format(monthStart, "MMMM yyyy")}
@@ -142,7 +142,7 @@ export const MonthView = memo(function MonthView({
         {selectedHabits.length > 0 ? (
           <ul
             key={selected.key}
-            className="rounded-lg bg-bg-secondary overflow-hidden divide-y divide-bg-primary mv-day-list"
+            className="rounded-lg bg-elevated shadow-sm overflow-hidden divide-y divide-bg-primary mv-day-list"
           >
             {selectedHabits.map(({ habit, state }) => (
               <li key={habit.id}>

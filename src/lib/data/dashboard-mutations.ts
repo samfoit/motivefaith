@@ -123,6 +123,7 @@ export function applyHabitCreate(
         streak_best: 0,
         total_completions: 0,
         is_paused: false,
+        private_checkins: false,
         created_at: new Date().toISOString(),
         completions: [],
         challenge: null,

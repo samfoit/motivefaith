@@ -214,7 +214,7 @@ export function InboxClient({
         {/* Empty state */}
         {visible.length === 0 && partners.length === 0 && (
           <div className="text-center py-12">
-            <div className="w-14 h-14 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-full bg-elevated shadow-sm flex items-center justify-center mx-auto mb-4">
               <Bell className="w-6 h-6 text-[var(--color-text-tertiary)]" />
             </div>
             <h2

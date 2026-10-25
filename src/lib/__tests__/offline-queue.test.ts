@@ -71,3 +71,28 @@ describe("getPendingCount", () => {
     expect(count).toBe(0);
   });
 });
+
+describe("schema upgrades", () => {
+  it("doesn't hold up a newer page raising the database version", async () => {
+    const { queueCompletion, getPendingCount } = await getModule();
+    await queueCompletion({ habitId: "h1", type: "quick" });
+    expect(await getPendingCount()).toBe(1);
+
+    // This tab's connections are all still open; a newer page asking for the
+    // next version must get it now, not once this tab closes.
+    const blocked = vi.fn();
+    const upgraded = await new Promise<boolean>((resolve) => {
+      const open = indexedDB.open("motive-offline", 3);
+      open.onblocked = blocked;
+      open.onsuccess = () => {
+        open.result.close();
+        resolve(true);
+      };
+      open.onerror = () => resolve(false);
+      setTimeout(() => resolve(false), 1000);
+    });
+
+    expect(upgraded).toBe(true);
+    expect(blocked).not.toHaveBeenCalled();
+  });
+});

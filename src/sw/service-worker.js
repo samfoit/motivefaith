@@ -495,10 +495,22 @@ self.addEventListener("sync", function (event) {
   }
 });
 
+/**
+ * Open the offline queue at whatever version the page has made it.
+ *
+ * No version number, on purpose. The page owns this database's schema
+ * (DB_VERSION in src/lib/offline-queue.ts) and raises it as stores are added,
+ * and IndexedDB refuses a request for any lower version outright. This used
+ * to ask for 1; once the page moved to 2, every sync failed with a
+ * VersionError, and a check-in queued offline waited for the app to be
+ * opened again.
+ */
 function openOfflineDB() {
   return new Promise(function (resolve, reject) {
-    var request = indexedDB.open("motive-offline", 1);
+    var request = indexedDB.open("motive-offline");
 
+    // Only when there is no database yet, which leaves nothing to sync — but
+    // the store has to exist for the read that follows.
     request.onupgradeneeded = function (event) {
       var db = event.target.result;
       if (!db.objectStoreNames.contains("pending-completions")) {
@@ -507,7 +519,14 @@ function openOfflineDB() {
     };
 
     request.onsuccess = function (event) {
-      resolve(event.target.result);
+      var db = event.target.result;
+      // Nothing here closes the connection, and the worker can outlive the
+      // sync by a while. Let a page raising the schema have it rather than
+      // leave that page's upgrade waiting.
+      db.onversionchange = function () {
+        db.close();
+      };
+      resolve(db);
     };
 
     request.onerror = function () {
@@ -599,6 +618,7 @@ function syncQueuedCompletions() {
           notes: item.notes || undefined,
           rainCheckReason: item.rainCheckReason || undefined,
           rainCheckMovedTo: item.rainCheckMovedTo || undefined,
+          isPrivate: item.isPrivate || undefined,
           // evidenceUrl is intentionally omitted — files uploaded separately
         };
       });

@@ -35,7 +35,7 @@ export function OfflinePanel({ what, onRetry }: OfflinePanelProps) {
         <button
           type="button"
           onClick={onRetry}
-          className="mt-1 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-bg-tertiary)]"
+          className="mt-1 rounded-lg bg-elevated ring-1 ring-border px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
         >
           Try again
         </button>

@@ -1,13 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import type { ComponentProps } from "react";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 
 // Mock supabase client
 const mockSignUp = vi.fn();
+const mockSignInWithOAuth = vi.fn();
+const mockGetUser = vi.fn();
+const mockProfile = vi.fn();
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
-    auth: { signUp: mockSignUp },
+    auth: {
+      signUp: mockSignUp,
+      signInWithOAuth: mockSignInWithOAuth,
+      getUser: mockGetUser,
+    },
+    from: () => ({ select: () => ({ eq: () => ({ single: mockProfile }) }) }),
   }),
 }));
+
+// Google's own button needs its script and a client ID. What the page does
+// once Google has signed someone in is the part under test, so the handler
+// it passes is kept to call directly; the real component still renders, as
+// its redirect button.
+const google = vi.hoisted(() => ({
+  onSignedIn: null as null | (() => void | Promise<void>),
+}));
+vi.mock("../GoogleSignIn", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../GoogleSignIn")>();
+  return {
+    ...mod,
+    GoogleSignIn: (props: ComponentProps<typeof mod.GoogleSignIn>) => {
+      google.onSignedIn = props.onSignedIn;
+      return <mod.GoogleSignIn {...props} />;
+    },
+  };
+});
 
 // Mock habit-facts to avoid animation complexity
 vi.mock("../habit-facts", () => ({
@@ -206,5 +233,51 @@ describe("SignupPage", () => {
         screen.getByRole("button", { name: /create account/i }),
       ).toBeDisabled();
     });
+  });
+});
+
+describe("SignupPage with Google", () => {
+  beforeEach(() => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } } });
+  });
+
+  async function signInWithGoogle() {
+    await act(async () => {
+      await google.onSignedIn!();
+    });
+  }
+
+  it("offers Continue with Google, going through Google's redirect where its button can't load", async () => {
+    render(<SignupPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    await waitFor(() =>
+      expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      }),
+    );
+  });
+
+  it("sends someone new on to finish their profile, where the age check and terms are", async () => {
+    mockProfile.mockResolvedValue({ data: { avatar_url: null, has_date_of_birth: false } });
+    render(<SignupPage />);
+
+    await signInWithGoogle();
+
+    expect(mockPush).toHaveBeenCalledWith("/auth/complete-profile");
+    expect(mockSignUp).not.toHaveBeenCalled();
+  });
+
+  it("takes someone who already has an account straight in", async () => {
+    mockProfile.mockResolvedValue({
+      data: { avatar_url: "me.png", has_date_of_birth: true },
+    });
+    render(<SignupPage />);
+
+    await signInWithGoogle();
+
+    expect(mockPush).toHaveBeenCalledWith("/main/dashboard");
   });
 });

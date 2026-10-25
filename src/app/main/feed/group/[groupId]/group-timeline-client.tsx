@@ -930,7 +930,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
             maxLength={300}
             className={cn(
               "flex-1 min-w-0 rounded-full px-4 py-2.5 text-base",
-              "bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]",
+              "bg-elevated ring-1 ring-border text-[var(--color-text-primary)]",
               "placeholder:text-[var(--color-text-tertiary)]",
               "focus:outline-none focus:ring-2 focus:ring-brand-ink/40",
               "transition-shadow",
@@ -944,7 +944,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
               "transition-all",
               message.trim()
                 ? "bg-brand text-on-brand active:scale-95"
-                : "bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)]",
+                : "bg-elevated ring-1 ring-border text-[var(--color-text-tertiary)]",
             )}
             aria-label="Send message"
           >

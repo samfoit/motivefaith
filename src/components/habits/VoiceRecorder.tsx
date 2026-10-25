@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { X, Mic } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
+import { PrivateToggle } from "@/components/habits/PrivateToggle";
 import { getSupportedAudioMimeType } from "@/lib/utils/audio-recorder";
 import { MAX_AUDIO_DURATION_S } from "@/lib/constants/limits";
 
@@ -18,6 +19,14 @@ export interface VoiceRecorderProps {
   onCapture: (file: File) => void;
   onClose: () => void;
   maxDuration?: number;
+  /**
+   * Offers the private switch on the review step, for a check-in whose
+   * recording can be kept out of partners' view. Absent hides it.
+   */
+  privacy?: {
+    isPrivate: boolean;
+    onChange: (isPrivate: boolean) => void;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -38,6 +47,7 @@ export function VoiceRecorder({
   onCapture,
   onClose,
   maxDuration = MAX_AUDIO_DURATION_S,
+  privacy,
 }: VoiceRecorderProps) {
   const [stage, setStage] = useState<RecordingStage>("idle");
   const [recordingTime, setRecordingTime] = useState(0);
@@ -296,6 +306,14 @@ export function VoiceRecorder({
           )}
 
           {/* Review — retake / use */}
+          {stage === "review" && privacy && (
+            <PrivateToggle
+              tone="dark"
+              isPrivate={privacy.isPrivate}
+              onChange={privacy.onChange}
+              className="mb-4"
+            />
+          )}
           {stage === "review" && (
             <div className="flex gap-4 w-full max-w-xs">
               <Button

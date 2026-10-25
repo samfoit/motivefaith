@@ -326,7 +326,7 @@ function Card({
         <div
           className={
             "w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 " +
-            (iconMuted ? "bg-bg-secondary" : "bg-brand-light")
+            (iconMuted ? "bg-elevated shadow-sm" : "bg-brand-light")
           }
         >
           {icon}

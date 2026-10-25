@@ -34,6 +34,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      completion_private_content: {
+        Row: {
+          completion_id: string
+          completion_type: Database["public"]["Enums"]["completion_type"]
+          created_at: string
+          evidence_url: string | null
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          completion_id: string
+          completion_type: Database["public"]["Enums"]["completion_type"]
+          created_at?: string
+          evidence_url?: string | null
+          notes?: string | null
+          user_id: string
+        }
+        Update: {
+          completion_id?: string
+          completion_type?: Database["public"]["Enums"]["completion_type"]
+          created_at?: string
+          evidence_url?: string | null
+          notes?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "completion_private_content_completion_id_fkey"
+            columns: ["completion_id"]
+            isOneToOne: true
+            referencedRelation: "completions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "completion_private_content_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       completions: {
         Row: {
           completed_at: string | null
@@ -714,6 +756,7 @@ export type Database = {
           frequency: Database["public"]["Enums"]["habit_frequency"]
           id: string
           is_paused: boolean | null
+          private_checkins: boolean
           visibility: Database["public"]["Enums"]["habit_visibility"]
           schedule: Json | null
           streak_best: number | null
@@ -732,6 +775,7 @@ export type Database = {
           frequency?: Database["public"]["Enums"]["habit_frequency"]
           id?: string
           is_paused?: boolean | null
+          private_checkins?: boolean
           visibility?: Database["public"]["Enums"]["habit_visibility"]
           schedule?: Json | null
           streak_best?: number | null
@@ -750,6 +794,7 @@ export type Database = {
           frequency?: Database["public"]["Enums"]["habit_frequency"]
           id?: string
           is_paused?: boolean | null
+          private_checkins?: boolean
           visibility?: Database["public"]["Enums"]["habit_visibility"]
           schedule?: Json | null
           streak_best?: number | null
@@ -775,6 +820,7 @@ export type Database = {
           created_at: string | null
           date_of_birth: string | null
           display_name: string
+          has_date_of_birth: boolean
           id: string
           notification_prefs: Json | null
           push_subscription: Json | null
@@ -786,6 +832,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           display_name: string
+          has_date_of_birth?: never
           id: string
           notification_prefs?: Json | null
           push_subscription?: Json | null
@@ -797,6 +844,7 @@ export type Database = {
           created_at?: string | null
           date_of_birth?: string | null
           display_name?: string
+          has_date_of_birth?: never
           id?: string
           notification_prefs?: Json | null
           push_subscription?: Json | null
@@ -973,6 +1021,35 @@ export type Database = {
           to: "completions"
           isOneToOne: false
           isSetofReturn: true
+        }
+      }
+      insert_private_completion: {
+        Args: {
+          p_completion_type: Database["public"]["Enums"]["completion_type"]
+          p_evidence_url?: string
+          p_habit_id: string
+          p_notes?: string
+        }
+        Returns: {
+          completed_at: string | null
+          completed_date: string | null
+          completion_type: Database["public"]["Enums"]["completion_type"] | null
+          created_at: string | null
+          evidence_url: string | null
+          habit_id: string
+          id: string
+          notes: string | null
+          rain_check_moved_to: string | null
+          rain_check_reason:
+            | Database["public"]["Enums"]["rain_check_reason"]
+            | null
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "completions"
+          isOneToOne: true
+          isSetofReturn: false
         }
       }
       reset_stale_streaks: {

@@ -18,12 +18,24 @@ interface CompletionInput {
   notes?: string;
   rainCheckReason?: Enums<"rain_check_reason">;
   rainCheckMovedTo?: string;
+  /** Keep the note or media for the owner; partners get a plain check-in. */
+  isPrivate?: boolean;
 }
+
+/** The check-ins that carry content worth keeping private. */
+const PRIVATE_TYPES = new Set(["photo", "video", "voice", "message"]);
 
 function validateItem(item: unknown): item is CompletionInput {
   if (typeof item !== "object" || item === null) return false;
-  const { habitId, type, notes, evidenceUrl, rainCheckReason, rainCheckMovedTo } =
-    item as Record<string, unknown>;
+  const {
+    habitId,
+    type,
+    notes,
+    evidenceUrl,
+    rainCheckReason,
+    rainCheckMovedTo,
+    isPrivate,
+  } = item as Record<string, unknown>;
   if (
     typeof habitId !== "string" ||
     typeof type !== "string" ||
@@ -56,6 +68,10 @@ function validateItem(item: unknown): item is CompletionInput {
   // habit owner's timezone, which only chk_rain_check_moved_to can do.
   if (rainCheckMovedTo !== undefined) {
     if (!isDateKey(rainCheckMovedTo) || type !== "rain_check") return false;
+  }
+  if (isPrivate !== undefined) {
+    if (typeof isPrivate !== "boolean") return false;
+    if (isPrivate && !PRIVATE_TYPES.has(type)) return false;
   }
   return true;
 }
@@ -104,6 +120,7 @@ export async function POST(request: Request) {
       notes: item.notes ?? null,
       rain_check_reason: item.rainCheckReason ?? null,
       rain_check_moved_to: item.rainCheckMovedTo ?? null,
+      is_private: item.isPrivate ?? false,
     }));
 
     const { data, error } = await supabase.rpc("insert_completions_batch", {
@@ -140,14 +157,29 @@ export async function POST(request: Request) {
   }
 
   // Atomic insert via RPC — ownership verified inside the transaction.
-  const { data, error } = await supabase.rpc("insert_completion", {
-    p_habit_id: body.habitId,
-    p_completion_type: body.type,
-    p_evidence_url: body.evidenceUrl,
-    p_notes: body.notes,
-    p_rain_check_reason: body.rainCheckReason,
-    p_rain_check_moved_to: body.rainCheckMovedTo,
-  });
+  // A private check-in whose media was lost on the way (the offline queue
+  // never keeps files) has nothing left to hide, so it is a plain quick one.
+  const hasContent = Boolean(body.evidenceUrl || body.notes?.trim());
+  const { data, error } = body.isPrivate
+    ? hasContent
+      ? await supabase.rpc("insert_private_completion", {
+          p_habit_id: body.habitId,
+          p_completion_type: body.type,
+          p_evidence_url: body.evidenceUrl,
+          p_notes: body.notes,
+        })
+      : await supabase.rpc("insert_completion", {
+          p_habit_id: body.habitId,
+          p_completion_type: "quick",
+        })
+    : await supabase.rpc("insert_completion", {
+        p_habit_id: body.habitId,
+        p_completion_type: body.type,
+        p_evidence_url: body.evidenceUrl,
+        p_notes: body.notes,
+        p_rain_check_reason: body.rainCheckReason,
+        p_rain_check_moved_to: body.rainCheckMovedTo,
+      });
 
   if (error) {
     const isForbidden = error.code === "42501";

@@ -56,7 +56,7 @@ export const WeekView = memo(function WeekView({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg bg-bg-secondary overflow-hidden">
+      <div className="rounded-lg bg-elevated shadow-sm overflow-hidden">
         {/* Day header — said once for the whole grid. */}
         <div
           className="flex items-end gap-2 px-3 pt-2.5 pb-2 border-b border-bg-primary"

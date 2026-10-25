@@ -10,9 +10,12 @@ import { useCameraGestures } from "@/lib/hooks/useCameraGestures";
 import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
 import { VoiceMeter } from "@/components/habits/VoiceMeter";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
+import { VideoTrimBar } from "@/components/habits/VideoTrimBar";
 import { getSupportedMimeType } from "@/lib/utils/media-recorder";
 import { MIME_TO_EXT } from "@/lib/utils/media-types";
-import { MAX_AUDIO_DURATION_S } from "@/lib/constants/limits";
+import { checkVideo, readVideoDuration } from "@/lib/utils/check-video";
+import { canTranscodeVideo, transcodeVideo, TranscodeError } from "@/lib/utils/transcode-video";
+import { MAX_AUDIO_DURATION_S, MAX_VIDEO_DURATION_S } from "@/lib/constants/limits";
 import { elementAspect, viewfinderCrop } from "@/lib/utils/viewfinder-crop";
 
 // ---------------------------------------------------------------------------
@@ -21,8 +24,12 @@ import { elementAspect, viewfinderCrop } from "@/lib/utils/viewfinder-crop";
 
 type CaptureStage = "viewfinder" | "recording" | "review";
 
-/** What the shutter makes: a photo or video, or a voice note with no camera. */
-type CaptureMode = "camera" | "voice";
+/**
+ * What the shutter makes. Photo is the default and still records a video on
+ * a hold, the way the system camera's does; Video starts a take on a tap, so
+ * nobody has to hold for it; Voice is a voice note with no camera.
+ */
+type CaptureMode = "video" | "photo" | "voice";
 
 export interface CameraCaptureProps {
   onCapture: (file: File, notes?: string) => void;
@@ -81,6 +88,9 @@ const COACH_KEY = "camera-coach-opens";
 const COACH_OPENS = 3;
 const COACH_MS = 4000;
 
+/** Long enough to read why a picked video was turned away. */
+const NOTICE_MS = 6000;
+
 function coachOpens(): number {
   try {
     return Number(localStorage.getItem(COACH_KEY)) || 0;
@@ -98,10 +108,11 @@ function countCoachOpen() {
   }
 }
 
-const MODES = [
-  { id: "camera", label: "Camera" },
+const MODES: readonly { id: CaptureMode; label: string }[] = [
+  { id: "video", label: "Video" },
+  { id: "photo", label: "Photo" },
   { id: "voice", label: "Voice" },
-] as const;
+];
 
 /**
  * Only a mouse or trackpad device gets the choice. A phone's or tablet's
@@ -144,10 +155,12 @@ function formatTime(seconds: number): string {
  * separate switch, and swiping the viewfinder moves along it too.
  */
 function ModeStrip({
+  modes,
   mode,
   hidden,
   onChange,
 }: {
+  modes: readonly { id: CaptureMode; label: string }[];
   mode: CaptureMode;
   /** Mid-take: keeps its height so the shutter does not jump. */
   hidden: boolean;
@@ -180,7 +193,7 @@ function ModeStrip({
         className="inline-flex h-full items-center gap-5 motion-safe:transition-transform motion-safe:duration-200 ease-out"
         style={{ transform: `translateX(${offset}px)` }}
       >
-        {MODES.map((m) => (
+        {modes.map((m) => (
           <button
             key={m.id}
             type="button"
@@ -211,7 +224,7 @@ export function CameraCapture({
   onCapture,
   onClose,
   onFallback,
-  maxVideoDuration = 15,
+  maxVideoDuration = MAX_VIDEO_DURATION_S,
   maxVoiceDuration = MAX_AUDIO_DURATION_S,
   initialCapture,
   allowVoice = true,
@@ -231,9 +244,13 @@ export function CameraCapture({
     stopCamera,
   } = useCamera({ audio: true });
 
-  const [mode, setMode] = useState<CaptureMode>(
-    initialCapture?.file.type.startsWith("audio") ? "voice" : "camera",
-  );
+  const [mode, setMode] = useState<CaptureMode>(() => {
+    const type = initialCapture?.file.type ?? "";
+    if (type.startsWith("audio")) return "voice";
+    if (type.startsWith("video")) return "video";
+    return "photo";
+  });
+  const modes = allowVoice ? MODES : MODES.filter((m) => m.id !== "voice");
   const [stage, setStage] = useState<CaptureStage>(
     initialCapture ? "review" : "viewfinder",
   );
@@ -249,6 +266,24 @@ export function CameraCapture({
   // Not on a reopened review: that is the same visit, not a new open.
   const [coach, setCoach] = useState(() => !initialCapture && coachOpens() < COACH_OPENS);
   const coachCountedRef = useRef(false);
+  /** Why the last video picked from the gallery can't be used. */
+  const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * A video picked from the gallery, to be trimmed and shrunk when it is
+   * used. Its length is null until something has been able to read it.
+   */
+  const [picked, setPicked] = useState<{ file: File; duration: number | null } | null>(null);
+  /** Where the part of a long picked video to send starts, in seconds. */
+  const [trimStart, setTrimStart] = useState(0);
+  /** How far preparing a picked video has got, 0 to 1, while it runs. */
+  const [preparing, setPreparing] = useState<number | null>(null);
+  const prepareRef = useRef<AbortController | null>(null);
+  const reviewVideoRef = useRef<HTMLVideoElement>(null);
+  /** The picked video's length, when it is longer than a video may be. */
+  const trimDuration =
+    picked?.duration != null && Math.round(picked.duration) > maxVideoDuration
+      ? picked.duration
+      : null;
   const [framing, setFraming] = useState<Framing>(initialFraming);
   /** The camera frame's width / height, once its first frame arrives. */
   const [frameAspect, setFrameAspect] = useState<number | null>(null);
@@ -338,7 +373,14 @@ export function CameraCapture({
     const t = setTimeout(() => setCoach(false), COACH_MS);
     return () => clearTimeout(t);
   }, [coach]);
-  const showCoach = coach && stage === "viewfinder" && mode === "camera" && !isPressed;
+  const showCoach =
+    coach && stage === "viewfinder" && mode === "photo" && !isPressed && !notice;
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   // --- Voice mode lets go of the camera ---
   // Also catches a camera that was still starting when the mode switched,
@@ -352,8 +394,9 @@ export function CameraCapture({
       if (next === mode || stage !== "viewfinder") return;
       if (next === "voice" && !allowVoice) return;
       setMode(next);
-      if (next === "camera") requestCamera(facingMode);
-      else stopCamera();
+      // Photo and Video share the running camera; only Voice lets it go.
+      if (next === "voice") stopCamera();
+      else if (mode === "voice") requestCamera(facingMode);
     },
     [mode, stage, allowVoice, requestCamera, stopCamera, facingMode],
   );
@@ -381,6 +424,7 @@ export function CameraCapture({
   useEffect(() => {
     return () => {
       stopCamera();
+      prepareRef.current?.abort();
       if (mirrorAnimRef.current != null) cancelAnimationFrame(mirrorAnimRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
@@ -613,9 +657,9 @@ export function CameraCapture({
     e.currentTarget.setPointerCapture?.(e.pointerId);
     shutterDragRef.current = { y: e.clientY, zoom: zoomRef.current, dragged: false };
 
-    // Only the viewfinder arms the hold: once a take is open, a press on the
-    // shutter is a tap to pause or resume, not another hold.
-    if (stage !== "viewfinder") return;
+    // Only Photo's viewfinder arms the hold: once a take is open, a press on
+    // the shutter is a tap to pause or resume, and Video starts on the tap.
+    if (stage !== "viewfinder" || mode !== "photo") return;
 
     holdTimerRef.current = setTimeout(() => {
       holdTimerRef.current = null;
@@ -624,7 +668,7 @@ export function CameraCapture({
         startRecording();
       }
     }, HOLD_THRESHOLD_MS);
-  }, [stage, startRecording]);
+  }, [stage, mode, startRecording]);
 
   /** Sliding up the shutter zooms in, the way it does while recording. */
   const handleShutterMove = useCallback(
@@ -660,44 +704,177 @@ export function CameraCapture({
       return;
     }
 
-    // Letting go no longer ends a take. The hand comes off the shutter and the
-    // viewfinder gestures are free again; a later tap is what pauses it.
-    if (stage !== "recording" || dragged || startedTake) return;
+    // Video's tap opens the take.
+    if (stage === "viewfinder") {
+      if (mode === "video" && !dragged) startRecording();
+      return;
+    }
+
+    // A take held open in Photo ends when it is let go, the way the system
+    // camera's does. Hands-free takes are what Video is for.
+    if (startedTake) {
+      if (stage === "recording") finishRecording();
+      return;
+    }
+
+    // A take started in Video carries on after the hand comes off the
+    // shutter; a later tap is what pauses it.
+    if (stage !== "recording" || dragged) return;
 
     if (isPaused) resumeRecording();
     else pauseRecording();
-  }, [stage, capturePhoto, isPaused, pauseRecording, resumeRecording]);
+  }, [stage, mode, capturePhoto, startRecording, finishRecording, isPaused, pauseRecording, resumeRecording]);
 
   const handlePointerCancel = useCallback(() => {
     setIsPressed(false);
     shutterDragRef.current = null;
+    // A held take loses its finger here too: keep what was recorded.
+    if (startedTakeRef.current && stage === "recording") finishRecording();
     startedTakeRef.current = false;
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
     isHoldingRef.current = false;
-  }, []);
+  }, [stage, finishRecording]);
 
   // --- Gallery pick ---
-  const handleGalleryPick = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGalleryPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Reset input so the same file can be re-selected — after trimming it, say
+    e.target.value = "";
     if (!file) return;
 
+    // The camera stops its own takes at the limit; a video from the gallery
+    // can be any length or size. Where it can be trimmed and shrunk here, that
+    // happens when it is used. Elsewhere it is sent as it is, so it has to fit
+    // as it is, and is turned away now rather than at the end of its upload.
+    const isVideo = file.type.startsWith("video/");
+    const prepare = isVideo && canTranscodeVideo();
+    if (isVideo && !prepare) {
+      const problem = await checkVideo(file);
+      if (problem) {
+        setNotice(problem);
+        return;
+      }
+    }
+    const duration = prepare ? await readVideoDuration(file) : null;
+
+    setNotice(null);
+    setPicked(prepare ? { file, duration } : null);
+    setTrimStart(0);
     setCapturedBlob(file);
     setPreviewUrl(URL.createObjectURL(file));
     setStage("review");
     stopCamera();
-
-    // Reset input so the same file can be re-selected
-    e.target.value = "";
   }, [stopCamera]);
+
+  // --- Picked video: its length, and the part to send ---
+
+  // A length the header didn't give (a WebM, say), once the preview knows it.
+  const readPreviewDuration = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const { duration } = e.currentTarget;
+    if (!Number.isFinite(duration)) return;
+    setPicked((p) => (p && p.duration === null ? { ...p, duration } : p));
+  }, []);
+
+  // The preview of a long video plays only the part that will be sent, round
+  // and round, wherever the player's own scrubber is taken.
+  const keepToTrim = useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      if (trimDuration === null) return;
+      const v = e.currentTarget;
+      if (v.currentTime >= trimStart + maxVideoDuration || v.currentTime < trimStart - 0.5) {
+        v.currentTime = trimStart;
+      }
+    },
+    [trimDuration, trimStart, maxVideoDuration],
+  );
+
+  const loopTrim = useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      if (trimDuration === null) return;
+      e.currentTarget.currentTime = trimStart;
+      void e.currentTarget.play().catch(() => {});
+    },
+    [trimDuration, trimStart],
+  );
+
+  const moveTrim = useCallback((start: number) => {
+    setTrimStart(start);
+    const v = reviewVideoRef.current;
+    if (!v) return;
+    v.pause();
+    // Near enough while dragging: a keyframe seek keeps up with the finger.
+    if (typeof v.fastSeek === "function") v.fastSeek(start);
+    else v.currentTime = start;
+  }, []);
+
+  const commitTrim = useCallback((start: number) => {
+    setTrimStart(start);
+    const v = reviewVideoRef.current;
+    if (!v) return;
+    v.currentTime = start;
+    void v.play().catch(() => {});
+  }, []);
+
+  /**
+   * Trim the picked video to its part and shrink it, then hand it on. Runs
+   * from the Use tap itself: transcodeVideo has to start inside a tap.
+   */
+  const prepareVideo = useCallback(
+    (file: File, caption: string | undefined) => {
+      // A second tap before the overlay is up must not start a second run.
+      if (prepareRef.current) return;
+      const controller = new AbortController();
+      prepareRef.current = controller;
+      reviewVideoRef.current?.pause();
+      setNotice(null);
+      setPreparing(0);
+
+      transcodeVideo(file, {
+        start: trimDuration === null ? 0 : trimStart,
+        length: maxVideoDuration,
+        onProgress: setPreparing,
+        signal: controller.signal,
+      }).then(
+        (prepared) => {
+          prepareRef.current = null;
+          setPreparing(null);
+          stopCamera();
+          onCapture(prepared, caption);
+        },
+        async (err: unknown) => {
+          prepareRef.current = null;
+          setPreparing(null);
+          if (err instanceof TranscodeError && err.reason === "cancelled") return;
+          console.error("Couldn't prepare the video:", err);
+          // Not shrunk here. If none of it had to be cut and it fits as it
+          // is, it goes as it is, the way it would where this can't run.
+          if (trimDuration === null && (await checkVideo(file)) === null) {
+            stopCamera();
+            onCapture(file, caption);
+            return;
+          }
+          setNotice(
+            `This video couldn't be prepared here. Try another, or trim it to ${maxVideoDuration} seconds first.`,
+          );
+        },
+      );
+    },
+    [trimDuration, trimStart, maxVideoDuration, stopCamera, onCapture],
+  );
+
+  const cancelPreparing = useCallback(() => prepareRef.current?.abort(), []);
 
   // --- Retake ---
   const handleRetake = useCallback(() => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setCapturedBlob(null);
+    setPicked(null);
+    setTrimStart(0);
+    setNotice(null);
     setRecordingTime(0);
     setIsPaused(false);
     setNotes("");
@@ -711,6 +888,12 @@ export function CameraCapture({
   // --- Use capture ---
   const handleUse = useCallback(() => {
     if (!capturedBlob) return;
+
+    // A video picked from the gallery is trimmed and shrunk on the way out.
+    if (picked && capturedBlob === picked.file) {
+      prepareVideo(picked.file, notes.trim() || undefined);
+      return;
+    }
 
     let file: File;
     if (capturedBlob instanceof File) {
@@ -732,12 +915,13 @@ export function CameraCapture({
 
     stopCamera();
     onCapture(file, notes.trim() || undefined);
-  }, [capturedBlob, stopCamera, onCapture, notes]);
+  }, [capturedBlob, picked, prepareVideo, stopCamera, onCapture, notes]);
 
   // --- Close handler ---
   const handleClose = useCallback(() => {
     stopCamera();
     cancelVoice();
+    prepareRef.current?.abort();
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
       recorderRef.current.stop();
     }
@@ -794,23 +978,29 @@ export function CameraCapture({
     else resumeVoice();
   }, [voiceStatus, startVoice, pauseVoice, resumeVoice]);
 
+  /** One along the mode strip: a swipe left brings the next one over. */
+  const stepMode = (by: 1 | -1) => {
+    const next = modes[modes.findIndex((m) => m.id === mode) + by];
+    if (next) switchMode(next.id);
+  };
+
   // --- Viewfinder gestures ---
   const { handlers: gestureHandlers, isPinching } = useCameraGestures({
     // Off mid voice take: nothing on that screen answers a gesture, and a
     // stray swipe must not close it.
-    enabled: stage !== "review" && (mode === "camera" || voiceStatus === "idle"),
+    enabled: stage !== "review" && (mode !== "voice" || voiceStatus === "idle"),
     onDoubleTap: handleFlip,
     onPinchStart: () => {
       pinchStartZoomRef.current = zoomRef.current;
     },
     onPinch: (scale) => {
-      if (mode === "camera") setZoom(pinchStartZoomRef.current * scale);
+      if (mode !== "voice") setZoom(pinchStartZoomRef.current * scale);
     },
     // Flicking the viewfinder away closes it, and flicking it sideways
     // changes mode, but neither out from under a take in progress.
     onSwipeDown: stage === "viewfinder" ? handleClose : undefined,
-    onSwipeLeft: stage === "viewfinder" ? () => switchMode("voice") : undefined,
-    onSwipeRight: stage === "viewfinder" ? () => switchMode("camera") : undefined,
+    onSwipeLeft: stage === "viewfinder" ? () => stepMode(1) : undefined,
+    onSwipeRight: stage === "viewfinder" ? () => stepMode(-1) : undefined,
   });
 
   // --- Derived ---
@@ -959,10 +1149,14 @@ export function CameraCapture({
             />
           ) : (
             <video
+              ref={reviewVideoRef}
               src={previewUrl}
               controls
               autoPlay
               playsInline
+              onLoadedMetadata={picked ? readPreviewDuration : undefined}
+              onTimeUpdate={keepToTrim}
+              onEnded={loopTrim}
               className="w-full h-full object-contain"
             />
           )
@@ -1059,6 +1253,22 @@ export function CameraCapture({
             Hold for video, double-tap to flip
           </div>
         )}
+
+        {/* Why a video picked from the gallery can't be used: in the tip's
+            place, or on a review above the player's own controls */}
+        {notice && (stage === "review" || (stage === "viewfinder" && !isVoice)) && (
+          <div
+            role="alert"
+            className={cn(
+              "pointer-events-none absolute left-1/2 -translate-x-1/2 z-10",
+              stage === "review" ? "bottom-16" : "bottom-4",
+              "w-max max-w-[calc(100%-2rem)] rounded-2xl bg-black/70 backdrop-blur-sm",
+              "px-4 py-2.5 text-center text-white text-[13px] leading-snug",
+            )}
+          >
+            {notice}
+          </div>
+        )}
       </div>
 
       {/* Zoom read-out */}
@@ -1073,6 +1283,19 @@ export function CameraCapture({
             {zoomFactor.toFixed(1)}&times;
           </span>
         </motion.div>
+      )}
+
+      {/* The part of a long picked video to send */}
+      {stage === "review" && trimDuration !== null && (
+        <div className="shrink-0 px-4 pt-3 pb-3">
+          <VideoTrimBar
+            duration={trimDuration}
+            length={maxVideoDuration}
+            start={trimStart}
+            onChange={moveTrim}
+            onCommit={commitTrim}
+          />
+        </div>
       )}
 
       {/* Notes input on review */}
@@ -1102,13 +1325,12 @@ export function CameraCapture({
         <div className="flex flex-col items-center justify-center px-6 pt-2 pb-5">
           {(view === "viewfinder" || view === "recording") && (
             <>
-              {allowVoice && (
-                <ModeStrip
-                  mode={mode}
-                  hidden={view === "recording"}
-                  onChange={switchMode}
-                />
-              )}
+              <ModeStrip
+                modes={modes}
+                mode={mode}
+                hidden={view === "recording"}
+                onChange={switchMode}
+              />
               <div className="mt-2 flex items-center justify-center w-full max-w-xs">
                 {/* Gallery button — hidden during recording */}
                 <div className="flex-1 flex justify-center">
@@ -1189,7 +1411,9 @@ export function CameraCapture({
                       view === "viewfinder"
                         ? isVoice
                           ? "Start recording"
-                          : "Tap for photo, hold for video, slide up to zoom"
+                          : mode === "video"
+                            ? "Start video, slide up to zoom"
+                            : "Tap for photo, hold for video, slide up to zoom"
                         : paused
                           ? "Resume recording"
                           : "Pause recording"
@@ -1199,7 +1423,7 @@ export function CameraCapture({
                       <div
                         className={cn(
                           "w-14 h-14 rounded-full transition-transform duration-100",
-                          isVoice ? "bg-red-500" : "bg-white",
+                          mode === "photo" ? "bg-white" : "bg-red-500",
                           isPressed && "scale-90",
                         )}
                       />
@@ -1270,6 +1494,35 @@ export function CameraCapture({
           )}
         </div>
       </div>
+
+      {/* Preparing a picked video: it plays through once, out of sight, to be
+          redrawn smaller, so it takes as long as the part being sent */}
+      {preparing !== null && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black/80 backdrop-blur-sm px-6 text-center">
+          <p className="text-white text-base font-medium">Preparing video…</p>
+          <div
+            role="progressbar"
+            aria-label="Preparing video"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(preparing * 100)}
+            className="h-1 w-56 max-w-full overflow-hidden rounded-full bg-white/20"
+          >
+            <div
+              className="h-full rounded-full bg-white motion-safe:transition-[width] motion-safe:duration-200 ease-linear"
+              style={{ width: `${preparing * 100}%` }}
+            />
+          </div>
+          <p className="text-white/50 text-xs">Keep the app open until it&rsquo;s done</p>
+          <Button
+            variant="secondary"
+            className="mt-2 text-white border-white/20"
+            onClick={cancelPreparing}
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

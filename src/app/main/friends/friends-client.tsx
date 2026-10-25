@@ -284,7 +284,7 @@ export function FriendsClient({
         {!isSearching && (
           <Tabs.Root defaultValue="friends">
             <Tabs.List
-              className="flex gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)] mb-4"
+              className="flex gap-1 p-1 rounded-lg bg-elevated shadow-sm mb-4"
               aria-label="Friends sections"
             >
               <Tabs.Trigger value="friends" className={TAB_TRIGGER_CLASS}>
@@ -616,7 +616,7 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="text-center py-12">
+    <div className="text-center rounded-lg bg-elevated shadow-sm px-4 py-10">
       <div className="text-4xl mb-3">{emoji}</div>
       <p className="text-sm font-medium text-[var(--color-text-secondary)] mb-1">
         {title}

@@ -281,4 +281,49 @@ describe("POST /api/completions", () => {
       });
     });
   });
+
+  describe("private check-ins", () => {
+    it("sends a private note to insert_private_completion", async () => {
+      const res = await POST(
+        makeRequest({ habitId: "h1", type: "message", notes: "just me", isPrivate: true }),
+      );
+      expect(res.status).toBe(201);
+      expect(mockRpc).toHaveBeenCalledWith("insert_private_completion", {
+        p_habit_id: "h1",
+        p_completion_type: "message",
+        p_evidence_url: undefined,
+        p_notes: "just me",
+      });
+    });
+
+    it("logs a private check-in whose media was lost as a plain quick one", async () => {
+      const res = await POST(
+        makeRequest({ habitId: "h1", type: "photo", isPrivate: true }),
+      );
+      expect(res.status).toBe(201);
+      expect(mockRpc).toHaveBeenCalledWith("insert_completion", {
+        p_habit_id: "h1",
+        p_completion_type: "quick",
+      });
+    });
+
+    it("rejects private on a check-in with nothing to keep private", async () => {
+      const res = await POST(
+        makeRequest({ habitId: "h1", type: "rain_check", isPrivate: true }),
+      );
+      expect(res.status).toBe(400);
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it("carries the flag through a batch sync", async () => {
+      mockRpc.mockResolvedValue({ data: [{ id: "comp-1" }], error: null });
+      const res = await POST(
+        makeRequest([{ habitId: "h1", type: "message", notes: "x", isPrivate: true }]),
+      );
+      expect(res.status).toBe(201);
+      expect(mockRpc).toHaveBeenCalledWith("insert_completions_batch", {
+        p_items: [expect.objectContaining({ is_private: true, notes: "x" })],
+      });
+    });
+  });
 });

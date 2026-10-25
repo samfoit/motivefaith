@@ -76,6 +76,7 @@ function toApiItem(row: QueuedCompletion) {
     notes: row.notes || undefined,
     rainCheckReason: row.rainCheckReason || undefined,
     rainCheckMovedTo: row.rainCheckMovedTo || undefined,
+    isPrivate: row.isPrivate || undefined,
     // evidenceUrl is deliberately omitted — blob URLs captured offline are not
     // resolvable from the server. Matches the service worker's behaviour.
   };

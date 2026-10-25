@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -72,6 +72,12 @@ export function WizardClient() {
   const [form, setForm] = useState<HabitForm>(DEFAULT_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Each step starts at the top. Without this a step reached by scrolling
+  // down to Next opened mid-page, with its heading out of view.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [step]);
 
   const update = useCallback(
     <K extends keyof HabitForm>(key: K, value: HabitForm[K]) => {
@@ -222,15 +228,15 @@ export function WizardClient() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-lg mx-auto px-4 pt-6">
+    <div>
+      <div className="max-w-lg mx-auto px-4 pt-4">
         {/* Step indicator */}
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-5">
           {STEP_LABELS.map((label, i) => (
             <div key={label} className="flex items-center gap-2 flex-1">
               <div
                 className={`h-1.5 rounded-full flex-1 transition-colors duration-300 ${
-                  i <= step ? "bg-brand" : "bg-[var(--color-bg-secondary)]"
+                  i <= step ? "bg-brand" : "bg-[var(--color-surface-hover)]"
                 }`}
               />
             </div>
@@ -238,7 +244,7 @@ export function WizardClient() {
         </div>
 
         {/* Step content */}
-        <div className="relative overflow-hidden min-h-[420px] -mx-1 px-1">
+        <div className="relative overflow-hidden -mx-1 px-1">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={step}
@@ -260,8 +266,9 @@ export function WizardClient() {
           </AnimatePresence>
         </div>
 
-        {/* Navigation buttons */}
-        <div className="flex items-center gap-3 mt-8">
+        {/* Navigation buttons. Pinned just above the bottom nav, so Next is
+            in reach on a long step without scrolling for it. */}
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-4 mt-6 flex items-center gap-3 border-t border-border bg-[var(--color-bg-primary)] px-4 py-3">
           {step > 0 && (
             <Button variant="secondary" onClick={goBack} className="flex-1">
               <ArrowLeft className="w-4 h-4" />

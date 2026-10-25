@@ -23,7 +23,8 @@ import type { MoveLabels } from "@/lib/types/habit";
 import type { CheckInAction } from "@/lib/constants/check-in";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
 import type { RainCheckReason } from "@/lib/constants/rain-check";
-import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
+import { useCompleteHabit, PrivateOfflineError } from "@/lib/hooks/useCompleteHabit";
+import { useConfirmSharing } from "@/lib/hooks/useConfirmSharing";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 import { DashboardContentSkeleton } from "./DashboardSkeleton";
@@ -312,6 +313,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
   const timezone = data?.timezone || getBrowserTimezone() || DEFAULT_TIMEZONE;
 
   const completeHabit = useCompleteHabit();
+  const confirmSharing = useConfirmSharing();
   const { show: showToast, remove: removeToast, ToastElements } = useToast();
   const [showConfetti, setShowConfetti] = useState(false);
   const [flyout, setFlyout] = useState<{ emoji: string; from: { x: number; y: number } } | null>(null);
@@ -460,12 +462,14 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     notes,
     rainCheckReason,
     rainCheckMovedTo,
+    isPrivate,
   }: {
     type: CompletionType;
     evidenceUrl?: string;
     notes?: string;
     rainCheckReason?: RainCheckReason;
     rainCheckMovedTo?: string;
+    isPrivate?: boolean;
   }) => {
     if (!completionHabitId) return;
     const habitId = completionHabitId;
@@ -498,13 +502,21 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         notes,
         rainCheckReason,
         rainCheckMovedTo,
+        isPrivate,
       });
       if (!rainCheck) {
         checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
       }
       settleWrite(result);
-    } catch {
+    } catch (err) {
       restore(snapshot);
+      if (err instanceof PrivateOfflineError) {
+        showToast({
+          variant: "error",
+          title: "You're offline",
+          description: "Private check-ins need a connection.",
+        });
+      }
     } finally {
       endWrite();
     }
@@ -524,9 +536,16 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     return pending;
   }, []);
 
-  const handleQuickComplete = useCallback(
+  /**
+   * Log a quick check-in in place, held for its undo window. Only ever called
+   * once `confirmSharing` has let it through.
+   */
+  const quickComplete = useCallback(
     (habitId: string, origin?: { x: number; y: number }) => {
-      if (completionMap.get(habitId)) return;
+      // The pending check as well as the map: two taps landing before the
+      // sharing check answers both act on the render they were made in, and
+      // there the habit is still open.
+      if (completionMap.get(habitId) || pendingRef.current.has(habitId)) return;
       const habit = habits.find((h) => h.id === habitId);
       const prevStreak = habit?.streak_current ?? 0;
       const tempId = `temp-${Date.now()}`;
@@ -612,6 +631,17 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     ],
   );
 
+  // The first check-in that would reach a partner or a group waits for the
+  // user to say that's fine; every other one goes straight through.
+  const handleQuickComplete = useCallback(
+    async (habitId: string, origin?: { x: number; y: number }) => {
+      if (completionMap.get(habitId)) return;
+      if (!(await confirmSharing([habitId]))) return;
+      quickComplete(habitId, origin);
+    },
+    [completionMap, confirmSharing, quickComplete],
+  );
+
   useEffect(() => {
     const pending = pendingRef.current;
     const flush = () => {
@@ -639,7 +669,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
   );
 
   const handleCheckIn = useCallback(
-    (
+    async (
       habitId: string,
       action: CheckInAction,
       origin?: { x: number; y: number },
@@ -655,15 +685,18 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         const habit = habits.find((h) => h.id === habitId);
         if (habit && !isHabitScheduledOn(habit, new Date(), timezone)) return;
       }
+      // Asked before the camera, recorder or note opens rather than when it
+      // is sent, so saying "not now" never throws away a take or a note.
+      if (!(await confirmSharing([habitId]))) return;
       // A quick check-in needs nothing else from the user — log it in place.
       if (action === "quick") {
-        handleQuickComplete(habitId, origin);
+        quickComplete(habitId, origin);
         return;
       }
       setCompletionAction(action);
       setCompletionHabitId(habitId);
     },
-    [completionMap, rainCheckMap, habits, timezone, handleQuickComplete],
+    [completionMap, rainCheckMap, habits, timezone, confirmSharing, quickComplete],
   );
 
   const handleCreateHabit = useCallback(() => {
@@ -761,6 +794,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         habitEmoji={completionHabit?.emoji ?? ""}
         habitSchedule={completionHabit?.schedule}
         timezone={timezone}
+        defaultPrivate={completionHabit?.private_checkins ?? false}
         onComplete={handleCompletion}
       />
 

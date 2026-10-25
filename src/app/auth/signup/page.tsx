@@ -13,6 +13,7 @@ import { validatePassword } from "@/lib/utils/validate-password";
 import { isPasswordBreached } from "@/lib/utils/check-breached-password";
 import { useCaptcha } from "@/lib/hooks/useCaptcha";
 import { DesktopFactsPanel, MobileFactBanner } from "../habit-facts";
+import { GoogleSignIn, destinationAfterGoogle } from "../GoogleSignIn";
 
 function validateUsername(value: string): string | null {
   if (value.length < 3) return "Username must be at least 3 characters";
@@ -34,6 +35,16 @@ export default function SignupPage() {
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [emailSent, setEmailSent] = useState(false);
   const { captchaToken, handleToken: handleCaptchaToken, handleExpire: handleCaptchaExpire } = useCaptcha();
+
+  /**
+   * Google's button here signs up someone new — who finishes their profile
+   * next, where the age check and the terms are — or signs in someone who
+   * already has an account.
+   */
+  async function handleGoogleSignedIn() {
+    router.push(await destinationAfterGoogle());
+    router.refresh();
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -248,6 +259,22 @@ export default function SignupPage() {
               Create account
             </Button>
           </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-bg-elevated px-2 text-text-tertiary">or</span>
+            </div>
+          </div>
+
+          <GoogleSignIn
+            onSignedIn={handleGoogleSignedIn}
+            onError={(message) =>
+              show({ title: "Sign up failed", description: message, variant: "error" })
+            }
+          />
 
           <p className="text-sm text-center mt-6 text-[var(--color-text-secondary)]">
             Already have an account?{" "}

@@ -138,6 +138,54 @@ describe("useCompleteHabit — offline", () => {
   });
 });
 
+describe("useCompleteHabit — private check-ins", () => {
+  // Never queued: service workers from before 039 would drop the flag on
+  // sync and send the note out as an ordinary check-in partners can read.
+  it("refuses instead of queueing when offline", async () => {
+    setOnline(false);
+    const { useCompleteHabit } = await import("../useCompleteHabit");
+    const { getPendingCount } = await import("@/lib/offline-queue");
+
+    const { result } = renderHook(() => useCompleteHabit(), { wrapper });
+    result.current.mutate({ habitId: "h1", type: "message", notes: "just me", isPrivate: true });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.name).toBe("PrivateOfflineError");
+    expect(await getPendingCount()).toBe(0);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("refuses instead of queueing when the request dies mid-flight", async () => {
+    setOnline(true);
+    rpc.mockRejectedValue(new TypeError("Failed to fetch"));
+    const { useCompleteHabit } = await import("../useCompleteHabit");
+    const { getPendingCount } = await import("@/lib/offline-queue");
+
+    const { result } = renderHook(() => useCompleteHabit(), { wrapper });
+    result.current.mutate({ habitId: "h1", type: "message", notes: "just me", isPrivate: true });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.name).toBe("PrivateOfflineError");
+    expect(await getPendingCount()).toBe(0);
+  });
+
+  it("sends to insert_private_completion when online", async () => {
+    setOnline(true);
+    rpc.mockResolvedValue({ data: { id: "c1" }, error: null });
+    const { useCompleteHabit } = await import("../useCompleteHabit");
+
+    const { result } = renderHook(() => useCompleteHabit(), { wrapper });
+    result.current.mutate({ habitId: "h1", type: "message", notes: "just me", isPrivate: true });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(rpc).toHaveBeenCalledWith("insert_private_completion", expect.objectContaining({
+      p_habit_id: "h1",
+      p_completion_type: "message",
+      p_notes: "just me",
+    }));
+  });
+});
+
 describe("useCompleteHabit — feed staleness", () => {
   /**
    * The feed cannot hear about the viewer's own check-ins over realtime, and a

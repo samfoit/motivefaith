@@ -68,7 +68,7 @@ export const getProfile = cache(async (userId: string) => {
   const supabase = await createServerSupabase();
   const { data } = await supabase
     .from("profiles")
-    .select("display_name, avatar_url, timezone, date_of_birth")
+    .select("display_name, avatar_url, timezone, has_date_of_birth")
     .eq("id", userId)
     .single();
   return data;

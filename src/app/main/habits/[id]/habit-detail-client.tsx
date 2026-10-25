@@ -23,6 +23,7 @@ import {
   Pencil,
   Share2,
   Mic,
+  Lock,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -44,7 +45,8 @@ import { useNearViewport } from "@/lib/hooks/useNearViewport";
 import { HISTORY_PAGE_SIZE } from "@/lib/constants/limits";
 import { FriendPicker } from "@/components/social/FriendPicker";
 import { CalendarHeatmap } from "@/components/habits/CalendarHeatmap";
-import { useCompleteHabit } from "@/lib/hooks/useCompleteHabit";
+import { useCompleteHabit, PrivateOfflineError } from "@/lib/hooks/useCompleteHabit";
+import { useConfirmSharing } from "@/lib/hooks/useConfirmSharing";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
@@ -52,6 +54,7 @@ import type { Tables } from "@/lib/supabase/types";
 import type { Habit } from "@/lib/types/habit";
 import type { DashboardData } from "@/lib/data/dashboard";
 import { applyHabitUpdate, removeHabit } from "@/lib/data/dashboard-mutations";
+import { mergePrivateContent } from "@/lib/utils/private-checkin";
 import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
 import {
@@ -91,6 +94,8 @@ type Completion = {
   completed_at: string;
   rain_check_reason?: Tables<"completions">["rain_check_reason"];
   rain_check_moved_to?: Tables<"completions">["rain_check_moved_to"];
+  /** Recorded for the owner only; partners saw a plain check-in. */
+  is_private?: boolean;
 };
 
 /**
@@ -103,8 +108,9 @@ type ActivityRow = Pick<
   "id" | "completion_type" | "completed_at" | "rain_check_moved_to"
 >;
 
+// Ends with PRIVATE_CONTENT_EMBED, spelled out so postgrest-js can infer it.
 const COMPLETION_COLUMNS =
-  "id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to";
+  "id, habit_id, completion_type, evidence_url, notes, completed_at, rain_check_reason, rain_check_moved_to, completion_private_content(completion_type, evidence_url, notes)";
 
 type Partner = {
   id: string;
@@ -215,6 +221,7 @@ export function HabitDetailClient({
   const router = useRouter();
   const queryClient = useQueryClient();
   const completeHabit = useCompleteHabit();
+  const confirmSharing = useConfirmSharing();
   const { show: showToast, ToastElements } = useToast();
   const [habit, setHabit] = useState(initialHabit);
   const [completions, setCompletions] = useState(initialCompletions);
@@ -287,9 +294,11 @@ export function HabitDetailClient({
       setLoadingMore(false);
       return;
     }
-    const more = (data ?? []).filter(
-      (c): c is typeof c & { completed_at: string } => c.completed_at != null,
-    );
+    const more = (data ?? [])
+      .filter(
+        (c): c is typeof c & { completed_at: string } => c.completed_at != null,
+      )
+      .map(mergePrivateContent);
     setCompletions((prev) => [...prev, ...more]);
     setHasMore(more.length >= HISTORY_PAGE_SIZE);
     setLoadingMore(false);
@@ -428,12 +437,14 @@ export function HabitDetailClient({
     notes,
     rainCheckReason,
     rainCheckMovedTo,
+    isPrivate,
   }: {
     type: CompletionType;
     evidenceUrl?: string;
     notes?: string;
     rainCheckReason?: RainCheckReason;
     rainCheckMovedTo?: string;
+    isPrivate?: boolean;
   }) => {
     const prevStreak = habit.streak_current ?? 0;
     // A rain check holds the streak and is never counted as a completion.
@@ -449,6 +460,7 @@ export function HabitDetailClient({
       completed_at: new Date().toISOString(),
       rain_check_reason: rainCheckReason ?? null,
       rain_check_moved_to: rainCheckMovedTo ?? null,
+      is_private: isPrivate ?? false,
     };
     setCompletions((prev) => [tempCompletion, ...prev]);
     setActivity((prev) => [tempCompletion, ...prev]);
@@ -468,10 +480,11 @@ export function HabitDetailClient({
         notes,
         rainCheckReason,
         rainCheckMovedTo,
+        isPrivate,
       });
       if (!rainCheck) checkMilestone(prevStreak + 1);
       router.refresh();
-    } catch {
+    } catch (err) {
       // Take back only this entry: resetting to the first page would also
       // throw away every page already scrolled through.
       setCompletions((prev) => prev.filter((c) => c.id !== tempCompletion.id));
@@ -479,9 +492,12 @@ export function HabitDetailClient({
       setHabit(initialHabit);
       showToast({
         variant: "error",
-        title: rainCheck
-          ? "Failed to take rain check"
-          : "Failed to log completion",
+        title:
+          err instanceof PrivateOfflineError
+            ? "You're offline — private check-ins need a connection"
+            : rainCheck
+              ? "Failed to take rain check"
+              : "Failed to log completion",
       });
     }
   };
@@ -711,7 +727,12 @@ export function HabitDetailClient({
           >
             <Button
               className="w-full"
-              onClick={() => setCompletionOpen(true)}
+              onClick={async () => {
+                // The first check-in that would reach a partner or a group
+                // waits for a yes — asked before the sheet opens, so "not
+                // now" never throws away a take or a note.
+                if (await confirmSharing([habit.id])) setCompletionOpen(true);
+              }}
             >
               Log completion
             </Button>
@@ -755,7 +776,7 @@ export function HabitDetailClient({
         {/* Tabs */}
         <Tabs.Root defaultValue="overview">
           <Tabs.List
-            className="flex gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)] mb-6"
+            className="flex gap-1 p-1 rounded-lg bg-elevated shadow-sm mb-6"
             aria-label="Habit detail sections"
           >
             <Tabs.Trigger value="overview" className={TAB_TRIGGER_CLASS}>
@@ -1182,6 +1203,7 @@ export function HabitDetailClient({
         habitEmoji={habit.emoji ?? "✅"}
         habitSchedule={habit.schedule}
         timezone={timezone}
+        defaultPrivate={habit.private_checkins}
         onComplete={handleCompletion}
       />
 
@@ -1297,8 +1319,14 @@ export function CompletionRow({ completion }: { completion: Completion }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5">
-          <p className="text-sm font-medium text-[var(--color-text-primary)]">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-text-primary)]">
             {label}
+            {completion.is_private && (
+              <span className="inline-flex items-center gap-1 text-xs font-normal text-[var(--color-text-tertiary)]">
+                <Lock className="w-3 h-3" aria-hidden />
+                Only you
+              </span>
+            )}
           </p>
           <span className="text-xs text-[var(--color-text-tertiary)]">
             {formatDistanceToNow(new Date(completion.completed_at), {

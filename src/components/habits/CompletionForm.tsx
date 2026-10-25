@@ -15,8 +15,10 @@ import { createClient } from "@/lib/supabase/client";
 import dynamic from "next/dynamic";
 import { compressImage } from "@/lib/utils/compress-image";
 import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
+import { checkVideo, isUploadTooLarge } from "@/lib/utils/check-video";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { ModeHeader } from "@/components/ui/ModeHeader";
+import { PrivateToggle } from "@/components/habits/PrivateToggle";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 
 const CameraCapture = dynamic(
@@ -57,6 +59,12 @@ export interface CompletionFormProps {
    * right "next 7 days" — falls back to the browser's zone.
    */
   timezone?: string;
+  /**
+   * The habit's "keep check-in content private" setting. The note or media
+   * starts private when it is on; the switch in the sheet overrides it for
+   * this one check-in.
+   */
+  defaultPrivate?: boolean;
   onComplete: (params: {
     type: CompletionType;
     evidenceUrl?: string;
@@ -64,6 +72,8 @@ export interface CompletionFormProps {
     rainCheckReason?: RainCheckReason;
     /** The day a rain check was moved to, as a YYYY-MM-DD key. */
     rainCheckMovedTo?: string;
+    /** Keep the note or media in the owner's history only. */
+    isPrivate?: boolean;
   }) => void;
 }
 
@@ -71,11 +81,7 @@ export interface CompletionFormProps {
 // Constants
 // ---------------------------------------------------------------------------
 
-import {
-  MAX_MESSAGE_LENGTH,
-  MAX_IMAGE_SIZE_MB,
-  MAX_VIDEO_SIZE_MB,
-} from "@/lib/constants/limits";
+import { MAX_MESSAGE_LENGTH, MAX_IMAGE_SIZE_MB } from "@/lib/constants/limits";
 import type { CompletionType } from "@/lib/constants/completion";
 import {
   RAIN_CHECK_MOVE_WINDOW_DAYS,
@@ -126,6 +132,7 @@ export function CompletionForm({
   habitSchedule,
   initialAction,
   timezone,
+  defaultPrivate = false,
   onComplete,
 }: CompletionFormProps) {
   const [mode, setMode] = useState<Mode>("select");
@@ -141,6 +148,7 @@ export function CompletionForm({
   const [error, setError] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(defaultPrivate);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -171,6 +179,11 @@ export function CompletionForm({
   // Jump straight to the step the habit card asked for. Deliberately keyed on
   // `open` alone: re-running it would drag the user back here after they hit
   // "back", or reopen a camera they just dismissed.
+  // Each check-in starts from the habit's setting, whatever the last one was.
+  useEffect(() => {
+    if (open) setIsPrivate(defaultPrivate);
+  }, [open, defaultPrivate]);
+
   useEffect(() => {
     if (!open || !initialAction) return;
     if (initialAction === "content") {
@@ -281,7 +294,7 @@ export function CompletionForm({
     setError(null);
     try {
       const url = await uploadFile(file, "voice");
-      onComplete({ type: "voice", evidenceUrl: url });
+      onComplete({ type: "voice", evidenceUrl: url, isPrivate });
       handleClose(false);
     } catch (err) {
       console.error("Voice upload failed:", err);
@@ -296,13 +309,20 @@ export function CompletionForm({
 
   // --- File handling ---
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
 
+    // The error banner is in the sheet, which the camera overlay hides in the
+    // fallback flow, so a refusal closes the overlay to bring it into view.
+    const refuse = (message: string) => {
+      setCameraOpen(false);
+      setError(message);
+    };
+
     if (!ALLOWED_IMAGE_TYPES.has(file.type) && !ALLOWED_VIDEO_TYPES.has(file.type)) {
-      setError("Unsupported file type. Use JPEG, PNG, WebP, GIF, MP4, MOV, or WebM.");
+      refuse("Unsupported file type. Use JPEG, PNG, WebP, GIF, MP4, MOV, or WebM.");
       return;
     }
 
@@ -310,20 +330,21 @@ export function CompletionForm({
       ALLOWED_IMAGE_TYPES.has(file.type) &&
       file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024
     ) {
-      setError(`Image must be under ${MAX_IMAGE_SIZE_MB}MB`);
+      refuse(`Image must be under ${MAX_IMAGE_SIZE_MB}MB`);
       return;
     }
 
-    if (
-      ALLOWED_VIDEO_TYPES.has(file.type) &&
-      file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024
-    ) {
-      setError(`Video must be under ${MAX_VIDEO_SIZE_MB}MB`);
-      return;
+    if (ALLOWED_VIDEO_TYPES.has(file.type)) {
+      const problem = await checkVideo(file);
+      if (problem) {
+        refuse(problem);
+        return;
+      }
     }
 
     // Close camera overlay if it was open (fallback flow)
     setCameraOpen(false);
+    setError(null);
     setSelectedFile(file);
     setPreview(URL.createObjectURL(file));
     setMode("content");
@@ -352,7 +373,11 @@ export function CompletionForm({
       contentType = "image/webp";
     }
 
-    const path = `${user.id}/${habitId}/${Date.now()}.${ext}`;
+    // Private media lives outside the habit's folder, which partners on the
+    // habit can read (034); see 039.
+    const path = isPrivate
+      ? `${user.id}/private/${crypto.randomUUID()}.${ext}`
+      : `${user.id}/${habitId}/${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("completions")
@@ -374,19 +399,30 @@ export function CompletionForm({
 
     try {
       const url = await uploadFile(selectedFile, mediaType);
-      onComplete({ type: mediaType, evidenceUrl: url });
+      onComplete({ type: mediaType, evidenceUrl: url, isPrivate });
       handleClose(false);
     } catch (err) {
       console.error("Upload failed:", err);
-      setError("Upload failed. Please try again.");
+      setError(
+        isUploadTooLarge(err)
+          ? "That file is too large to send."
+          : "Upload failed. Please try again.",
+      );
       setIsSubmitting(false);
     }
   };
 
   const handleMessageSubmit = () => {
     if (!message.trim()) return;
+    // Private check-ins are never queued offline (see PrivateOfflineError),
+    // so say so here while the note is still on screen, rather than closing
+    // the sheet and losing it.
+    if (isPrivate && !navigator.onLine) {
+      setError("You're offline. Private check-ins need a connection.");
+      return;
+    }
     setIsSubmitting(true);
-    onComplete({ type: "message", notes: message.trim() });
+    onComplete({ type: "message", notes: message.trim(), isPrivate });
     handleClose(false);
   };
 
@@ -516,6 +552,11 @@ export function CompletionForm({
                   )}
                 </div>
               )}
+              <PrivateToggle
+                isPrivate={isPrivate}
+                onChange={setIsPrivate}
+                disabled={isSubmitting}
+              />
               <div className="flex gap-3">
                 <Button
                   variant="secondary"
@@ -570,13 +611,20 @@ export function CompletionForm({
                 >
                   {message.length}/{MAX_MESSAGE_LENGTH}
                 </span>
-                <Button
-                  onClick={handleMessageSubmit}
-                  disabled={!message.trim() || isSubmitting}
-                  loading={isSubmitting}
-                >
-                  Submit
-                </Button>
+                <div className="flex items-center gap-2">
+                  <PrivateToggle
+                    isPrivate={isPrivate}
+                    onChange={setIsPrivate}
+                    disabled={isSubmitting}
+                  />
+                  <Button
+                    onClick={handleMessageSubmit}
+                    disabled={!message.trim() || isSubmitting}
+                    loading={isSubmitting}
+                  >
+                    Submit
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -843,6 +891,7 @@ export function CompletionForm({
         <VoiceRecorder
           onCapture={handleVoiceCapture}
           onClose={handleVoiceClose}
+          privacy={{ isPrivate, onChange: setIsPrivate }}
         />
       )}
     </>

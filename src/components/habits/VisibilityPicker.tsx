@@ -64,7 +64,7 @@ export function VisibilityPicker({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
               isSelected
                 ? "bg-brand-light ring-2 ring-brand-ink"
-                : "bg-[var(--color-bg-secondary)] hover:bg-[var(--color-surface-hover)]",
+                : "bg-elevated ring-1 ring-border hover:bg-[var(--color-surface-hover)]",
             )}
           >
             <div

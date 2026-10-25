@@ -35,6 +35,8 @@ export interface QueuedCompletion {
   rainCheckReason?: RainCheckReason;
   /** Only set on a "rain_check" that was moved; a YYYY-MM-DD key. */
   rainCheckMovedTo?: string;
+  /** Kept for the owner only; partners get a plain check-in. */
+  isPrivate?: boolean;
   queuedAt: string;
   /**
    * When some context took responsibility for sending this row, ISO.
@@ -70,7 +72,12 @@ function openDB(): Promise<IDBDatabase> {
     };
 
     request.onsuccess = (event) => {
-      resolve((event.target as IDBOpenDBRequest).result);
+      const db = (event.target as IDBOpenDBRequest).result;
+      // Every call opens its own connection and none is ever closed. Hand
+      // them over when a newer page — in another tab, or after an update —
+      // raises DB_VERSION, or its upgrade waits until this tab is closed.
+      db.onversionchange = () => db.close();
+      resolve(db);
     };
 
     request.onerror = () => {
@@ -251,12 +258,18 @@ export async function getPendingCount(): Promise<number> {
  * policies constrain `user_id`, not `id`, so the client may choose it. A
  * replayed create then collides on the primary key instead of inserting a
  * second row, and a replayed delete is a no-op.
+ *
+ * A "capture.share" makes many rows in one transaction, so it has no single
+ * id to collide on. What the client mints there is the media's storage path,
+ * which every one of those rows carries; replay checks for it before sending
+ * (see `replayCaptureShare`).
  */
 export type OutboxKind =
   | "habit.create"
   | "habit.update"
   | "encouragement.create"
-  | "encouragement.delete";
+  | "encouragement.delete"
+  | "capture.share";
 
 export interface OutboxRecord {
   /** The outbox row's own id — also the created row's id, where it makes one. */

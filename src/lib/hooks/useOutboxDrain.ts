@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { drainOutbox, setDrainContext } from "@/lib/outbox-drain";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
 
 /**
  * Flush queued offline writes whenever connectivity plausibly returned.
@@ -19,6 +21,7 @@ import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
  */
 export function useOutboxDrain() {
   const userId = useAuthUserId();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Queued habit edits and reactions replay through the Supabase client,
@@ -28,17 +31,29 @@ export function useOutboxDrain() {
   }, [userId]);
 
   useEffect(() => {
+    // The dashboard's refetch on reconnect can land before the drain does —
+    // a queued take has a whole upload to get through — and then shows the
+    // check-in undone, since the server didn't have it yet. Refetch once the
+    // drain has put something there.
+    const drain = () => {
+      void drainOutbox().then(({ synced }) => {
+        if (synced > 0) {
+          void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
+        }
+      });
+    };
+
     // Boot: anything left over from a previous session, including writes the
     // service worker never got to sync because SyncManager does not exist.
-    if (navigator.onLine) void drainOutbox();
+    if (navigator.onLine) drain();
 
     const onOnline = () => {
-      void drainOutbox();
+      drain();
     };
 
     const onVisible = () => {
       if (document.visibilityState === "visible" && navigator.onLine) {
-        void drainOutbox();
+        drain();
       }
     };
 
@@ -49,5 +64,5 @@ export function useOutboxDrain() {
       document.removeEventListener("visibilitychange", onVisible);
     };
     // Re-run when the user resolves, so the boot drain happens with a context.
-  }, [userId]);
+  }, [userId, queryClient]);
 }

@@ -162,7 +162,7 @@ export default function OnboardingPage() {
                 "flex items-center justify-center h-14 rounded-md text-2xl transition-all duration-150",
                 selectedEmoji === emoji
                   ? "bg-brand-light ring-2 ring-brand-ink"
-                  : "bg-bg-secondary hover:bg-surface-hover",
+                  : "bg-elevated ring-1 ring-border hover:bg-surface-hover",
               )}
             >
               {emoji}
