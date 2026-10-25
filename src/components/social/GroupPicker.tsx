@@ -114,7 +114,7 @@ export function GroupPicker({
                     "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0",
                     isSelected
                       ? "bg-brand border-brand-ink"
-                      : "border-gray-300",
+                      : "border-text-tertiary",
                   )}
                 >
                   {isSelected && (

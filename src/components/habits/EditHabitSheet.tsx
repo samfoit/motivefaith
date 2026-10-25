@@ -1,22 +1,26 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
-import * as Switch from "@radix-ui/react-switch";
-import { Clock } from "lucide-react";
+import React, { useState, useMemo, useCallback, useId } from "react";
+import { EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { createClient } from "@/lib/supabase/client";
 import { sendOrQueue } from "@/lib/offline-write";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { TextArea } from "@/components/ui/TextArea";
 import {
-  HABIT_EMOJIS,
-  FREQUENCIES,
-  DAYS,
-  type HabitFrequency,
-} from "@/lib/constants/habit";
-import { ColorPicker } from "@/components/habits/ColorPicker";
+  HabitFields,
+  LiveHabitCard,
+  PRIMARY_ACTION,
+  PRIMARY_ACTION_UNAVAILABLE,
+  SECTION_LABEL,
+  type HabitFieldValues,
+} from "@/components/habits/HabitFields";
+import {
+  RowSwitch,
+  SETTINGS_ROW,
+  SETTINGS_ROW_ICON,
+  SettingsGroup,
+} from "@/components/habits/HabitSettingsRows";
 import { VisibilityPicker } from "@/components/habits/VisibilityPicker";
 import type { HabitVisibility } from "@/lib/types/partners";
 import { getScheduledDays, parseTimeWindow as parseTimeWindowJson } from "@/lib/utils/schedule";
@@ -28,8 +32,6 @@ import type { ToastVariant } from "@/components/ui/Toast";
 // Types
 // ---------------------------------------------------------------------------
 
-
-
 export interface EditHabitSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -38,16 +40,8 @@ export interface EditHabitSheetProps {
   showToast: (opts: { variant?: ToastVariant; title?: React.ReactNode }) => void;
 }
 
-interface EditForm {
-  title: string;
-  emoji: string;
-  description: string;
-  frequency: HabitFrequency;
-  scheduleDays: number[];
-  timeWindowEnabled: boolean;
-  timeWindowStart: string;
-  timeWindowEnd: string;
-  color: string | null;
+/** The habit's own fields (shared with the new-habit wizard), and sharing. */
+interface EditForm extends HabitFieldValues {
   visibility: HabitVisibility;
   privateCheckins: boolean;
 }
@@ -111,12 +105,11 @@ export function EditHabitSheet({
     }
   }, [open, habit]);
 
-  const update = useCallback(
-    <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
-      setForm((prev) => ({ ...prev, [key]: value }));
-    },
-    [],
-  );
+  const change = useCallback((patch: Partial<EditForm>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const privateHintId = useId();
 
   const isDirty = useMemo(() => {
     return (
@@ -193,20 +186,6 @@ export function EditHabitSheet({
     setIsSaving(false);
   };
 
-  const handleFrequency = (freq: (typeof FREQUENCIES)[number]) => {
-    update("frequency", freq.value);
-    if (freq.days) {
-      update("scheduleDays", freq.days);
-    }
-  };
-
-  const toggleDay = (day: number) => {
-    const next = form.scheduleDays.includes(day)
-      ? form.scheduleDays.filter((d) => d !== day)
-      : [...form.scheduleDays, day];
-    update("scheduleDays", next);
-  };
-
   return (
     <Sheet
       open={open}
@@ -215,204 +194,54 @@ export function EditHabitSheet({
       size="lg"
       className="bg-bg-elevated"
     >
-      <div className="space-y-8 pb-4">
-        {/* ---- Name & Icon ---- */}
-        <section className="space-y-4">
-          <h3 className="text-sm font-medium text-text-secondary">
-            Name & Icon
-          </h3>
-
-          <Input
-            label="Habit name"
-            placeholder="e.g. Morning Run, Read 20 Pages"
-            value={form.title}
-            onChange={(e) => update("title", e.target.value)}
-          />
-
-          <div>
-            <label className="text-sm font-medium text-text-secondary mb-2 block">
-              Icon
-            </label>
-            <div className="grid grid-cols-10 gap-1.5">
-              {HABIT_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => update("emoji", emoji)}
-                  className={cn(
-                    "w-9 h-9 flex items-center justify-center rounded-lg text-lg transition-all",
-                    form.emoji === emoji
-                      ? "bg-brand-light ring-2 ring-brand-ink scale-110"
-                      : "hover:bg-surface-hover",
-                  )}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <TextArea
-            label="Description (optional)"
-            placeholder="Why is this habit important to you?"
-            value={form.description}
-            onChange={(e) => update("description", e.target.value)}
-            rows={3}
-          />
-        </section>
-
-        {/* ---- Schedule ---- */}
-        <section className="space-y-4">
-          <h3 className="text-sm font-medium text-text-secondary">
-            Schedule
-          </h3>
-
-          <div className="flex flex-wrap gap-2">
-            {FREQUENCIES.map((freq) => (
-              <button
-                key={freq.value}
-                type="button"
-                onClick={() => handleFrequency(freq)}
-                className={cn(
-                  "px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
-                  form.frequency === freq.value
-                    ? "bg-brand text-on-brand shadow-sm"
-                    : "bg-bg-secondary text-text-primary hover:bg-surface-hover",
-                )}
-              >
-                {freq.label}
-              </button>
-            ))}
-          </div>
-
-          {form.frequency === "specific_days" && (
-            <div>
-              <label className="text-sm font-medium text-text-secondary mb-2 block">
-                Which days?
-              </label>
-              <div className="flex gap-2 justify-between">
-                {DAYS.map((day) => (
-                  <button
-                    key={day.value}
-                    type="button"
-                    onClick={() => toggleDay(day.value)}
-                    aria-label={day.full}
-                    className={cn(
-                      "w-10 h-10 rounded-full text-sm font-medium transition-all flex items-center justify-center",
-                      form.scheduleDays.includes(day.value)
-                        ? "bg-brand text-on-brand"
-                        : "bg-bg-secondary text-text-primary hover:bg-surface-hover",
-                    )}
-                  >
-                    {day.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Time window */}
-          <div>
-            <button
-              type="button"
-              onClick={() =>
-                update("timeWindowEnabled", !form.timeWindowEnabled)
-              }
-              className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <Clock className="w-4 h-4" />
-              <span>
-                {form.timeWindowEnabled
-                  ? "Remove time window"
-                  : "Add a time window (optional)"}
-              </span>
-            </button>
-
-            {form.timeWindowEnabled && (
-              <div className="flex items-center gap-3 mt-3">
-                <Input
-                  label="From"
-                  type="time"
-                  value={form.timeWindowStart}
-                  onChange={(e) => update("timeWindowStart", e.target.value)}
-                  className="flex-1"
-                />
-                <span className="text-text-tertiary mt-5">
-                  to
-                </span>
-                <Input
-                  label="Until"
-                  type="time"
-                  value={form.timeWindowEnd}
-                  onChange={(e) => update("timeWindowEnd", e.target.value)}
-                  className="flex-1"
-                />
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ---- Color ---- */}
-        <section className="space-y-4">
-          <h3 className="text-sm font-medium text-text-secondary">Color</h3>
-          <ColorPicker
-            value={form.color}
-            onChange={(c) => update("color", c)}
-            label=""
-          />
-        </section>
+      <div className="space-y-6 pb-4">
+        {/* The same card and fields as the new-habit wizard's, so editing a
+            habit works the way creating it did. */}
+        <LiveHabitCard form={form} onChange={change} />
+        <HabitFields form={form} onChange={change} />
 
         {/* ---- Visibility ---- */}
         {/* Changing this does not touch existing partners: they accepted a
             partnership, not a visibility setting, and going private should not
             silently throw them out. */}
-        <section className="space-y-4">
-          <h3 className="text-sm font-medium text-text-secondary">
-            Who can find it
-          </h3>
+        <section>
+          <p className={SECTION_LABEL}>Who can find it</p>
           <VisibilityPicker
+            variant="segmented"
             value={form.visibility}
-            onChange={(v) => update("visibility", v)}
+            onChange={(visibility) => change({ visibility })}
           />
         </section>
 
         {/* ---- Check-in content ---- */}
         {/* Only the default: each check-in can still flip it on its own. */}
-        <section className="space-y-4">
-          <h3 className="text-sm font-medium text-text-secondary">
-            What partners see
-          </h3>
-          <label className="flex items-center justify-between gap-3 cursor-pointer">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-text-primary">
+        <section>
+          <p className={SECTION_LABEL}>What partners see</p>
+          <SettingsGroup>
+            <label className={cn(SETTINGS_ROW, "cursor-pointer")}>
+              <EyeOff className={SETTINGS_ROW_ICON} aria-hidden />
+              <span className="flex-1 min-w-0 text-base text-text-primary">
                 Keep check-in content private
-              </p>
-              <p className="text-xs text-text-tertiary mt-0.5">
-                Notes, photos, videos and voice clips stay in your history.
-                Partners just see that you checked in.
-              </p>
-            </div>
-            <Switch.Root
-              checked={form.privateCheckins}
-              onCheckedChange={(v) => update("privateCheckins", v)}
-              className={cn(
-                "w-10 h-6 rounded-full relative transition-colors shrink-0",
-                "data-[state=checked]:bg-brand data-[state=unchecked]:bg-[var(--color-bg-secondary)]",
-              )}
-            >
-              <Switch.Thumb
-                className={cn(
-                  "block w-4 h-4 rounded-full bg-white shadow-sm transition-transform",
-                  "data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-1",
-                )}
+              </span>
+              <RowSwitch
+                checked={form.privateCheckins}
+                onCheckedChange={(privateCheckins) => change({ privateCheckins })}
+                describedBy={privateHintId}
               />
-            </Switch.Root>
-          </label>
+            </label>
+          </SettingsGroup>
+          <p id={privateHintId} className="mt-2 text-xs text-text-secondary text-pretty">
+            Notes, photos, videos and voice clips stay in your history. Partners
+            just see that you checked in.
+          </p>
         </section>
 
         {/* ---- Save ---- */}
         <Button
-          className="w-full"
+          className={cn(
+            PRIMARY_ACTION,
+            !(isDirty && canSave) && PRIMARY_ACTION_UNAVAILABLE,
+          )}
           onClick={handleSave}
           disabled={!isDirty || !canSave || isSaving}
           loading={isSaving}

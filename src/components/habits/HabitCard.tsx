@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/cn";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 import { isRainCheck } from "@/lib/constants/completion";
 import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
+import { formatStartTime } from "@/lib/utils/schedule";
 import {
   HabitCircle,
   HabitTitleRow,
@@ -164,14 +165,7 @@ export const HabitCard = React.memo(function HabitCard({
     lastDone && !completedToday ? `Last done ${formatLastDone(lastDone)}` : null;
 
   const timeWindow = habit.time_window as { start?: string; end?: string } | null;
-  const scheduledTime = timeWindow?.start
-    ? (() => {
-      const [h, m] = timeWindow.start!.split(":").map(Number);
-      const suffix = h >= 12 ? "PM" : "AM";
-      const h12 = h % 12 || 12;
-      return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
-    })()
-    : null;
+  const scheduledTime = formatStartTime(timeWindow?.start);
 
   const challengeNameIsTitle =
     habit.challenge?.title.trim().toLowerCase() ===

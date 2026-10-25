@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { movableDayKeys } from "../schedule";
+import { formatStartTime, movableDayKeys } from "../schedule";
 
 // Wednesday 18 June 2025, noon UTC.
 const WEDNESDAY = new Date("2025-06-18T12:00:00Z");
@@ -68,5 +68,23 @@ describe("movableDayKeys", () => {
     );
     expect(keys[0]).toBe("2025-06-20");
     expect(keys).not.toContain("2025-06-26");
+  });
+});
+
+describe("formatStartTime", () => {
+  it("drops the minutes on the hour, the way the habit card reads", () => {
+    expect(formatStartTime("09:00")).toBe("9 AM");
+    expect(formatStartTime("00:00")).toBe("12 AM");
+    expect(formatStartTime("12:00")).toBe("12 PM");
+  });
+
+  it("keeps them otherwise, padded", () => {
+    expect(formatStartTime("21:05")).toBe("9:05 PM");
+  });
+
+  it("is null for a missing or malformed start", () => {
+    expect(formatStartTime(undefined)).toBeNull();
+    expect(formatStartTime("")).toBeNull();
+    expect(formatStartTime("soon")).toBeNull();
   });
 });

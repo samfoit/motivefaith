@@ -39,7 +39,7 @@ vi.mock("motion/react", () => ({
     {
       get: (_target, prop) => {
         if (typeof prop === "string") {
-          const MotionComponent = ({ children, initial, animate, exit, variants, whileHover, whileTap, custom, transition, layout, layoutId, ...rest }: Record<string, unknown>) => {
+          const MotionComponent = ({ children, initial, animate, exit, variants, whileHover, whileTap, custom, transition, layout, layoutId, onAnimationComplete, ...rest }: Record<string, unknown>) => {
             const Tag = prop as keyof JSX.IntrinsicElements;
             return <Tag {...(rest as Record<string, unknown>)}>{children as React.ReactNode}</Tag>;
           };
@@ -50,6 +50,8 @@ vi.mock("motion/react", () => ({
     },
   ),
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  MotionConfig: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useReducedMotion: () => false,
 }));
 
 // ---------------------------------------------------------------------------
@@ -122,6 +124,12 @@ if (!Element.prototype.hasPointerCapture) {
   Element.prototype.releasePointerCapture = () => {};
 }
 
+// jsdom lays nothing out, so it has nothing to scroll and leaves scrolling
+// unimplemented. The color picker scrolls a saved color into view on open.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 // ---------------------------------------------------------------------------
 // Blob.arrayBuffer
 //
@@ -148,6 +156,16 @@ class MockIntersectionObserver {
   disconnect = vi.fn();
 }
 vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+
+// Stub ResizeObserver — jsdom has none, and the scrolling picker rows
+// (useScrollRow) measure themselves with it. jsdom lays nothing out, so there
+// is never a size to report.
+class MockResizeObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+if (!globalThis.ResizeObserver) vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
 // Stub matchMedia
 Object.defineProperty(window, "matchMedia", {

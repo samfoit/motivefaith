@@ -74,6 +74,19 @@ export function parseTimeWindow(value: Json | null | unknown): HabitTimeWindow |
 }
 
 /**
+ * A time window's start as the habit card shows it: "9 AM", "9:30 PM".
+ * Null for a value that is not "HH:MM".
+ */
+export function formatStartTime(start: string | null | undefined): string | null {
+  if (!start) return null;
+  const [h, m] = start.split(":").map(Number);
+  if (!Number.isInteger(h) || !Number.isInteger(m)) return null;
+  const suffix = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+/**
  * Check whether a habit is scheduled on a given date in the user's timezone.
  * Treats habits with no schedule or an empty days array as daily (always scheduled).
  */
