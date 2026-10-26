@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { formatStartTime } from "@/lib/utils/schedule";
 
@@ -22,9 +22,10 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
 /**
- * Quarter hours only. Reminders go out every 15 minutes (habit-reminders), so
- * a finer choice would promise a precision nothing keeps. A stored time off
- * the quarter still shows, and stays until it is changed.
+ * Quarter hours up front, the times most habits keep. Any other minute is a
+ * tap further, under "Exact minute": 10:02 PM, for Luke 10:2. Reminders still
+ * go out on the quarter hour (habit-reminders), so a habit at 10:02 is
+ * reminded at 10:00.
  */
 const MINUTES = [0, 15, 30, 45];
 
@@ -222,7 +223,8 @@ export function TimeRangePicker({
 /**
  * Hour, minutes and half of the day, each a native radio group under its
  * chip: arrow keys move through a group and Tab moves between them, as
- * radios always have.
+ * radios always have. An exact minute waits behind a link, and opens by
+ * itself for a time already off the quarter hour.
  */
 function TimeGrid({
   id,
@@ -237,6 +239,12 @@ function TimeGrid({
 }) {
   const parts = toParts(value);
   const set = (patch: Partial<TimeParts>) => onChange(toValue({ ...parts, ...patch }));
+  // Once open it stays open, even when a nudge lands on a quarter; picking
+  // a quarter folds it away.
+  const [exact, setExact] = useState(() => parts.minute % 15 !== 0);
+  // Opened from the keyboard, the minute takes focus; a tap leaves the number
+  // pad closed until the field is touched.
+  const focusMinute = useRef(false);
 
   return (
     <div
@@ -285,7 +293,10 @@ function TimeGrid({
             key: minute,
             text: `:${String(minute).padStart(2, "0")}`,
             checked: minute === parts.minute,
-            select: () => set({ minute }),
+            select: () => {
+              setExact(false);
+              set({ minute });
+            },
           }))}
         />
         <Segmented
@@ -298,7 +309,138 @@ function TimeGrid({
           ]}
         />
       </div>
+
+      {exact ? (
+        <div role="group" aria-label="Exact minute" className="flex items-center justify-between gap-3">
+          <span aria-hidden className="text-sm text-text-secondary">
+            Exact minute
+          </span>
+          <ExactMinute
+            minute={parts.minute}
+            onChange={(minute) => set({ minute })}
+            inputRef={(input) => {
+              if (input && focusMinute.current) {
+                focusMinute.current = false;
+                input.focus();
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={(e) => {
+            // A click the keyboard made has no pointer, and so no count.
+            focusMinute.current = e.detail === 0;
+            setExact(true);
+          }}
+          className={cn(
+            "min-h-9 rounded-md text-sm font-medium text-brand-ink",
+            "hover:underline underline-offset-4",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
+          )}
+        >
+          Exact minute
+        </button>
+      )}
     </div>
+  );
+}
+
+/**
+ * A minute off the quarter hour, typed or nudged by one. The field rolls as
+ * a clock's digits do, so typing 0 then 2 reads :02, and it refuses a minute
+ * past 59. The nudges, and the arrow keys, wrap within the hour.
+ */
+function ExactMinute({
+  minute,
+  onChange,
+  inputRef,
+}: {
+  minute: number;
+  onChange: (minute: number) => void;
+  inputRef: (input: HTMLInputElement | null) => void;
+}) {
+  // What is being typed, while it is; the minute itself otherwise.
+  const [draft, setDraft] = useState<string | null>(null);
+  const nudge = (by: number) => {
+    setDraft(null);
+    onChange((minute + by + 60) % 60);
+  };
+
+  return (
+    <div className="flex items-center gap-1 rounded-lg bg-surface-hover p-1">
+      <NudgeButton label="A minute earlier" onClick={() => nudge(-1)}>
+        <Minus className="w-4 h-4" aria-hidden />
+      </NudgeButton>
+      <label
+        className={cn(
+          "min-h-9 w-16 flex items-center justify-center rounded-md bg-brand text-on-brand shadow-sm cursor-text",
+          // Offset by the track's own color: a gold ring on the gold field
+          // vanishes at night.
+          "focus-within:ring-2 focus-within:ring-brand-ink focus-within:ring-offset-2 focus-within:ring-offset-[var(--color-surface-hover)]",
+        )}
+      >
+        <span aria-hidden className="text-base font-medium">
+          :
+        </span>
+        <input
+          ref={inputRef}
+          aria-label="Minute"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          enterKeyHint="done"
+          autoComplete="off"
+          value={draft ?? String(minute).padStart(2, "0")}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, "").slice(-2);
+            if (digits !== "" && Number(digits) > 59) return;
+            setDraft(digits);
+            if (digits !== "") onChange(Number(digits));
+          }}
+          onBlur={() => setDraft(null)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              nudge(e.key === "ArrowUp" ? 1 : -1);
+            } else if (e.key === "Enter") {
+              e.currentTarget.blur();
+            }
+          }}
+          // 16px: below that, iOS zooms the page in on focus.
+          className="w-[2.25ch] bg-transparent text-center text-base font-medium tabular-nums outline-none"
+        />
+      </label>
+      <NudgeButton label="A minute later" onClick={() => nudge(1)}>
+        <Plus className="w-4 h-4" aria-hidden />
+      </NudgeButton>
+    </div>
+  );
+}
+
+function NudgeButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className={cn(
+        "w-9 min-h-9 flex items-center justify-center rounded-md text-text-secondary",
+        "transition-[transform,color] duration-150 hover:text-text-primary active:scale-90",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -326,7 +468,8 @@ function Segmented({
           className={cn(
             "flex-1 min-h-9 flex items-center justify-center rounded-md text-sm font-medium tabular-nums cursor-pointer select-none",
             "transition-colors duration-200",
-            "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-ink",
+            // Offset by the track: at night the ring is the segment's own gold.
+            "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-ink has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-[var(--color-surface-hover)]",
             option.checked
               ? "bg-brand text-on-brand shadow-sm"
               : "text-text-secondary hover:text-text-primary",

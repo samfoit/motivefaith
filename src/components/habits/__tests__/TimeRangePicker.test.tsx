@@ -56,15 +56,73 @@ describe("TimeRangePicker", () => {
     expect(field("From")).toHaveAccessibleName("From, 12:30 PM");
   });
 
-  it("keeps a time off the quarter hour until it is changed", async () => {
-    render(<Range from="09:03" />);
-    expect(field("From")).toHaveAccessibleName("From, 9:03 AM");
+  describe("an exact minute", () => {
+    const minute = () => within(picker("From")).getByRole("textbox", { name: "Minute" });
 
-    await userEvent.click(field("From"));
-    const minutes = within(within(picker("From")).getByRole("radiogroup", { name: "Minutes" }));
-    for (const radio of minutes.getAllByRole("radio")) expect(radio).not.toBeChecked();
-    await userEvent.click(minutes.getByRole("radio", { name: ":15" }));
-    expect(field("From")).toHaveAccessibleName("From, 9:15 AM");
+    it("waits behind a link, and takes any minute: 10:02 PM, for Luke 10:2", async () => {
+      render(<Range from="22:00" />);
+      await userEvent.click(field("From"));
+      expect(within(picker("From")).queryByRole("textbox", { name: "Minute" })).not.toBeInTheDocument();
+
+      await userEvent.click(within(picker("From")).getByRole("button", { name: "Exact minute" }));
+      // Focus selects what is there, so typing replaces it.
+      await userEvent.type(minute(), "02");
+
+      expect(field("From")).toHaveAccessibleName("From, 10:02 PM");
+      const quarters = within(within(picker("From")).getByRole("radiogroup", { name: "Minutes" }));
+      for (const radio of quarters.getAllByRole("radio")) expect(radio).not.toBeChecked();
+    });
+
+    it("nudges by a minute, wrapping within the hour", async () => {
+      render(<Range from="09:00" />);
+      await userEvent.click(field("From"));
+      await userEvent.click(within(picker("From")).getByRole("button", { name: "Exact minute" }));
+      const group = () => within(picker("From")).getByRole("group", { name: "Exact minute" });
+
+      await userEvent.click(within(group()).getByRole("button", { name: "A minute earlier" }));
+      expect(field("From")).toHaveAccessibleName("From, 9:59 AM");
+      await userEvent.click(within(group()).getByRole("button", { name: "A minute later" }));
+      await userEvent.click(within(group()).getByRole("button", { name: "A minute later" }));
+      expect(field("From")).toHaveAccessibleName("From, 9:01 AM");
+
+      // The arrow keys nudge too.
+      await userEvent.click(minute());
+      await userEvent.keyboard("{ArrowUp}{ArrowUp}");
+      expect(field("From")).toHaveAccessibleName("From, 9:03 AM");
+    });
+
+    it("refuses a minute past 59", async () => {
+      render(<Range from="09:00" />);
+      await userEvent.click(field("From"));
+      await userEvent.click(within(picker("From")).getByRole("button", { name: "Exact minute" }));
+      await userEvent.type(minute(), "60");
+
+      expect(field("From")).toHaveAccessibleName("From, 9:06 AM");
+    });
+
+    it("opens by itself for a time saved off the quarter, until a quarter is picked", async () => {
+      render(<Range from="22:02" />);
+      await userEvent.click(field("From"));
+      expect(minute()).toHaveValue("02");
+      expect(within(picker("From")).getByRole("radio", { name: "PM" })).toBeChecked();
+
+      await userEvent.click(within(picker("From")).getByRole("radio", { name: ":15" }));
+      expect(field("From")).toHaveAccessibleName("From, 10:15 PM");
+      expect(within(picker("From")).queryByRole("textbox", { name: "Minute" })).not.toBeInTheDocument();
+      expect(within(picker("From")).getByRole("button", { name: "Exact minute" })).toBeInTheDocument();
+    });
+
+    it("stays open when a nudge lands on a quarter", async () => {
+      render(<Range from="09:14" />);
+      await userEvent.click(field("From"));
+      await userEvent.click(
+        within(within(picker("From")).getByRole("group", { name: "Exact minute" })).getByRole("button", {
+          name: "A minute later",
+        }),
+      );
+      expect(field("From")).toHaveAccessibleName("From, 9:15 AM");
+      expect(minute()).toHaveValue("15");
+    });
   });
 
   it("folds when its field is tapped again, and swaps to the other field", async () => {
