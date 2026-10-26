@@ -7,6 +7,7 @@ import { GroupPicker } from "@/components/social/GroupPicker";
 import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
 import { DEFAULT_HABIT_COLOR } from "@/lib/constants/colors";
+import { DEFAULT_TIME_WINDOW } from "@/lib/utils/schedule";
 import { SECTION_LABEL, type HabitFieldValues } from "@/components/habits/HabitFields";
 import { VisibilityPicker } from "@/components/habits/VisibilityPicker";
 import type { HabitVisibility } from "@/lib/types/partners";
@@ -29,8 +30,9 @@ export const DEFAULT_FORM: HabitForm = {
   frequency: "daily",
   scheduleDays: [0, 1, 2, 3, 4, 5, 6],
   timeWindowEnabled: false,
-  timeWindowStart: "09:00",
-  timeWindowEnd: "12:00",
+  timeWindowStart: DEFAULT_TIME_WINDOW.start,
+  timeWindowEnd: DEFAULT_TIME_WINDOW.end,
+  timeWindowExceptions: [],
   color: DEFAULT_HABIT_COLOR,
   visibility: "private",
   selectedFriends: [],

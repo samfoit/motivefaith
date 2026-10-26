@@ -4,7 +4,8 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Check, ChevronsUpDown, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { DAYS, FREQUENCIES, type HabitFrequency } from "@/lib/constants/habit";
+import { FREQUENCIES, type HabitFrequency } from "@/lib/constants/habit";
+import { DayChips } from "@/components/habits/DayChips";
 import { SETTINGS_ROW, SETTINGS_ROW_ICON } from "@/components/habits/HabitSettingsRows";
 
 /** Custom last, as on iOS: it is the one that asks for more. */
@@ -112,34 +113,12 @@ export function RepeatPicker({ frequency, days, onChange }: RepeatPickerProps) {
             transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className="overflow-hidden"
           >
-            <div
-              role="group"
-              aria-label="Days"
-              className="flex justify-between gap-1 px-4 pb-3"
-            >
-              {DAYS.map((day) => {
-                const on = days.includes(day.value);
-                return (
-                  <button
-                    key={day.value}
-                    type="button"
-                    onClick={() => toggleDay(day.value)}
-                    aria-label={day.full}
-                    aria-pressed={on}
-                    className={cn(
-                      "w-10 h-10 rounded-full text-sm font-medium flex items-center justify-center",
-                      "transition-[transform,background-color,color] duration-150 active:scale-90",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-ink focus-visible:ring-offset-[var(--color-bg-elevated)]",
-                      on
-                        ? "bg-brand text-on-brand"
-                        : "bg-bg-secondary text-text-primary hover:bg-surface-hover",
-                    )}
-                  >
-                    {day.label}
-                  </button>
-                );
-              })}
-            </div>
+            <DayChips
+              label="Days"
+              stateOf={(day) => (days.includes(day) ? "on" : "off")}
+              onToggle={toggleDay}
+              className="px-4 pb-3"
+            />
             {days.length === 0 && (
               <p className="px-4 pb-3 -mt-1 text-xs text-[var(--color-miss)]">
                 Choose at least one day.

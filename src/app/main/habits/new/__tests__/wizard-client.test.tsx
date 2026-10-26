@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -107,6 +107,38 @@ describe("WizardClient", () => {
         },
         friendIds: ["bob"],
         groupIds: [],
+      },
+    });
+  });
+
+  it("creates a habit that keeps a different time at the weekend", async () => {
+    renderWizard();
+
+    await userEvent.type(screen.getByLabelText("Habit name"), "Run");
+    await userEvent.click(screen.getByRole("switch", { name: /time window/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Different time on some days" }));
+    // Queried afresh each time: the test setup's motion mock remounts what it wraps.
+    const weekend = () => screen.getByRole("group", { name: "Different time 1" });
+    fireEvent.change(within(weekend()).getByLabelText("From"), { target: { value: "16:00" } });
+    fireEvent.change(within(weekend()).getByLabelText("Until"), { target: { value: "17:00" } });
+    await userEvent.click(next());
+    await userEvent.click(screen.getByRole("button", { name: "Create habit" }));
+
+    expect(sendOrQueue.mock.calls[0][0]).toMatchObject({
+      kind: "habit.create",
+      payload: {
+        habit: {
+          title: "Run",
+          schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
+          time_window: {
+            start: "09:00",
+            end: "12:00",
+            days: {
+              "0": { start: "16:00", end: "17:00" },
+              "6": { start: "16:00", end: "17:00" },
+            },
+          },
+        },
       },
     });
   });

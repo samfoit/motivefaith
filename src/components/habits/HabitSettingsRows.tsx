@@ -66,9 +66,16 @@ interface TimeWindowRowProps {
   onEnabledChange: (enabled: boolean) => void;
   onStartChange: (start: string) => void;
   onEndChange: (end: string) => void;
+  /** The days on the usual time, named once some days have their own. */
+  usualLabel?: string;
+  /** The days with a different time, below the usual one. */
+  children?: ReactNode;
 }
 
-/** A switch, and the window's two ends once it is on. */
+/**
+ * A switch, and the window's two ends once it is on — then whatever days
+ * keep a different time.
+ */
 export function TimeWindowRow({
   enabled,
   start,
@@ -76,6 +83,8 @@ export function TimeWindowRow({
   onEnabledChange,
   onStartChange,
   onEndChange,
+  usualLabel,
+  children,
 }: TimeWindowRowProps) {
   const reduceMotion = useReducedMotion();
 
@@ -96,10 +105,18 @@ export function TimeWindowRow({
             transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: EASE }}
             className="overflow-hidden"
           >
-            <div className="grid grid-cols-2 gap-2 px-4 pb-3">
-              <TimeField label="From" value={start} onChange={onStartChange} />
-              <TimeField label="Until" value={end} onChange={onEndChange} />
+            <div role={usualLabel ? "group" : undefined} aria-label={usualLabel}>
+              {usualLabel && (
+                <p className="px-4 pb-2 -mt-1 text-xs font-medium text-text-secondary" aria-hidden>
+                  {usualLabel}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-2 px-4 pb-3">
+                <TimeField label="From" value={start} onChange={onStartChange} />
+                <TimeField label="Until" value={end} onChange={onEndChange} />
+              </div>
             </div>
+            {children}
           </motion.div>
         )}
       </AnimatePresence>
@@ -107,7 +124,7 @@ export function TimeWindowRow({
   );
 }
 
-function TimeField({
+export function TimeField({
   label,
   value,
   onChange,

@@ -10,11 +10,13 @@ import {
   useSyncExternalStore,
 } from "react";
 import dynamic from "next/dynamic";
-import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
+import { getDayOfWeek, toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
 import {
   isHabitScheduledOn,
   makeupOriginOn,
   parseTimeWindow,
+  windowOn,
+  type DayWindow,
 } from "@/lib/utils/schedule";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -203,6 +205,7 @@ interface DashboardClientProps {
 
 type TimeGroup = "morning" | "afternoon" | "evening" | "anytime";
 
+/** Where today's window puts a habit: no window today is Anytime. */
 function getTimeGroup(
   timeWindow: { start?: string; end?: string } | null,
 ): TimeGroup {
@@ -437,6 +440,20 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     [habits, timezone, makeupMap],
   );
 
+  /**
+   * Each habit's window today. A habit can keep a different time on some
+   * days, or none at all — 8 on weekdays, 4 at the weekend — so its section
+   * and the time on its card are today's.
+   */
+  const todayWindowMap = useMemo(() => {
+    const weekday = getDayOfWeek(new Date(), timezone);
+    const map = new Map<string, DayWindow | null>();
+    todayHabits.forEach((h) =>
+      map.set(h.id, windowOn(parseTimeWindow(h.time_window), weekday)),
+    );
+    return map;
+  }, [todayHabits, timezone]);
+
   const groupedHabits = useMemo(() => {
     const groups: Record<TimeGroup, HabitWithCompletions[]> = {
       morning: [],
@@ -445,10 +462,10 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       anytime: [],
     };
     todayHabits.forEach((habit) => {
-      groups[getTimeGroup(parseTimeWindow(habit.time_window))].push(habit);
+      groups[getTimeGroup(todayWindowMap.get(habit.id) ?? null)].push(habit);
     });
     return groups;
-  }, [todayHabits]);
+  }, [todayHabits, todayWindowMap]);
 
   const topStreaks = useMemo(
     () =>
@@ -785,6 +802,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
           checkInCountMap={checkInCountMap}
           rainCheckMap={rainCheckMap}
           moveMap={moveMap}
+          todayWindowMap={todayWindowMap}
           completedCount={completedCount}
           hasHabits={habits.length > 0}
           onQuickComplete={handleQuickComplete}

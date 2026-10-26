@@ -175,6 +175,20 @@ describe("HabitCard", () => {
     expect(screen.getByText(/7-Day Early Bird/)).toBeInTheDocument();
   });
 
+  it("shows the time it is given, which is today's", () => {
+    // The habit's usual time is 8; today it keeps its own.
+    render(
+      <HabitCard
+        habit={makeHabit({ time_window: { start: "08:00", end: "09:00" } })}
+        completedToday={false}
+        startTime="4 PM"
+        onQuickComplete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("4 PM")).toBeInTheDocument();
+    expect(screen.queryByText("8 AM")).not.toBeInTheDocument();
+  });
+
   it("does not show streak when streak is 0", () => {
     render(
       <HabitCard

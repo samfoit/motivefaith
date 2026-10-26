@@ -23,7 +23,11 @@ import {
 } from "@/components/habits/HabitSettingsRows";
 import { VisibilityPicker } from "@/components/habits/VisibilityPicker";
 import type { HabitVisibility } from "@/lib/types/partners";
-import { getScheduledDays, parseTimeWindow as parseTimeWindowJson } from "@/lib/utils/schedule";
+import {
+  buildTimeWindow,
+  getScheduledDays,
+  timeFieldsFromWindow,
+} from "@/lib/utils/schedule";
 import type { Habit } from "@/lib/types/habit";
 import type { TablesUpdate } from "@/lib/supabase/types";
 import type { ToastVariant } from "@/components/ui/Toast";
@@ -50,33 +54,15 @@ interface EditForm extends HabitFieldValues {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function parseTimeWindowForm(tw: unknown): {
-  enabled: boolean;
-  start: string;
-  end: string;
-} {
-  const parsed = parseTimeWindowJson(tw);
-  if (parsed?.start || parsed?.end) {
-    return {
-      enabled: true,
-      start: parsed.start ?? "09:00",
-      end: parsed.end ?? "12:00",
-    };
-  }
-  return { enabled: false, start: "09:00", end: "12:00" };
-}
-
 function buildFormFromHabit(habit: Habit): EditForm {
-  const tw = parseTimeWindowForm(habit.time_window);
+  const scheduleDays = getScheduledDays(habit.schedule);
   return {
     title: habit.title,
     emoji: habit.emoji ?? "✅",
     description: habit.description ?? "",
     frequency: habit.frequency,
-    scheduleDays: getScheduledDays(habit.schedule),
-    timeWindowEnabled: tw.enabled,
-    timeWindowStart: tw.start,
-    timeWindowEnd: tw.end,
+    scheduleDays,
+    ...timeFieldsFromWindow(habit.time_window, scheduleDays),
     color: habit.color ?? null,
     visibility: habit.visibility,
     privateCheckins: habit.private_checkins,
@@ -120,9 +106,9 @@ export function EditHabitSheet({
       form.color !== initial.color ||
       form.visibility !== initial.visibility ||
       form.privateCheckins !== initial.privateCheckins ||
-      form.timeWindowEnabled !== initial.timeWindowEnabled ||
-      form.timeWindowStart !== initial.timeWindowStart ||
-      form.timeWindowEnd !== initial.timeWindowEnd ||
+      // As it would be stored, so adding a different time and leaving it on
+      // the usual one is no change.
+      JSON.stringify(buildTimeWindow(form)) !== JSON.stringify(buildTimeWindow(initial)) ||
       JSON.stringify(form.scheduleDays.slice().sort()) !==
       JSON.stringify(initial.scheduleDays.slice().sort())
     );
@@ -140,9 +126,7 @@ export function EditHabitSheet({
       description: form.description.trim() || null,
       frequency: form.frequency,
       schedule: { days: form.scheduleDays },
-      time_window: form.timeWindowEnabled
-        ? { start: form.timeWindowStart, end: form.timeWindowEnd }
-        : null,
+      time_window: buildTimeWindow(form),
       color: form.color,
       visibility: form.visibility,
       private_checkins: form.privateCheckins,

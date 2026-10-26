@@ -16,6 +16,7 @@ import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
 import { cn } from "@/lib/utils/cn";
+import { buildTimeWindow } from "@/lib/utils/schedule";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -139,9 +140,7 @@ export function WizardClient() {
         color: form.color,
         frequency: form.frequency,
         schedule: { days: form.scheduleDays },
-        time_window: form.timeWindowEnabled
-          ? { start: form.timeWindowStart, end: form.timeWindowEnd }
-          : null,
+        time_window: buildTimeWindow(form),
         visibility: form.visibility,
       };
 

@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils/cn";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 import { isRainCheck } from "@/lib/constants/completion";
 import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
-import { formatStartTime } from "@/lib/utils/schedule";
 import {
   HabitCircle,
   HabitTitleRow,
@@ -121,6 +120,11 @@ interface HabitCardProps {
    * ("Wednesday"), for the pill.
    */
   movedFrom?: string | null;
+  /**
+   * When today's window opens, as the card shows it ("9 AM"). Today's
+   * rather than the habit's: a habit can keep a different time on some days.
+   */
+  startTime?: string | null;
   onQuickComplete: (habitId: string, origin?: { x: number; y: number }) => void;
   onPress?: (habitId: string) => void;
   /** Fired when a check-in icon is picked from the drawer. */
@@ -146,6 +150,7 @@ export const HabitCard = React.memo(function HabitCard({
   rainCheckedToday = false,
   rainCheckMovedTo = null,
   movedFrom = null,
+  startTime = null,
   onQuickComplete,
   onPress,
   onCheckIn,
@@ -163,9 +168,6 @@ export const HabitCard = React.memo(function HabitCard({
 
   const lastCompletionLabel =
     lastDone && !completedToday ? `Last done ${formatLastDone(lastDone)}` : null;
-
-  const timeWindow = habit.time_window as { start?: string; end?: string } | null;
-  const scheduledTime = formatStartTime(timeWindow?.start);
 
   const challengeNameIsTitle =
     habit.challenge?.title.trim().toLowerCase() ===
@@ -525,10 +527,10 @@ export const HabitCard = React.memo(function HabitCard({
           />
 
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            {scheduledTime && (
+            {startTime && (
               <span className="text-xs text-text-secondary flex items-center gap-0.5">
                 <Clock className="w-3 h-3" />
-                {scheduledTime}
+                {startTime}
               </span>
             )}
             {/* A habit created from a challenge usually takes the

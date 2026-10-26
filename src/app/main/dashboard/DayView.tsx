@@ -9,6 +9,7 @@ import {
 } from "@/components/habits/HabitCard";
 import type { CheckInAction } from "@/lib/constants/check-in";
 import type { MoveLabels } from "@/lib/types/habit";
+import { formatStartTime, type DayWindow } from "@/lib/utils/schedule";
 import { Button } from "@/components/ui/Button";
 
 type TimeGroup = "morning" | "afternoon" | "evening" | "anytime";
@@ -37,6 +38,8 @@ interface DayViewProps {
   rainCheckMap?: Map<string, boolean>;
   /** Per-habit move labels: what moved away today, and what landed. */
   moveMap?: Map<string, MoveLabels>;
+  /** Each habit's window today, which can differ by day. */
+  todayWindowMap?: Map<string, DayWindow | null>;
   completedCount: number;
   hasHabits: boolean;
   onQuickComplete: (habitId: string, origin?: { x: number; y: number }) => void;
@@ -57,6 +60,7 @@ export const DayView = memo(function DayView({
   checkInCountMap,
   rainCheckMap,
   moveMap,
+  todayWindowMap,
   completedCount,
   hasHabits,
   onQuickComplete,
@@ -200,6 +204,7 @@ export const DayView = memo(function DayView({
                           moveMap?.get(habit.id)?.movedTo ?? null
                         }
                         movedFrom={moveMap?.get(habit.id)?.movedFrom ?? null}
+                        startTime={formatStartTime(todayWindowMap?.get(habit.id)?.start)}
                         onQuickComplete={onQuickComplete}
                         onPress={onHabitPress}
                         onCheckIn={onCheckIn}

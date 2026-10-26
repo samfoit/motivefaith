@@ -3,7 +3,14 @@
 import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { HabitFrequency } from "@/lib/constants/habit";
-import { formatStartTime } from "@/lib/utils/schedule";
+import {
+  describeDays,
+  formatStartTime,
+  settleTimeFields,
+  shownExceptions,
+  usualDays,
+  type TimeException,
+} from "@/lib/utils/schedule";
 import { ColorPicker } from "@/components/habits/ColorPicker";
 import { IconPicker } from "@/components/habits/IconPicker";
 import { RepeatPicker } from "@/components/habits/RepeatPicker";
@@ -12,6 +19,7 @@ import {
   TimeWindowRow,
   WhyRow,
 } from "@/components/habits/HabitSettingsRows";
+import { TimeWindowExceptions } from "@/components/habits/TimeWindowExceptions";
 import { HabitCircle, habitSurfaceProps } from "@/components/habits/HabitCardParts";
 
 /**
@@ -28,6 +36,8 @@ export interface HabitFieldValues {
   timeWindowEnabled: boolean;
   timeWindowStart: string;
   timeWindowEnd: string;
+  /** Days that keep a different time from the usual one. */
+  timeWindowExceptions: TimeException[];
   color: string | null;
 }
 
@@ -124,6 +134,8 @@ export function HabitFields({
   form: HabitFieldValues;
   onChange: Change;
 }) {
+  const hasExceptions = shownExceptions(form).length > 0;
+
   return (
     <div className="space-y-6">
       <IconPicker value={form.emoji} onChange={(emoji) => onChange({ emoji })} />
@@ -134,7 +146,18 @@ export function HabitFields({
         <RepeatPicker
           frequency={form.frequency}
           days={form.scheduleDays}
-          onChange={(frequency, scheduleDays) => onChange({ frequency, scheduleDays })}
+          onChange={(frequency, scheduleDays) => {
+            // Taking days out of Repeat can leave the usual time on none.
+            const settled = settleTimeFields({ ...form, frequency, scheduleDays });
+            onChange({
+              frequency,
+              scheduleDays,
+              timeWindowEnabled: settled.timeWindowEnabled,
+              timeWindowStart: settled.timeWindowStart,
+              timeWindowEnd: settled.timeWindowEnd,
+              timeWindowExceptions: settled.timeWindowExceptions,
+            });
+          }}
         />
         <TimeWindowRow
           enabled={form.timeWindowEnabled}
@@ -143,7 +166,13 @@ export function HabitFields({
           onEnabledChange={(timeWindowEnabled) => onChange({ timeWindowEnabled })}
           onStartChange={(timeWindowStart) => onChange({ timeWindowStart })}
           onEndChange={(timeWindowEnd) => onChange({ timeWindowEnd })}
-        />
+          usualLabel={hasExceptions ? describeDays(usualDays(form)) : undefined}
+        >
+          <TimeWindowExceptions
+            fields={form}
+            onChange={(timeWindowExceptions) => onChange({ timeWindowExceptions })}
+          />
+        </TimeWindowRow>
         <WhyRow
           value={form.description}
           onChange={(description) => onChange({ description })}

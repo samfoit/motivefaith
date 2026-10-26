@@ -697,3 +697,57 @@ describe("DashboardClient sharing the first check-in", () => {
     ).toBeDisabled();
   });
 });
+
+/**
+ * A habit can keep a different time on some days, or none at all. Its
+ * section and the time on its card are today's.
+ */
+describe("DashboardClient times that differ by day", () => {
+  // 8 to 9, but 4 to 5 at the weekend, and any time on Tuesday.
+  const split: HabitWithCompletions = {
+    ...habit,
+    time_window: {
+      start: "08:00",
+      end: "09:00",
+      days: {
+        "0": { start: "16:00", end: "17:00" },
+        "6": { start: "16:00", end: "17:00" },
+        "2": null,
+      },
+    },
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The heading of the section a habit's card sits in on a given day. */
+  async function placedOn(day: string) {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(day));
+    renderWithHabits([split]);
+    const card = await screen.findByRole("button", { name: "Complete Morning Run" });
+    const heading = screen
+      .getAllByRole("heading", { level: 2 })
+      .find((h) => h.parentElement?.contains(card));
+    return { heading: heading?.textContent, section: heading!.parentElement! };
+  }
+
+  it("shows the usual time on a weekday", async () => {
+    const { heading, section } = await placedOn("2025-06-18T07:00:00Z"); // Wednesday
+    expect(heading).toBe("Morning");
+    expect(within(section).getByText("8 AM")).toBeInTheDocument();
+  });
+
+  it("shows the weekend's own time at the weekend", async () => {
+    const { heading, section } = await placedOn("2025-06-21T07:00:00Z"); // Saturday
+    expect(heading).toBe("Afternoon");
+    expect(within(section).getByText("4 PM")).toBeInTheDocument();
+  });
+
+  it("lists a day with no set time under Anytime, with no time", async () => {
+    const { heading, section } = await placedOn("2025-06-17T07:00:00Z"); // Tuesday
+    expect(heading).toBe("Anytime");
+    expect(within(section).queryByText(/\d (AM|PM)$/)).not.toBeInTheDocument();
+  });
+});

@@ -36,6 +36,14 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
 import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
+import {
+  describeDays,
+  formatWindow,
+  getScheduledDays,
+  parseTimeWindow,
+  timeWindowGroups,
+  type DayWindow,
+} from "@/lib/utils/schedule";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
@@ -846,12 +854,7 @@ export function HabitDetailClient({
                 label="Created"
                 value={habit.created_at ? format(new Date(habit.created_at), "MMM d, yyyy") : "—"}
               />
-              {habit.time_window && (
-                <DetailRow
-                  label="Time window"
-                  value={`${(habit.time_window as { start?: string }).start ?? "–"} – ${(habit.time_window as { end?: string }).end ?? "–"}`}
-                />
-              )}
+              <TimeWindowDetail habit={habit} />
             </div>
           </Tabs.Content>
 
@@ -1283,6 +1286,36 @@ function StatCard({
         {value}
       </p>
       <p className="text-xs text-[var(--color-text-tertiary)]">{label}</p>
+    </div>
+  );
+}
+
+/**
+ * The habit's window, one line per time when some days keep a different
+ * one: "Weekdays · 8 AM – 9 AM", "Weekends · Any time". Left out with no
+ * window at all.
+ */
+function TimeWindowDetail({ habit }: { habit: Habit }) {
+  const groups = timeWindowGroups(
+    parseTimeWindow(habit.time_window),
+    getScheduledDays(habit.schedule),
+  ).filter((g) => g.days.length > 0);
+  if (groups.length === 0) return null;
+
+  const time = (window: DayWindow | null) => (window ? formatWindow(window) : "Any time");
+
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-sm text-[var(--color-text-secondary)]">Time window</span>
+      <span className="text-sm font-medium text-[var(--color-text-primary)] text-right">
+        {groups.length === 1
+          ? time(groups[0].window)
+          : groups.map((g) => (
+              <span key={g.days.join()} className="block">
+                {describeDays(g.days)} · {time(g.window)}
+              </span>
+            ))}
+      </span>
     </div>
   );
 }

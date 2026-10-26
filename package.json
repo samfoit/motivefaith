@@ -24,7 +24,8 @@
     "test:profile-privileges": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/profile-privileges.test.sql",
     "test:function-privileges": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/function-privileges.test.sql",
     "test:repeat-checkins": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/repeat-checkins.test.sql",
-    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share && npm run test:push-subscriptions && npm run test:checkin-sharing && npm run test:profile-privileges && npm run test:function-privileges && npm run test:repeat-checkins",
+    "test:day-time-windows": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/day-time-windows.test.sql",
+    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share && npm run test:push-subscriptions && npm run test:checkin-sharing && npm run test:profile-privileges && npm run test:function-privileges && npm run test:repeat-checkins && npm run test:day-time-windows",
     "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
