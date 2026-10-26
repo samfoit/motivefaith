@@ -4,7 +4,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { DayChips, type DayChipState } from "@/components/habits/DayChips";
-import { RowSwitch, SETTINGS_ROW, TimeField } from "@/components/habits/HabitSettingsRows";
+import { RowSwitch, SETTINGS_ROW } from "@/components/habits/HabitSettingsRows";
+import { TimeRangePicker } from "@/components/habits/TimeRangePicker";
 import {
   newExceptionDays,
   shownExceptions,
@@ -117,16 +118,12 @@ export function TimeWindowExceptions({
               </label>
 
               {exception.timed ? (
-                <div className="grid grid-cols-2 gap-2 px-4 pb-1">
-                  <TimeField
-                    label="From"
-                    value={exception.start}
-                    onChange={(start) => update(exception.id, { start })}
-                  />
-                  <TimeField
-                    label="Until"
-                    value={exception.end}
-                    onChange={(end) => update(exception.id, { end })}
+                <div className="px-4 pb-1">
+                  <TimeRangePicker
+                    start={exception.start}
+                    end={exception.end}
+                    onStartChange={(start) => update(exception.id, { start })}
+                    onEndChange={(end) => update(exception.id, { end })}
                   />
                 </div>
               ) : (

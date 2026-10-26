@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -117,10 +117,13 @@ describe("WizardClient", () => {
     await userEvent.type(screen.getByLabelText("Habit name"), "Run");
     await userEvent.click(screen.getByRole("switch", { name: /time window/i }));
     await userEvent.click(screen.getByRole("button", { name: "Different time on some days" }));
-    // Queried afresh each time: the test setup's motion mock remounts what it wraps.
-    const weekend = () => screen.getByRole("group", { name: "Different time 1" });
-    fireEvent.change(within(weekend()).getByLabelText("From"), { target: { value: "16:00" } });
-    fireEvent.change(within(weekend()).getByLabelText("Until"), { target: { value: "17:00" } });
+    const weekend = screen.getByRole("group", { name: "Different time 1" });
+    for (const [field, hour] of [["From", "4"], ["Until", "5"]] as const) {
+      await userEvent.click(within(weekend).getByRole("button", { name: new RegExp(`^${field},`) }));
+      const picker = within(weekend).getByRole("group", { name: `${field} time` });
+      await userEvent.click(within(picker).getByRole("radio", { name: hour }));
+      await userEvent.click(within(picker).getByRole("radio", { name: "PM" }));
+    }
     await userEvent.click(next());
     await userEvent.click(screen.getByRole("button", { name: "Create habit" }));
 

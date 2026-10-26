@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import * as Switch from "@radix-ui/react-switch";
 import { Clock, NotebookPen } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { TimePickerScope, TimeRangePicker } from "@/components/habits/TimeRangePicker";
 
 /**
  * The settings most habits leave alone, as one group of rows in the iOS
@@ -105,53 +106,28 @@ export function TimeWindowRow({
             transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: EASE }}
             className="overflow-hidden"
           >
-            <div role={usualLabel ? "group" : undefined} aria-label={usualLabel}>
-              {usualLabel && (
-                <p className="px-4 pb-2 -mt-1 text-xs font-medium text-text-secondary" aria-hidden>
-                  {usualLabel}
-                </p>
-              )}
-              <div className="grid grid-cols-2 gap-2 px-4 pb-3">
-                <TimeField label="From" value={start} onChange={onStartChange} />
-                <TimeField label="Until" value={end} onChange={onEndChange} />
+            <TimePickerScope>
+              <div role={usualLabel ? "group" : undefined} aria-label={usualLabel}>
+                {usualLabel && (
+                  <p className="px-4 pb-2 -mt-1 text-xs font-medium text-text-secondary" aria-hidden>
+                    {usualLabel}
+                  </p>
+                )}
+                <div className="px-4 pb-3">
+                  <TimeRangePicker
+                    start={start}
+                    end={end}
+                    onStartChange={onStartChange}
+                    onEndChange={onEndChange}
+                  />
+                </div>
               </div>
-            </div>
-            {children}
+              {children}
+            </TimePickerScope>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
-  );
-}
-
-export function TimeField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    // The label sits over the value, not beside it: side by side there was no
-    // room left for "AM" next to the browser's own clock button.
-    <label className="flex flex-col rounded-md bg-bg-secondary px-3 py-1.5 focus-within:ring-2 focus-within:ring-brand-ink">
-      <span className="text-xs text-text-secondary">{label}</span>
-      <input
-        type="time"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "w-full min-w-0 appearance-none bg-transparent text-base leading-6 text-text-primary outline-none",
-          "[&::-webkit-date-and-time-value]:text-left",
-          // The page says light and dark both work, so the browser draws
-          // native parts for the OS's scheme, not the hour's: a dark clock
-          // icon on the night card.
-          "[[data-theme=dark]_&]:[color-scheme:dark]",
-        )}
-      />
-    </label>
   );
 }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EditHabitSheet } from "../EditHabitSheet";
@@ -40,6 +40,14 @@ function renderSheet(habit: Habit = SKETCH) {
     />,
   );
   return { onSaved };
+}
+
+/** Opens one of a range's fields and picks a time: the hour, then AM or PM. */
+async function pickTime(range: HTMLElement, field: "From" | "Until", hour: string, period: "AM" | "PM") {
+  await userEvent.click(within(range).getByRole("button", { name: new RegExp(`^${field},`) }));
+  const picker = within(range).getByRole("group", { name: `${field} time` });
+  await userEvent.click(within(picker).getByRole("radio", { name: hour }));
+  await userEvent.click(within(picker).getByRole("radio", { name: period }));
 }
 
 /** The time_window the sheet's one save sent. */
@@ -146,9 +154,8 @@ describe("EditHabitSheet: a different time on some days", () => {
     // It starts on the usual time, so nothing has changed yet.
     expect(save()).toBeDisabled();
 
-    // Queried afresh each time: the test setup's motion mock remounts what it wraps.
-    fireEvent.change(within(differentTime(1)).getByLabelText("From"), { target: { value: "16:00" } });
-    fireEvent.change(within(differentTime(1)).getByLabelText("Until"), { target: { value: "17:00" } });
+    await pickTime(weekend, "From", "4", "PM");
+    await pickTime(weekend, "Until", "5", "PM");
     await userEvent.click(save());
 
     expect(savedWindow()).toEqual({
@@ -182,7 +189,7 @@ describe("EditHabitSheet: a different time on some days", () => {
 
     const weekend = differentTime(1);
     expect(within(weekend).getByRole("button", { name: "Saturday" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(weekend).getByLabelText("From")).toHaveValue("16:00");
+    expect(within(weekend).getByRole("button", { name: "From, 4 PM" })).toBeInTheDocument();
 
     const tuesday = differentTime(2);
     expect(within(tuesday).getByRole("button", { name: "Tuesday" })).toHaveAttribute("aria-pressed", "true");

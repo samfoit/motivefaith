@@ -32,27 +32,38 @@ vi.mock("next/dynamic", () => ({
   },
 }));
 
-// Mock motion/react to avoid animation issues in tests
-vi.mock("motion/react", () => ({
-  motion: new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (typeof prop === "string") {
-          const MotionComponent = ({ children, initial, animate, exit, variants, whileHover, whileTap, custom, transition, layout, layoutId, onAnimationComplete, ...rest }: Record<string, unknown>) => {
-            const Tag = prop as keyof JSX.IntrinsicElements;
-            return <Tag {...(rest as Record<string, unknown>)}>{children as React.ReactNode}</Tag>;
-          };
-          MotionComponent.displayName = `motion.${prop}`;
-          return MotionComponent;
-        }
+// Mock motion/react to avoid animation issues in tests.
+//
+// One component per tag, made once: a new one on every `motion.div` read is a
+// new component type on every render, and React would remount everything
+// under it each time — state lost and elements replaced, which real motion
+// never does.
+vi.mock("motion/react", () => {
+  const makeComponent = (prop: string) => {
+    const MotionComponent = ({ children, initial, animate, exit, variants, whileHover, whileTap, custom, transition, layout, layoutId, onAnimationComplete, ...rest }: Record<string, unknown>) => {
+      const Tag = prop as keyof JSX.IntrinsicElements;
+      return <Tag {...(rest as Record<string, unknown>)}>{children as React.ReactNode}</Tag>;
+    };
+    MotionComponent.displayName = `motion.${prop}`;
+    return MotionComponent;
+  };
+  const components = new Map<string, ReturnType<typeof makeComponent>>();
+  return {
+    motion: new Proxy(
+      {},
+      {
+        get: (_target, prop) => {
+          if (typeof prop !== "string") return undefined;
+          if (!components.has(prop)) components.set(prop, makeComponent(prop));
+          return components.get(prop);
+        },
       },
-    },
-  ),
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  MotionConfig: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useReducedMotion: () => false,
-}));
+    ),
+    AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    MotionConfig: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    useReducedMotion: () => false,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Web Storage
