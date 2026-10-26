@@ -75,7 +75,7 @@ export default async function HabitDetailPage({ params }: Props) {
     untypedRpc<number>(supabase, "get_habit_days_done", { p_habit_id: id }),
     supabase
       .from("habit_shares")
-      .select("id, shared_with, notify_complete, notify_miss, created_at, status, initiated_by")
+      .select("id, shared_with, created_at, status, initiated_by")
       .eq("habit_id", id),
     supabase
       .from("group_habit_shares")
@@ -143,8 +143,6 @@ export default async function HabitDetailPage({ params }: Props) {
         direction: (share.initiated_by === user.id ? "invite" : "request") as
           | "invite"
           | "request",
-        notify_complete: share.notify_complete,
-        notify_miss: share.notify_miss,
         profile,
       };
     })

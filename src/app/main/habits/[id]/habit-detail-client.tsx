@@ -137,8 +137,6 @@ type PartnerRow = {
   shareId: string;
   status: "accepted" | "pending";
   direction: "invite" | "request";
-  notify_complete: boolean | null;
-  notify_miss: boolean | null;
   profile: Partner;
 };
 
@@ -966,25 +964,15 @@ export function HabitDetailClient({
                         @{row.profile.username}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1.5 text-xs text-[var(--color-text-tertiary)]">
-                        {row.notify_complete && (
-                          <span title="Notified on completion">✅</span>
-                        )}
-                        {row.notify_miss && (
-                          <span title="Notified on miss">⏰</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePartner(row.shareId, false)}
-                        disabled={removingShareId === row.shareId}
-                        className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
-                        aria-label={`Remove ${row.profile.display_name}`}
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePartner(row.shareId, false)}
+                      disabled={removingShareId === row.shareId}
+                      className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
+                      aria-label={`Remove ${row.profile.display_name}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
               </div>
