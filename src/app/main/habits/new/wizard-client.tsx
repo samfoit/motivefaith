@@ -16,7 +16,7 @@ import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
 import { cn } from "@/lib/utils/cn";
-import { buildTimeWindow } from "@/lib/utils/schedule";
+import { buildTimeWindow, timeWindowsInOrder } from "@/lib/utils/schedule";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -94,7 +94,7 @@ export function WizardClient() {
 
   // The card stays editable on both steps, so the name is checked on both.
   const named = form.title.trim().length > 0;
-  const canAdvance = named && form.scheduleDays.length > 0;
+  const canAdvance = named && form.scheduleDays.length > 0 && timeWindowsInOrder(form);
 
   const goNext = () => {
     if (!canAdvance) return;

@@ -293,6 +293,22 @@ export function settleTimeFields<T extends TimeWindowFields>(fields: T): T {
 }
 
 /**
+ * Whether every window the form would store ends after it starts. A habit's
+ * day is the calendar day, so a window may not run past midnight: one from
+ * 6 PM to 10 AM was missed at 11 AM, against a window that opened only that
+ * evening. The picker points out a window that does; this keeps it unsaved.
+ */
+export function timeWindowsInOrder(fields: TimeWindowFields): boolean {
+  const settled = settleTimeFields(fields);
+  if (!settled.timeWindowEnabled) return true;
+  if (settled.timeWindowEnd <= settled.timeWindowStart) return false;
+  const scheduled = new Set(settled.scheduleDays);
+  return shownExceptions(settled).every(
+    (e) => !e.timed || !e.days.some((d) => scheduled.has(d)) || e.end > e.start,
+  );
+}
+
+/**
  * What the form's time fields store in time_window: null with the window
  * off, otherwise the usual window and the days that differ. The days are
  * always sent, {} for none — the database keeps the stored days when a write

@@ -81,6 +81,21 @@ describe("WizardClient", () => {
     expect(next()).toBeDisabled();
   });
 
+  it("holds Next back while Until comes before From", async () => {
+    renderWizard();
+    await userEvent.type(screen.getByLabelText("Habit name"), "Pray");
+    await userEvent.click(screen.getByRole("switch", { name: /time window/i }));
+
+    // 9 AM to 12 AM: Until has gone back to midnight.
+    await userEvent.click(screen.getByRole("button", { name: /^Until,/ }));
+    const until = within(screen.getByRole("group", { name: "Until time" }));
+    await userEvent.click(until.getByRole("radio", { name: "AM" }));
+    expect(next()).toBeDisabled();
+
+    await userEvent.click(until.getByRole("radio", { name: "PM" }));
+    expect(next()).toBeEnabled();
+  });
+
   it("creates the habit with what was picked, and invites the partners", async () => {
     renderWizard();
 

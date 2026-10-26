@@ -76,13 +76,27 @@ function toValue({ hour12, minute, pm }: TimeParts): string {
 // The range
 // ---------------------------------------------------------------------------
 
+/** Minutes since midnight, and back. */
+const minutesOf = (value: string) => {
+  const { hour12, minute, pm } = toParts(value);
+  return ((hour12 % 12) + (pm ? 12 : 0)) * 60 + minute;
+};
+const atMinutes = (total: number) =>
+  `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+const LAST_MINUTE = 23 * 60 + 59;
+
 interface TimeRangePickerProps {
   start: string;
   end: string;
-  onStartChange: (start: string) => void;
-  onEndChange: (end: string) => void;
+  onChange: (range: { start: string; end: string }) => void;
   /** The two fields' names. A habit's window runs From and Until. */
   labels?: { start: string; end: string };
+  /**
+   * May run past midnight, as quiet hours do. A habit's window may not: its
+   * day is the calendar day, so one that ran 6 PM to 10 AM was missed at
+   * 11 AM against a window that opened only that evening.
+   */
+  overnight?: boolean;
 }
 
 /**
@@ -95,13 +109,17 @@ interface TimeRangePickerProps {
  * though it shows below both: Tab goes from From into its picker and then on
  * to Until. Every change applies at once; tapping the field again folds it
  * away, and Escape does from inside it.
+ *
+ * Unless the range may run overnight, Until stays after From. Moving From to
+ * or past Until carries Until along, keeping the window's length, as a
+ * calendar keeps an event's; an Until set at or before From is pointed out.
  */
 export function TimeRangePicker({
   start,
   end,
-  onStartChange,
-  onEndChange,
+  onChange,
   labels = { start: "From", end: "Until" },
+  overnight = false,
 }: TimeRangePickerProps) {
   const id = useId();
   const scope = useContext(OpenPickerContext);
@@ -110,10 +128,25 @@ export function TimeRangePicker({
   const setOpen = scope ? scope.setOpen : setLocalOpen;
   const reduceMotion = useReducedMotion();
   const buttons = useRef<Record<string, HTMLButtonElement | null>>({});
+  // The window's length when From was opened. A time is set in a few taps,
+  // and measured after each one, 9 to 12 moved to 1 PM would pass through
+  // 1 AM to 12 — eleven hours — and carry Until to midnight.
+  const [length, setLength] = useState(60);
+
+  const outOfOrder = !overnight && minutesOf(end) <= minutesOf(start);
+  const errorId = `${id}-order`;
+
+  const setStart = (next: string) => {
+    if (overnight || minutesOf(next) < minutesOf(end)) {
+      onChange({ start: next, end });
+      return;
+    }
+    onChange({ start: next, end: atMinutes(Math.min(minutesOf(next) + length, LAST_MINUTE)) });
+  };
 
   const fields = [
-    { key: `${id}-start`, label: labels.start, value: start, onChange: onStartChange, column: "col-start-1" },
-    { key: `${id}-end`, label: labels.end, value: end, onChange: onEndChange, column: "col-start-2" },
+    { key: `${id}-start`, label: labels.start, value: start, onChange: setStart, column: "col-start-1" },
+    { key: `${id}-end`, label: labels.end, value: end, onChange: (next: string) => onChange({ start, end: next }), column: "col-start-2" },
   ];
   const openKey = fields.find((f) => f.key === open)?.key ?? null;
   // Moving from one field's picker to the other's swaps them at once, so
@@ -141,7 +174,7 @@ export function TimeRangePicker({
 
   return (
     <div className="grid grid-cols-2 gap-x-2">
-      {fields.map((field) => {
+      {fields.map((field, i) => {
         const isOpen = open === field.key;
         const pickerId = `${field.key}-picker`;
         const display = formatStartTime(field.value) ?? "Set a time";
@@ -152,10 +185,17 @@ export function TimeRangePicker({
                 buttons.current[field.key] = el;
               }}
               type="button"
-              onClick={() => setOpen(isOpen ? null : field.key)}
+              onClick={() => {
+                if (!isOpen && i === 0) {
+                  const span = minutesOf(end) - minutesOf(start);
+                  setLength(span > 0 ? span : 60);
+                }
+                setOpen(isOpen ? null : field.key);
+              }}
               aria-expanded={isOpen}
               aria-controls={isOpen ? pickerId : undefined}
               aria-label={`${field.label}, ${display}`}
+              aria-describedby={outOfOrder && i === 1 ? errorId : undefined}
               className={cn(
                 field.column,
                 "row-start-1 min-w-0 flex items-center justify-between gap-2 rounded-md px-3 py-1.5 text-left",
@@ -198,7 +238,7 @@ export function TimeRangePicker({
                     }),
                   }}
                   transition={reduceMotion ? { duration: 0 } : { duration: 0.22, ease: EASE }}
-                  className="col-span-2 row-start-2 overflow-hidden"
+                  className="col-span-2 row-start-3 overflow-hidden"
                 >
                   <TimeGrid
                     id={pickerId}
@@ -212,6 +252,21 @@ export function TimeRangePicker({
           </Fragment>
         );
       })}
+
+      {/* Between the fields and the picker, so it is in view while either
+          is being fixed. Always there, empty when all is well: a live
+          region added along with its words may not be read out. */}
+      <p
+        id={errorId}
+        aria-live="polite"
+        className={cn(
+          "col-span-2 row-start-2 text-xs text-[var(--color-miss)] text-pretty",
+          outOfOrder && "pt-2",
+        )}
+      >
+        {outOfOrder &&
+          `${labels.end} has to be after ${labels.start}. A window can't run past midnight.`}
+      </p>
     </div>
   );
 }

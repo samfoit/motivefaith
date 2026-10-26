@@ -65,8 +65,8 @@ interface TimeWindowRowProps {
   start: string;
   end: string;
   onEnabledChange: (enabled: boolean) => void;
-  onStartChange: (start: string) => void;
-  onEndChange: (end: string) => void;
+  /** Both ends at once: moving From can carry Until along. */
+  onTimesChange: (times: { start: string; end: string }) => void;
   /** The days on the usual time, named once some days have their own. */
   usualLabel?: string;
   /** The days with a different time, below the usual one. */
@@ -82,8 +82,7 @@ export function TimeWindowRow({
   start,
   end,
   onEnabledChange,
-  onStartChange,
-  onEndChange,
+  onTimesChange,
   usualLabel,
   children,
 }: TimeWindowRowProps) {
@@ -117,8 +116,7 @@ export function TimeWindowRow({
                   <TimeRangePicker
                     start={start}
                     end={end}
-                    onStartChange={onStartChange}
-                    onEndChange={onEndChange}
+                    onChange={onTimesChange}
                   />
                 </div>
               </div>

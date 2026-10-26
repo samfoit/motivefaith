@@ -10,6 +10,7 @@ import {
   settleTimeFields,
   timeFieldsFromWindow,
   timeWindowGroups,
+  timeWindowsInOrder,
   windowOn,
   type TimeException,
   type TimeWindowFields,
@@ -303,6 +304,45 @@ describe("buildTimeWindow", () => {
       "0": { start: "18:00", end: "19:00" },
       "6": { start: "16:00", end: "17:00" },
     });
+  });
+});
+
+describe("timeWindowsInOrder", () => {
+  it("wants every window to end after it starts, on the one day", () => {
+    expect(timeWindowsInOrder(fields())).toBe(true);
+    expect(timeWindowsInOrder(fields({ timeWindowStart: "18:00", timeWindowEnd: "10:00" }))).toBe(false);
+    expect(timeWindowsInOrder(fields({ timeWindowStart: "09:00", timeWindowEnd: "09:00" }))).toBe(false);
+  });
+
+  it("checks each different time as well", () => {
+    expect(
+      timeWindowsInOrder(
+        fields({ timeWindowExceptions: [exception([0, 6], { start: "22:00", end: "01:00" })] }),
+      ),
+    ).toBe(false);
+  });
+
+  it("passes over what will not be stored", () => {
+    // The window off, a day with no set time, days out of Repeat, and the
+    // different times of a weekly habit.
+    expect(timeWindowsInOrder(fields({ timeWindowEnabled: false, timeWindowEnd: "08:00" }))).toBe(true);
+    expect(timeWindowsInOrder(fields({ timeWindowExceptions: [exception([2], null)] }))).toBe(true);
+    expect(
+      timeWindowsInOrder(
+        fields({
+          scheduleDays: [1, 2, 3, 4, 5],
+          timeWindowExceptions: [exception([0, 6], { start: "22:00", end: "01:00" })],
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      timeWindowsInOrder(
+        fields({
+          frequency: "weekly",
+          timeWindowExceptions: [exception([0, 6], { start: "22:00", end: "01:00" })],
+        }),
+      ),
+    ).toBe(true);
   });
 });
 

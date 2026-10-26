@@ -164,8 +164,9 @@ export function HabitFields({
           start={form.timeWindowStart}
           end={form.timeWindowEnd}
           onEnabledChange={(timeWindowEnabled) => onChange({ timeWindowEnabled })}
-          onStartChange={(timeWindowStart) => onChange({ timeWindowStart })}
-          onEndChange={(timeWindowEnd) => onChange({ timeWindowEnd })}
+          onTimesChange={({ start, end }) =>
+            onChange({ timeWindowStart: start, timeWindowEnd: end })
+          }
           usualLabel={hasExceptions ? describeDays(usualDays(form)) : undefined}
         >
           <TimeWindowExceptions

@@ -1,5 +1,5 @@
 -- =============================================================================
--- A habit's time can differ by day (migration 045)
+-- A habit's time can differ by day (migrations 045, 046)
 -- =============================================================================
 --   psql "postgresql://postgres:postgres@localhost:54322/postgres" -f tests/day-time-windows.test.sql
 --
@@ -8,7 +8,7 @@
 -- partner's missed badge and inbox all read the day's window. Missed alerts
 -- go only to partners who accepted and want them, once a day, and a weekly
 -- habit is reminded until it is done that week and missed only when the week
--- ends without it.
+-- ends without it. A window that ends before it starts is never missed.
 --
 -- Everything runs on a fixed week, Sunday 4 to Saturday 10 October 2026, in
 -- UTC. pg_net is not installed on a local stack, so `net` is stubbed to
@@ -371,8 +371,8 @@ RESET role;
 -- Test 7: a partner's missed badge reads today's window
 -- ---------------------------------------------------------------------------
 -- Count is a habit whose usual window never closes (it ends at 23:59, and
--- the comparison is strict). Today's own window, which ends at midnight,
--- has always closed — except in the first minute of the day.
+-- the comparison is strict). Today's own window, which ends a minute after
+-- midnight, has always closed — except in the first two minutes of the day.
 
 INSERT INTO public.habits (id, user_id, title, frequency, schedule, time_window) VALUES
   ('e6000000-0000-4000-8000-000000000006', 'd1000000-0000-4000-8000-000000000001', 'Count', 'daily',
@@ -392,7 +392,7 @@ BEGIN
 
   UPDATE public.habits
   SET time_window = jsonb_build_object('start', '23:58', 'end', '23:59',
-        'days', jsonb_build_object(v_dow, jsonb_build_object('start', '00:00', 'end', '00:00')))
+        'days', jsonb_build_object(v_dow, jsonb_build_object('start', '00:00', 'end', '00:01')))
   WHERE id = 'e6000000-0000-4000-8000-000000000006';
   ASSERT public.get_missed_habit_count('UTC') = v_usual + 1,
     format('TEST 7 FAILED: today''s closed window should count, %s then %s',
@@ -422,6 +422,57 @@ BEGIN
     'TEST 8 FAILED: check-missed-habits can no longer call it';
   RAISE NOTICE 'TEST 8 PASSED: get_missed_habits is the service role''s alone';
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- Test 9: a window that ends before it starts is never missed (046)
+-- ---------------------------------------------------------------------------
+-- Night runs 6 PM to 10 AM, saved before the form refused it. At 11 AM its
+-- window has not opened, and done the night before it was not missed.
+
+INSERT INTO public.habits (id, user_id, title, frequency, schedule, time_window) VALUES
+  ('e7000000-0000-4000-8000-000000000007', 'd1000000-0000-4000-8000-000000000001', 'Night', 'daily',
+   '{"days":[0,1,2,3,4,5,6]}', '{"start":"18:00","end":"10:00"}');
+INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by)
+VALUES ('e7000000-0000-4000-8000-000000000007', 'd2000000-0000-4000-8000-000000000002', 'accepted', 'd1000000-0000-4000-8000-000000000001');
+
+DO $$
+DECLARE
+  v_dow TEXT := EXTRACT(DOW FROM now() AT TIME ZONE 'UTC')::int::text;
+  v_before INT;
+BEGIN
+  ASSERT public._told('e7000000-0000-4000-8000-000000000007', '2026-10-09 11:00+00') = '{}',
+    'TEST 9a FAILED: a window that ends before it starts was reported missed';
+  ASSERT public._told('e7000000-0000-4000-8000-000000000007', '2026-10-09 23:30+00') = '{}',
+    'TEST 9a FAILED: reported missed late in the evening';
+
+  -- The badge, through Count from test 7: today's own window ends before it
+  -- starts, and the badge leaves it out as it would no window at all.
+  v_before := public.get_missed_habit_count('UTC');
+  UPDATE public.habits
+  SET time_window = jsonb_build_object('start', '23:58', 'end', '23:59',
+        'days', jsonb_build_object(v_dow, jsonb_build_object('start', '23:00', 'end', '00:00')))
+  WHERE id = 'e6000000-0000-4000-8000-000000000006';
+  ASSERT public.get_missed_habit_count('UTC') = v_before,
+    'TEST 9b FAILED: the badge counted a window that ends before it starts';
+
+  RAISE NOTICE 'TEST 9 PASSED: a window that ends before it starts is never missed';
+END $$;
+
+SET LOCAL role TO authenticated;
+SET LOCAL request.jwt.claims TO '{"sub":"d2000000-0000-4000-8000-000000000002","role":"authenticated"}';
+
+DO $$
+BEGIN
+  ASSERT NOT EXISTS (
+    SELECT 1 FROM public.get_inbox_missed_habits(
+      'd2000000-0000-4000-8000-000000000002', '2026-10-09', 5,
+      '2026-10-09 00:00+00', '2026-10-10 00:00+00', '11:00')
+    WHERE title = 'Night'),
+    'TEST 9c FAILED: the inbox listed a window that ends before it starts';
+  RAISE NOTICE 'TEST 9c PASSED: nor is it listed in the inbox';
+END $$;
+
+RESET role;
 
 -- ---------------------------------------------------------------------------
 

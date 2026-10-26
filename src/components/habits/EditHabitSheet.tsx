@@ -27,6 +27,7 @@ import {
   buildTimeWindow,
   getScheduledDays,
   timeFieldsFromWindow,
+  timeWindowsInOrder,
 } from "@/lib/utils/schedule";
 import type { Habit } from "@/lib/types/habit";
 import type { TablesUpdate } from "@/lib/supabase/types";
@@ -114,7 +115,8 @@ export function EditHabitSheet({
     );
   }, [form, initial]);
 
-  const canSave = form.title.trim().length > 0 && form.scheduleDays.length > 0;
+  const canSave =
+    form.title.trim().length > 0 && form.scheduleDays.length > 0 && timeWindowsInOrder(form);
 
   const handleSave = async () => {
     if (!isDirty || !canSave) return;

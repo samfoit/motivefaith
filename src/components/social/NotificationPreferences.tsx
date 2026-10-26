@@ -226,9 +226,9 @@ export function NotificationPreferences({
         <TimeRangePicker
           start={prefs.quiet_start}
           end={prefs.quiet_end}
-          onStartChange={(v) => update({ quiet_start: v })}
-          onEndChange={(v) => update({ quiet_end: v })}
+          onChange={({ start, end }) => update({ quiet_start: start, quiet_end: end })}
           labels={{ start: "From", end: "To" }}
+          overnight
         />
       </div>
     </div>

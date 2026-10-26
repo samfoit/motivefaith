@@ -242,6 +242,22 @@ describe("EditHabitSheet: a different time on some days", () => {
     expect(screen.queryByRole("button", { name: "Another time for other days" })).not.toBeInTheDocument();
   });
 
+  it("keeps a window that runs past midnight unsaved until it is fixed", async () => {
+    // Saved before the form refused it: 6 PM to 10 AM.
+    renderSheet({ ...RUN, time_window: { start: "18:00", end: "10:00" } } as unknown as Habit);
+    expect(screen.getByText(/Until has to be after From/)).toBeInTheDocument();
+
+    const name = screen.getByLabelText("Habit name");
+    await userEvent.type(name, " at night");
+    expect(save()).toBeDisabled();
+
+    await pickTime(document.body, "Until", "10", "PM");
+    expect(screen.queryByText(/Until has to be after From/)).not.toBeInTheDocument();
+    await userEvent.click(save());
+
+    expect(savedWindow()).toEqual({ start: "18:00", end: "22:00", days: {} });
+  });
+
   it("offers none of it to a weekly habit", async () => {
     renderSheet(RUN_SPLIT);
     await userEvent.click(screen.getByRole("button", { name: /^repeat/i }));

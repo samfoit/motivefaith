@@ -122,8 +122,7 @@ export function TimeWindowExceptions({
                   <TimeRangePicker
                     start={exception.start}
                     end={exception.end}
-                    onStartChange={(start) => update(exception.id, { start })}
-                    onEndChange={(end) => update(exception.id, { end })}
+                    onChange={({ start, end }) => update(exception.id, { start, end })}
                   />
                 </div>
               ) : (
