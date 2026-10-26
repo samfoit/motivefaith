@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
-import { X, RotateCcw, Image as ImageIcon, Check, Maximize2, Minimize2, Mic } from "lucide-react";
+import { X, RotateCcw, Image as ImageIcon, Check, Maximize2, Minimize2, Mic, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { useCamera } from "@/lib/hooks/useCamera";
@@ -11,6 +11,7 @@ import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
 import { VoiceMeter } from "@/components/habits/VoiceMeter";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { VideoTrimBar } from "@/components/habits/VideoTrimBar";
+import { PrivateToggle } from "@/components/habits/PrivateToggle";
 import { getSupportedMimeType } from "@/lib/utils/media-recorder";
 import { MIME_TO_EXT } from "@/lib/utils/media-types";
 import { checkVideo, readVideoDuration } from "@/lib/utils/check-video";
@@ -32,7 +33,13 @@ type CaptureStage = "viewfinder" | "recording" | "review";
 type CaptureMode = "video" | "photo" | "voice";
 
 export interface CameraCaptureProps {
-  onCapture: (file: File, notes?: string) => void;
+  /**
+   * Hands the take on. A caller that sends it from the review itself, as a
+   * habit's check-in does, returns a promise: the review stays up under
+   * "Uploading…" until it settles, and a rejection's message is shown on it,
+   * with the take still there to send again or retake.
+   */
+  onCapture: (file: File, notes?: string) => void | Promise<void>;
   onClose: () => void;
   onFallback: () => void;
   maxVideoDuration?: number;
@@ -49,11 +56,19 @@ export interface CameraCaptureProps {
    */
   allowVoice?: boolean;
   /**
-   * The review screen's confirm button, in place of "Use Photo": "Send to
-   * Sam" when the camera was opened from a chat and the take goes straight
-   * there.
+   * The review screen's confirm button, in place of "Use Photo", for a take
+   * that goes straight on from there: "Send to Sam" when the camera was
+   * opened from a chat, "Submit" for a habit's check-in.
    */
   useLabel?: string;
+  /**
+   * Offers the private switch on the review, for a check-in whose photo or
+   * video can be kept out of partners' view. Absent hides it.
+   */
+  privacy?: {
+    isPrivate: boolean;
+    onChange: (isPrivate: boolean) => void;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +244,7 @@ export function CameraCapture({
   initialCapture,
   allowVoice = true,
   useLabel,
+  privacy,
 }: CameraCaptureProps) {
   const {
     state,
@@ -266,7 +282,10 @@ export function CameraCapture({
   // Not on a reopened review: that is the same visit, not a new open.
   const [coach, setCoach] = useState(() => !initialCapture && coachOpens() < COACH_OPENS);
   const coachCountedRef = useRef(false);
-  /** Why the last video picked from the gallery can't be used. */
+  /**
+   * Why the last video picked from the gallery can't be used, or why the
+   * take couldn't be sent.
+   */
   const [notice, setNotice] = useState<string | null>(null);
   /**
    * A video picked from the gallery, to be trimmed and shrunk when it is
@@ -278,6 +297,9 @@ export function CameraCapture({
   /** How far preparing a picked video has got, 0 to 1, while it runs. */
   const [preparing, setPreparing] = useState<number | null>(null);
   const prepareRef = useRef<AbortController | null>(null);
+  /** The caller is sending the take from the review (see onCapture). */
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const reviewVideoRef = useRef<HTMLVideoElement>(null);
   /** The picked video's length, when it is longer than a video may be. */
   const trimDuration =
@@ -818,6 +840,29 @@ export function CameraCapture({
     void v.play().catch(() => {});
   }, []);
 
+  // --- Hand the take on ---
+  const handOver = useCallback(
+    (file: File, caption: string | undefined) => {
+      stopCamera();
+      const sent = onCapture(file, caption);
+      if (!sent) return;
+      // Set before React draws the overlay, so a second tap already landing
+      // on the button can't send the take twice.
+      sendingRef.current = true;
+      setSending(true);
+      setNotice(null);
+      const settle = () => {
+        sendingRef.current = false;
+        setSending(false);
+      };
+      sent.then(settle, (err: unknown) => {
+        settle();
+        setNotice(err instanceof Error ? err.message : "Couldn't send. Try again.");
+      });
+    },
+    [stopCamera, onCapture],
+  );
+
   /**
    * Trim the picked video to its part and shrink it, then hand it on. Runs
    * from the Use tap itself: transcodeVideo has to start inside a tap.
@@ -841,8 +886,7 @@ export function CameraCapture({
         (prepared) => {
           prepareRef.current = null;
           setPreparing(null);
-          stopCamera();
-          onCapture(prepared, caption);
+          handOver(prepared, caption);
         },
         async (err: unknown) => {
           prepareRef.current = null;
@@ -852,8 +896,7 @@ export function CameraCapture({
           // Not shrunk here. If none of it had to be cut and it fits as it
           // is, it goes as it is, the way it would where this can't run.
           if (trimDuration === null && (await checkVideo(file)) === null) {
-            stopCamera();
-            onCapture(file, caption);
+            handOver(file, caption);
             return;
           }
           setNotice(
@@ -862,7 +905,7 @@ export function CameraCapture({
         },
       );
     },
-    [trimDuration, trimStart, maxVideoDuration, stopCamera, onCapture],
+    [trimDuration, trimStart, maxVideoDuration, handOver],
   );
 
   const cancelPreparing = useCallback(() => prepareRef.current?.abort(), []);
@@ -887,7 +930,7 @@ export function CameraCapture({
 
   // --- Use capture ---
   const handleUse = useCallback(() => {
-    if (!capturedBlob) return;
+    if (!capturedBlob || sendingRef.current) return;
 
     // A video picked from the gallery is trimmed and shrunk on the way out.
     if (picked && capturedBlob === picked.file) {
@@ -913,9 +956,8 @@ export function CameraCapture({
       file = new File([capturedBlob], `${name}-${Date.now()}.${ext}`, { type: mimeType });
     }
 
-    stopCamera();
-    onCapture(file, notes.trim() || undefined);
-  }, [capturedBlob, picked, prepareVideo, stopCamera, onCapture, notes]);
+    handOver(file, notes.trim() || undefined);
+  }, [capturedBlob, picked, prepareVideo, handOver, notes]);
 
   // --- Close handler ---
   const handleClose = useCallback(() => {
@@ -1023,7 +1065,13 @@ export function CameraCapture({
 
   // --- Permission denied / unsupported ---
   // Only in camera mode: a voice note needs no camera, so it is offered here.
-  if (!isVoice && (state === "denied" || state === "unsupported" || errorMessage)) {
+  // Not over a take under review either, which needs no camera: a file picked
+  // where there is none is reviewed here too.
+  if (
+    stage !== "review" &&
+    !isVoice &&
+    (state === "denied" || state === "unsupported" || errorMessage)
+  ) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black p-6">
         <div className="text-center space-y-3">
@@ -1254,8 +1302,9 @@ export function CameraCapture({
           </div>
         )}
 
-        {/* Why a video picked from the gallery can't be used: in the tip's
-            place, or on a review above the player's own controls */}
+        {/* Why a video picked from the gallery can't be used, or why sending
+            the take failed: in the tip's place, or on a review above the
+            player's own controls */}
         {notice && (stage === "review" || (stage === "viewfinder" && !isVoice)) && (
           <div
             role="alert"
@@ -1469,6 +1518,14 @@ export function CameraCapture({
             </>
           )}
 
+          {stage === "review" && privacy && (
+            <PrivateToggle
+              tone="dark"
+              isPrivate={privacy.isPrivate}
+              onChange={privacy.onChange}
+              className="mb-4"
+            />
+          )}
           {stage === "review" && (
             <div className="flex gap-4 w-full max-w-xs">
               <Button
@@ -1521,6 +1578,18 @@ export function CameraCapture({
           >
             Cancel
           </Button>
+        </div>
+      )}
+
+      {/* The caller sending the take from here: the review waits underneath,
+          to come back to if it fails */}
+      {sending && (
+        <div
+          role="status"
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/60 backdrop-blur-sm"
+        >
+          <Loader2 className="w-8 h-8 animate-spin text-white" aria-hidden />
+          <p className="text-white text-base font-medium">Uploading…</p>
         </div>
       )}
     </div>

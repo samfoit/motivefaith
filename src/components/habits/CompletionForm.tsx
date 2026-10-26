@@ -5,7 +5,6 @@ import {
   Check,
   CloudRain,
   CornerDownRight,
-  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Sheet } from "@/components/ui/Sheet";
@@ -35,7 +34,7 @@ const VoiceRecorder = dynamic(
 // Types
 // ---------------------------------------------------------------------------
 
-type Mode = "select" | "content" | "message" | "rain_check";
+type Mode = "select" | "message" | "rain_check";
 
 export interface CompletionFormProps {
   open: boolean;
@@ -144,8 +143,12 @@ export function CompletionForm({
 }: CompletionFormProps) {
   const [mode, setMode] = useState<Mode>("select");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  /**
+   * A file from the picker — where the camera can't run, or from its "Use
+   * File Picker Instead" — reviewed on the camera's own screen like a take.
+   * Numbered so that each pick remounts the camera on it.
+   */
+  const [picked, setPicked] = useState<{ file: File; n: number } | null>(null);
   const [message, setMessage] = useState("");
   const [rainCheckReason, setRainCheckReason] =
     useState<RainCheckReason | null>(null);
@@ -164,13 +167,6 @@ export function CompletionForm({
   // exist yet when "Message" is tapped, we focus this invisible proxy first,
   // then transfer focus once the TextArea mounts.
   const proxyInputRef = useRef<HTMLInputElement>(null);
-
-  // Derive media type from selected file
-  const mediaType: "photo" | "video" | null = selectedFile
-    ? selectedFile.type.startsWith("video")
-      ? "video"
-      : "photo"
-    : null;
 
   // Empty for a habit scheduled every day — it has no free day to move onto,
   // so the sheet offers no move at all.
@@ -213,18 +209,9 @@ export function CompletionForm({
     }
   }, [mode]);
 
-  // Cleanup preview URL on unmount or when changing
-  useEffect(() => {
-    return () => {
-      if (preview) URL.revokeObjectURL(preview);
-    };
-  }, [preview]);
-
   const reset = () => {
     setMode("select");
-    if (preview) URL.revokeObjectURL(preview);
-    setPreview(null);
-    setSelectedFile(null);
+    setPicked(null);
     setMessage("");
     setRainCheckReason(null);
     setRainCheckMovedTo(null);
@@ -275,40 +262,50 @@ export function CompletionForm({
 
   // --- Camera capture handlers ---
 
-  const handleCameraCapture = (file: File) => {
-    setCameraOpen(false);
-    setSelectedFile(file);
-    setPreview(URL.createObjectURL(file));
-    setMode("content");
+  /**
+   * Submit on the camera's or the recorder's review, the last step: the take
+   * uploads with the review still up behind it, so a failure leaves the take,
+   * its caption and the private switch as they were, to try again.
+   */
+  const submitTake = async (
+    file: File,
+    type: "photo" | "video" | "voice",
+    caption?: string,
+  ) => {
+    try {
+      const url = await uploadFile(file, type);
+      onComplete({ type, evidenceUrl: url, notes: caption, isPrivate });
+      handleClose(false);
+    } catch (err) {
+      console.error("Upload failed:", err);
+      // The review shows it.
+      throw new Error(
+        isUploadTooLarge(err)
+          ? "That file is too large to send."
+          : "Upload failed. Please try again.",
+      );
+    }
   };
+
+  const handleCameraCapture = (file: File, caption?: string) =>
+    submitTake(file, file.type.startsWith("video") ? "video" : "photo", caption);
 
   const handleCameraFallback = () => {
     // Don't close camera here — Radix Dialog's focus management will
     // dismiss the native file picker if the Sheet re-opens. Leave camera
-    // open behind the picker; it closes when a file is selected.
+    // open behind the picker; it reopens on the file's review once one is
+    // picked.
     fileInputRef.current?.click();
   };
 
   const handleCameraClose = () => {
     setCameraOpen(false);
+    setPicked(null);
   };
 
   // --- Voice capture handlers ---
 
-  const handleVoiceCapture = async (file: File) => {
-    setVoiceOpen(false);
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      const url = await uploadFile(file, "voice");
-      onComplete({ type: "voice", evidenceUrl: url, isPrivate });
-      handleClose(false);
-    } catch (err) {
-      console.error("Voice upload failed:", err);
-      setError("Upload failed. Please try again.");
-      setIsSubmitting(false);
-    }
-  };
+  const handleVoiceCapture = (file: File) => submitTake(file, "voice");
 
   const handleVoiceClose = () => {
     setVoiceOpen(false);
@@ -324,7 +321,7 @@ export function CompletionForm({
     // The error banner is in the sheet, which the camera overlay hides in the
     // fallback flow, so a refusal closes the overlay to bring it into view.
     const refuse = (message: string) => {
-      setCameraOpen(false);
+      handleCameraClose();
       setError(message);
     };
 
@@ -349,12 +346,11 @@ export function CompletionForm({
       }
     }
 
-    // Close camera overlay if it was open (fallback flow)
-    setCameraOpen(false);
+    // Onto the camera's review, as a take would be: opened on it, or, in the
+    // fallback flow, reopened on it.
     setError(null);
-    setSelectedFile(file);
-    setPreview(URL.createObjectURL(file));
-    setMode("content");
+    setPicked((prev) => ({ file, n: (prev?.n ?? 0) + 1 }));
+    setCameraOpen(true);
   };
 
   // --- Upload ---
@@ -399,26 +395,6 @@ export function CompletionForm({
 
   // --- Submit handlers ---
 
-  const handleContentSubmit = async () => {
-    if (!selectedFile || !mediaType) return;
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      const url = await uploadFile(selectedFile, mediaType);
-      onComplete({ type: mediaType, evidenceUrl: url, isPrivate });
-      handleClose(false);
-    } catch (err) {
-      console.error("Upload failed:", err);
-      setError(
-        isUploadTooLarge(err)
-          ? "That file is too large to send."
-          : "Upload failed. Please try again.",
-      );
-      setIsSubmitting(false);
-    }
-  };
-
   const handleMessageSubmit = () => {
     if (!message.trim()) return;
     // Private check-ins are never queued offline (see PrivateOfflineError),
@@ -454,8 +430,6 @@ export function CompletionForm({
         <span>Log completion</span>
       </span>
     ) : undefined;
-
-  const isPhoto = mediaType === "photo";
 
   return (
     <>
@@ -526,70 +500,6 @@ export function CompletionForm({
                   wide
                 />
               )}
-            </div>
-          )}
-
-          {/* --- Content review mode (photo/video) --- */}
-          {mode === "content" && (
-            <div className="cf-slide-in space-y-4">
-
-              <ModeHeader
-                label={isPhoto ? "Photo proof" : "Video proof"}
-                onBack={() => {
-                  setMode("select");
-                  setSelectedFile(null);
-                  if (preview) URL.revokeObjectURL(preview);
-                  setPreview(null);
-                }}
-              />
-              {preview && (
-                <div className="relative rounded-lg overflow-hidden bg-bg-secondary">
-                  {isPhoto ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={preview}
-                      alt="Photo preview"
-                      className="w-full max-h-64 object-contain"
-                    />
-                  ) : (
-                    <video
-                      src={preview}
-                      controls
-                      className="w-full max-h-64"
-                      playsInline
-                    />
-                  )}
-                </div>
-              )}
-              <PrivateToggle
-                isPrivate={isPrivate}
-                onChange={setIsPrivate}
-                disabled={isSubmitting}
-              />
-              <div className="flex gap-3">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => {
-                    if (isCameraSupported()) {
-                      setCameraOpen(true);
-                    } else {
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  disabled={isSubmitting}
-                >
-                  Change
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={handleContentSubmit}
-                  loading={isSubmitting}
-                  disabled={!selectedFile || isSubmitting}
-                >
-                  Submit
-                </Button>
-              </div>
             </div>
           )}
 
@@ -871,31 +781,26 @@ export function CompletionForm({
             </div>
           )}
         </>
-
-        {/* Loading overlay */}
-        {isSubmitting && mode !== "message" && mode !== "rain_check" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-elevated/80 rounded-t-lg z-10">
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 className="w-8 h-8 animate-spin text-brand-ink" />
-              <p className="text-sm text-text-secondary">
-                Uploading...
-              </p>
-            </div>
-          </div>
-        )}
       </Sheet>
 
-      {/* Camera overlay — rendered outside Sheet so it's truly full-screen */}
+      {/* Camera overlay — rendered outside Sheet so it's truly full-screen.
+          Its review is where a photo or video is checked in, caption, private
+          switch and all; there is no step after it. */}
       {cameraOpen && (
         <CameraCapture
+          key={picked?.n ?? 0}
+          initialCapture={picked ? { file: picked.file } : undefined}
           onCapture={handleCameraCapture}
           onClose={handleCameraClose}
           onFallback={handleCameraFallback}
           allowVoice={false}
+          useLabel="Submit"
+          privacy={{ isPrivate, onChange: setIsPrivate }}
         />
       )}
 
-      {/* Voice recorder overlay — rendered outside Sheet so it's truly full-screen */}
+      {/* Voice recorder overlay — rendered outside Sheet so it's truly
+          full-screen. Like the camera's, its review is the last step. */}
       {voiceOpen && (
         <VoiceRecorder
           onCapture={handleVoiceCapture}
