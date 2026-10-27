@@ -212,6 +212,53 @@ describe("CompletionForm content check-in", () => {
 });
 
 /**
+ * A recording is typed with its codecs, which name no file type: the upload
+ * goes by the type before them, or the file would be named ".bin".
+ */
+describe("CompletionForm recorded uploads", () => {
+  it("names a recorded video for its type, not its codecs", async () => {
+    installRecorder();
+    const { onComplete } = renderSheet();
+    fireEvent.click(screen.getByRole("button", { name: /Content/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Video" }));
+    await act(async () => {}); // the camera's stream
+
+    const shutter = screen.getByRole("button", { name: /Start video/ });
+    await act(async () => {
+      fireEvent.pointerDown(shutter, { pointerId: 1 });
+      fireEvent.pointerUp(shutter, { pointerId: 1 });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Finish video" }));
+    });
+    await submit();
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    const [path, , options] = upload.mock.calls[0];
+    expect(path).toMatch(/^me\/habit-1\/\d+\.webm$/);
+    expect(options).toEqual({ contentType: "video/webm" });
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "video", evidenceUrl: path }),
+    );
+  });
+
+  it("names a recorded voice note for its type, not its codecs", async () => {
+    installRecorder();
+    const { onComplete } = renderSheet();
+    await recordVoiceNote();
+    await useRecording();
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    const [path, , options] = upload.mock.calls[0];
+    expect(path).toMatch(/^me\/habit-1\/\d+\.webm$/);
+    expect(options).toEqual({ contentType: "audio/webm" });
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "voice", evidenceUrl: path }),
+    );
+  });
+});
+
+/**
  * Like the camera's, the recorder's review is the last step: a voice note
  * uploads with it still up, and stays on it when that fails.
  */

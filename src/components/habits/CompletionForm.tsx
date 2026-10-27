@@ -365,10 +365,12 @@ export function CompletionForm({
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    // The bare type: a recorder's "video/webm;codecs=vp9", or a voice note's
+    // "audio/webm;codecs=opus", is not in MIME_TO_EXT and would go up as
+    // ".bin". As in QuickCaptureFlow.
     let uploadBlob: Blob = file;
-    let contentType = file.type;
-
-    let ext = MIME_TO_EXT[file.type] ?? "bin";
+    let contentType = file.type.split(";")[0];
+    let ext = MIME_TO_EXT[contentType] ?? "bin";
 
     if (type === "photo") {
       uploadBlob = await compressImage(file);
