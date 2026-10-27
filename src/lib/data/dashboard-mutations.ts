@@ -130,6 +130,7 @@ export function applyHabitCreate(
         private_checkins: false,
         created_at: new Date().toISOString(),
         completions: [],
+        pauses: [],
         challenge: null,
       } as DashboardData["habits"][number],
     ],

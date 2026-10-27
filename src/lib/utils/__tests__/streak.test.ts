@@ -384,6 +384,99 @@ describe("computeEffectiveStreak", () => {
       expect(result).toBe(7);
     });
   });
+
+  // Mirrors habit_last_due_day() and habit_last_counted_week() in migration
+  // 047, which tests/habit-pauses.test.sql covers on the server.
+  describe("pauses", () => {
+    const daily = { streak_current: 5, schedule: null };
+    const done = (day: string) => [{ completed_at: `${day}T10:00:00Z` }];
+
+    it("holds across a pause that just ended", () => {
+      // Done Tuesday, paused Wednesday to Saturday, back today.
+      const result = computeEffectiveStreak(daily, done("2025-06-10"), "UTC", {
+        pauses: [{ started_on: "2025-06-11", ended_on: "2025-06-15" }],
+      });
+      expect(result).toBe(5);
+    });
+
+    it("holds while the habit is still paused", () => {
+      const result = computeEffectiveStreak(daily, done("2025-06-10"), "UTC", {
+        pauses: [{ started_on: "2025-06-11", ended_on: null }],
+      });
+      expect(result).toBe(5);
+    });
+
+    it("still ends on a miss before the pause", () => {
+      // Done Monday, missed Tuesday, paused from Wednesday.
+      const result = computeEffectiveStreak(daily, done("2025-06-09"), "UTC", {
+        pauses: [{ started_on: "2025-06-11", ended_on: "2025-06-15" }],
+      });
+      expect(result).toBe(0);
+    });
+
+    it("steps over a pause longer than the 14 days it searches", () => {
+      const result = computeEffectiveStreak(daily, done("2025-05-01"), "UTC", {
+        pauses: [{ started_on: "2025-05-02", ended_on: "2025-06-15" }],
+      });
+      expect(result).toBe(5);
+    });
+
+    it("steps over pauses and days off together", () => {
+      // Mon–Fri. Done Friday May 30, paused through Friday June 13; Saturday
+      // the 14th is off.
+      const result = computeEffectiveStreak(
+        { streak_current: 8, schedule: { days: [1, 2, 3, 4, 5] } },
+        done("2025-05-30"),
+        "UTC",
+        { pauses: [{ started_on: "2025-05-31", ended_on: "2025-06-14" }] },
+      );
+      expect(result).toBe(8);
+    });
+
+    it("keeps the server's streak when the day before the pause wasn't loaded", () => {
+      // Only check-ins from June 1 on were fetched, and the pause reaches
+      // back past them: this side can't see whether April 30 was done.
+      const result = computeEffectiveStreak(daily, [], "UTC", {
+        pauses: [{ started_on: "2025-05-01", ended_on: "2025-06-15" }],
+        loadedFrom: "2025-06-01",
+      });
+      expect(result).toBe(5);
+    });
+
+    it("checks the day before the pause when it was loaded", () => {
+      const result = computeEffectiveStreak(daily, [], "UTC", {
+        pauses: [{ started_on: "2025-06-11", ended_on: "2025-06-15" }],
+        loadedFrom: "2025-06-01",
+      });
+      expect(result).toBe(0);
+    });
+
+    describe("weekly", () => {
+      const weekly = { streak_current: 4, schedule: null, frequency: "weekly" };
+
+      it("holds across weeks paused to their Saturday", () => {
+        // Done Monday May 26, paused from Wednesday the 28th through today:
+        // the Saturdays of the 31st, the 7th and the 14th were all paused.
+        const result = computeEffectiveStreak(weekly, done("2025-05-26"), "UTC", {
+          pauses: [{ started_on: "2025-05-28", ended_on: "2025-06-15" }],
+        });
+        expect(result).toBe(4);
+      });
+
+      it("holds a week resumed before its Saturday to it", () => {
+        // Back on Wednesday June 11, and not done by that Saturday.
+        const result = computeEffectiveStreak(weekly, done("2025-05-26"), "UTC", {
+          pauses: [{ started_on: "2025-05-28", ended_on: "2025-06-11" }],
+        });
+        expect(result).toBe(0);
+      });
+
+      it("ends without a pause, as before", () => {
+        const result = computeEffectiveStreak(weekly, done("2025-05-26"), "UTC");
+        expect(result).toBe(0);
+      });
+    });
+  });
 });
 
 describe("countsTowardStreak", () => {

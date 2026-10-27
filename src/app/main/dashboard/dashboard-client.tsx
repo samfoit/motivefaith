@@ -23,7 +23,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import type { MoveLabels } from "@/lib/types/habit";
 import type { CheckInAction } from "@/lib/constants/check-in";
-import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import {
+  isHabitPausedError,
+  isRainCheck,
+  type CompletionType,
+} from "@/lib/constants/completion";
 import type { RainCheckReason } from "@/lib/constants/rain-check";
 import { useCompleteHabit, PrivateOfflineError } from "@/lib/hooks/useCompleteHabit";
 import { useConfirmSharing } from "@/lib/hooks/useConfirmSharing";
@@ -42,7 +46,11 @@ import {
 import { useDashboard, dashboardKey } from "@/lib/hooks/useDashboard";
 import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 import type { DashboardData } from "@/lib/data/dashboard";
-import { applyCompletion, removeCompletion } from "@/lib/data/dashboard-mutations";
+import {
+  applyCompletion,
+  removeCompletion,
+  removeHabit,
+} from "@/lib/data/dashboard-mutations";
 import { countsTowardStreak } from "@/lib/utils/streak";
 import { getBrowserTimezone, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 
@@ -323,6 +331,24 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
   const completeHabit = useCompleteHabit();
   const confirmSharing = useConfirmSharing();
   const { show: showToast, remove: removeToast, ToastElements } = useToast();
+
+  /**
+   * A check-in refused because its habit was paused after this list was
+   * fetched — from another device, often. Paused habits aren't shown here.
+   */
+  const dropPausedHabit = useCallback(
+    (habitId: string, title: string | undefined) => {
+      queryClient.setQueryData<DashboardData>(queryKey, (old) =>
+        removeHabit(old, habitId),
+      );
+      showToast({
+        variant: "error",
+        title: `${title ?? "This habit"} is paused`,
+        description: "Resume it from its page to check in.",
+      });
+    },
+    [queryClient, queryKey, showToast],
+  );
   const [showConfetti, setShowConfetti] = useState(false);
   const [flyout, setFlyout] = useState<{ emoji: string; from: { x: number; y: number } } | null>(null);
   const [completionHabitId, setCompletionHabitId] = useState<string | null>(
@@ -546,6 +572,8 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
           title: "You're offline",
           description: "Private check-ins need a connection.",
         });
+      } else if (isHabitPausedError(err)) {
+        dropPausedHabit(habitId, habit?.title);
       }
     } finally {
       endWrite();
@@ -620,13 +648,17 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
             checkMilestone(habit.title, prevStreak + 1, habit.frequency);
           }
           settleWrite(result);
-        } catch {
+        } catch (err) {
           restore(snapshot);
-          showToast({
-            variant: "error",
-            title: "Check-in failed",
-            description: habit?.title,
-          });
+          if (isHabitPausedError(err)) {
+            dropPausedHabit(habitId, habit?.title);
+          } else {
+            showToast({
+              variant: "error",
+              title: "Check-in failed",
+              description: habit?.title,
+            });
+          }
         } finally {
           endWrite();
         }
@@ -664,6 +696,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       settle,
       beginWrite,
       endWrite,
+      dropPausedHabit,
     ],
   );
 

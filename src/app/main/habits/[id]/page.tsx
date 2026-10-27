@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { HabitDetailClient } from "./habit-detail-client";
-import { DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
+import { DEFAULT_TIMEZONE, addDays, toDateKey } from "@/lib/utils/timezone";
 import { computeEffectiveStreak } from "@/lib/utils/streak";
 import { mergePrivateContent } from "@/lib/utils/private-checkin";
 import { untypedRpc } from "@/lib/supabase/rpc";
@@ -38,13 +38,15 @@ export default async function HabitDetailPage({ params }: Props) {
   // only its dates. The History tab needs whole rows, but only one page of
   // them at a time, reaching as far back as the habit goes — years of
   // logging is never fetched in one go. A third, counted in the database,
-  // gives the rate its days done over the habit's whole life.
+  // gives the rate its days done over the habit's whole life. Its pauses are
+  // stepped over by the streak, and leave the rate's denominator.
   const [
     { data: profileTz },
     { data: habit },
     { data: activity },
     { data: completions },
     { data: daysDone },
+    { data: pauses },
     { data: shares },
     { data: groupShares },
     { data: friendships },
@@ -74,6 +76,11 @@ export default async function HabitDetailPage({ params }: Props) {
       .limit(HISTORY_PAGE_SIZE),
     untypedRpc<number>(supabase, "get_habit_days_done", { p_habit_id: id }),
     supabase
+      .from("habit_pauses")
+      .select("started_on, ended_on")
+      .eq("habit_id", id)
+      .order("started_on"),
+    supabase
       .from("habit_shares")
       .select("id, shared_with, created_at, status, initiated_by")
       .eq("habit_id", id),
@@ -101,7 +108,13 @@ export default async function HabitDetailPage({ params }: Props) {
     (c): c is typeof c & { completed_at: string } => c.completed_at != null,
   );
 
-  const effectiveStreak = computeEffectiveStreak(habit, validatedActivity, timeZone);
+  // No pauses until migration 047 is applied: the streak then reads as before.
+  const habitPauses = pauses ?? [];
+  const effectiveStreak = computeEffectiveStreak(habit, validatedActivity, timeZone, {
+    pauses: habitPauses,
+    // From a moment of the day, so the day after is the first held in full.
+    loadedFrom: addDays(toDateKey(activitySince, timeZone), 1),
+  });
 
   // Resolve dependent lookups in parallel.
   //
@@ -164,6 +177,7 @@ export default async function HabitDetailPage({ params }: Props) {
       // No count until migration 044 is applied: fall back to check-ins, which
       // is what the rate counted before.
       daysDone={daysDone ?? habit.total_completions ?? 0}
+      pauses={habitPauses}
       partnerRows={partnerRows}
       availableFriends={availableFriends}
       sharedGroups={sharedGroups}

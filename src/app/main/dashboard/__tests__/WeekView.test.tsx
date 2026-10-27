@@ -78,6 +78,26 @@ describe("WeekView", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not count a paused day as due", () => {
+    render(
+      <WeekView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        habits={[
+          makeHabit({
+            completions: [{ id: "c1", completed_at: oct(12), completion_type: "quick" }],
+            // Paused Tuesday, back today.
+            pauses: [{ started_on: "2026-10-13", ended_on: "2026-10-14" }],
+          }),
+        ]}
+      />,
+    );
+    // Monday and today are due; Tuesday was paused, not missed.
+    expect(
+      screen.getByRole("button", { name: "Morning Run: done 1 of 2 days so far this week" }),
+    ).toBeInTheDocument();
+  });
+
   it("does not count days before the habit existed", () => {
     render(
       <WeekView

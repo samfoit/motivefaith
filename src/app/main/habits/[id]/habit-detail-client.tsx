@@ -64,8 +64,13 @@ import type { DashboardData } from "@/lib/data/dashboard";
 import { applyHabitUpdate, removeHabit } from "@/lib/data/dashboard-mutations";
 import { mergePrivateContent } from "@/lib/utils/private-checkin";
 import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
-import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import {
+  isHabitPausedError,
+  isRainCheck,
+  type CompletionType,
+} from "@/lib/constants/completion";
 import { countsTowardStreak } from "@/lib/utils/streak";
+import { countPausedDays, type HabitPause } from "@/lib/utils/pauses";
 import {
   rainCheckReasonLabel,
   type RainCheckReason,
@@ -158,6 +163,8 @@ interface HabitDetailClientProps {
    * be done more than once a day, and the rate counts days.
    */
   daysDone: number;
+  /** Every time it was paused. Paused days leave the rate's denominator. */
+  pauses: HabitPause[];
   partnerRows: PartnerRow[];
   availableFriends?: Partner[];
   sharedGroups?: SharedGroup[];
@@ -225,6 +232,7 @@ export function HabitDetailClient({
   completions: initialCompletions,
   activity: initialActivity,
   daysDone: initialDaysDone,
+  pauses,
   partnerRows,
   availableFriends = [],
   sharedGroups = [],
@@ -421,10 +429,20 @@ export function HabitDetailClient({
       Math.ceil((mountTime - createdMs) / (1000 * 60 * 60 * 24)),
     );
     // Rain-checked days were excused, not failed, so they leave the
-    // denominator entirely rather than counting against the rate.
-    const eligibleDays = Math.max(1, daysSinceCreation - rainCheckDates.size);
+    // denominator entirely rather than counting against the rate. So do
+    // paused days, but not one counted already as done or rain-checked.
+    const pausedDays = countPausedDays(
+      pauses,
+      toDateKey(new Date(createdMs), timezone),
+      toDateKey(new Date(mountTime), timezone),
+      new Set([...rainCheckDates, ...Object.keys(heatmapData)]),
+    );
+    const eligibleDays = Math.max(
+      1,
+      daysSinceCreation - rainCheckDates.size - pausedDays,
+    );
     return Math.min(100, Math.round((daysDone / eligibleDays) * 100));
-  }, [daysDone, habit.created_at, mountTime, rainCheckDates]);
+  }, [daysDone, habit.created_at, mountTime, rainCheckDates, pauses, heatmapData, timezone]);
 
   // --- Handlers ---
 
@@ -512,15 +530,19 @@ export function HabitDetailClient({
       setCompletions((prev) => prev.filter((c) => c.id !== tempCompletion.id));
       setActivity((prev) => prev.filter((c) => c.id !== tempCompletion.id));
       setHabit(initialHabit);
+      // Paused since this page loaded: say so, with the way back.
+      if (isHabitPausedError(err)) setHabit((h) => ({ ...h, is_paused: true }));
       setDaysDone(initialDaysDone);
       showToast({
         variant: "error",
         title:
           err instanceof PrivateOfflineError
             ? "You're offline — private check-ins need a connection"
-            : rainCheck
-              ? "Failed to take rain check"
-              : "Failed to log completion",
+            : isHabitPausedError(err)
+              ? "This habit is paused — resume it to check in"
+              : rainCheck
+                ? "Failed to take rain check"
+                : "Failed to log completion",
       });
     }
   };
@@ -796,9 +818,21 @@ export function HabitDetailClient({
         )}
 
         {habit.is_paused && (
-          <div className="mb-6 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <div className="mb-6 flex items-center gap-2 rounded-lg bg-amber-50 py-2 pl-3 pr-2 text-sm text-amber-700">
             <Pause className="w-4 h-4" />
-            <span>This habit is paused</span>
+            <span className="flex-1">This habit is paused</span>
+            {/* Checking in waits on resuming, so it is offered here and not
+                only under Settings. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-amber-800 hover:bg-amber-100"
+              onClick={handlePauseToggle}
+              loading={isPausing}
+            >
+              <Play className="w-4 h-4" />
+              <span>Resume</span>
+            </Button>
           </div>
         )}
 

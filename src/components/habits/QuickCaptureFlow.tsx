@@ -40,6 +40,7 @@ import {
   MIME_TO_EXT,
 } from "@/lib/utils/media-types";
 import { checkVideo, isUploadTooLarge } from "@/lib/utils/check-video";
+import { isHabitPausedError } from "@/lib/constants/completion";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
 
 /**
@@ -350,7 +351,9 @@ export function QuickCaptureFlow() {
         show({
           title: isUploadTooLarge(err)
             ? "That file is too large to send."
-            : "Couldn't send. Try again.",
+            : isHabitPausedError(err)
+              ? "A habit you picked is paused. Resume it to send it there."
+              : "Couldn't send. Try again.",
           variant: "error",
         });
         setStep(direct ? "camera" : "share");

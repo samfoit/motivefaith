@@ -16,7 +16,7 @@
 import type { createServerSupabase } from "@/lib/supabase/server";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import { computeEffectiveStreak } from "@/lib/utils/streak";
-import { todayDateKey, subtractDays, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
+import { todayDateKey, subtractDays, addDays, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 import { MAX_COMPLETIONS_FETCH } from "@/lib/constants/limits";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createServerSupabase>>;
@@ -59,6 +59,24 @@ async function fetchCompletions(
 }
 
 /**
+ * Pauses that reach into the window. One that ended before it can't move a
+ * streak the window can check, or fall on a day the views show.
+ */
+async function fetchPauses(
+  supabase: SupabaseServerClient,
+  habitIds: string[],
+  fetchStartKey: string,
+) {
+  if (habitIds.length === 0) return [];
+  const { data } = await supabase
+    .from("habit_pauses")
+    .select("habit_id, started_on, ended_on")
+    .in("habit_id", habitIds)
+    .or(`ended_on.is.null,ended_on.gt.${fetchStartKey}`);
+  return data ?? [];
+}
+
+/**
  * Everything the dashboard renders.
  *
  * The habits/challenges pair is started before the profile is awaited: neither
@@ -93,9 +111,13 @@ export async function fetchDashboard(
   const twoWeeksAgoKey = subtractDays(today, 14);
   const fetchStartKey =
     monthStartKey < twoWeeksAgoKey ? monthStartKey : twoWeeksAgoKey;
+  // Completions are fetched from UTC midnight, which ahead of UTC is partway
+  // into that day: the next is the first held in full.
+  const loadedFrom = addDays(fetchStartKey, 1);
 
-  const [recentCompletions, { data: participants }] = await Promise.all([
+  const [recentCompletions, pauses, { data: participants }] = await Promise.all([
     fetchCompletions(supabase, habitIds, fetchStartKey),
+    fetchPauses(supabase, habitIds, fetchStartKey),
     habitIds.length > 0
       ? supabase
         .from("group_challenge_participants")
@@ -143,10 +165,18 @@ export async function fetchDashboard(
         rain_check_moved_to,
       }));
 
+    const habitPauses = pauses
+      .filter((p) => p.habit_id === habit.id)
+      .map(({ started_on, ended_on }) => ({ started_on, ended_on }));
+
     return {
       ...habit,
-      streak_current: computeEffectiveStreak(habit, habitCompletions, timezone),
+      streak_current: computeEffectiveStreak(habit, habitCompletions, timezone, {
+        pauses: habitPauses,
+        loadedFrom,
+      }),
       completions: habitCompletions,
+      pauses: habitPauses,
       challenge: challengeMap.get(habit.id) ?? null,
     };
   });

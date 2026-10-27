@@ -14,6 +14,7 @@ import {
 } from "@/components/habits/HabitCardParts";
 import type { Tables } from "@/lib/supabase/types";
 import type { Habit } from "@/lib/types/habit";
+import type { HabitPause } from "@/lib/utils/pauses";
 
 // --- Drawer geometry -------------------------------------------------------
 // The card slides right by exactly the width of the option row, so the icons
@@ -91,6 +92,11 @@ type CompletionSlice = {
 
 export type HabitWithCompletions = Habit & {
   completions: CompletionSlice[];
+  /**
+   * Pauses reaching into the dashboard's window, for days it shows. Absent
+   * from a cache written before they were sent.
+   */
+  pauses?: HabitPause[];
   challenge?: { title: string; emoji: string } | null;
 };
 

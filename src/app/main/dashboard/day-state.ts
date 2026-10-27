@@ -1,5 +1,6 @@
 import { toDateKey } from "@/lib/utils/timezone";
 import { isHabitDueOn } from "@/lib/utils/schedule";
+import { isPausedOn } from "@/lib/utils/pauses";
 import { isRainCheck } from "@/lib/constants/completion";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 
@@ -7,8 +8,9 @@ import type { HabitWithCompletions } from "@/components/habits/HabitCard";
  * What one habit did on one day — shared by the week and month views so the
  * two can never disagree about it.
  *
- * "off" (not scheduled, or before the habit existed) is kept apart from
- * "missed": a Mon/Wed/Fri habit should not look missed every Tuesday.
+ * "off" (not scheduled, paused, or before the habit existed) is kept apart
+ * from "missed": a Mon/Wed/Fri habit should not look missed every Tuesday,
+ * nor a resumed one every day it was paused.
  */
 export type DayState = "done" | "rain" | "missed" | "today" | "upcoming" | "off";
 
@@ -46,6 +48,7 @@ export function habitDayState(
   const logged = index.byDay.get(key);
   if (logged) return logged;
   if (index.createdKey && key < index.createdKey) return "off";
+  if (isPausedOn(habit.pauses ?? [], key)) return "off";
   if (!isHabitDueOn(habit, date, key, timezone)) return "off";
   if (key === todayKey) return "today";
   return key < todayKey ? "missed" : "upcoming";
