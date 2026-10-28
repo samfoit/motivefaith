@@ -96,6 +96,7 @@ export function ProfileClient({
     // from IndexedDB on the next mount. Reloading the document remounts
     // `Providers`, which re-reads the now-absent session and buckets as
     // "anon". The SIGNED_OUT listener there clears the stored data itself.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load, on purpose (above)
     window.location.assign("/auth/login");
   };
 

@@ -14,6 +14,14 @@ const eslintConfig = defineConfig([
       eqeqeq: ["error", "always", { null: "ignore" }],
     },
   },
+  // Command-line scripts: the build's post-step and the perf tools. Printing
+  // what they did is their output, not stray logging.
+  {
+    files: ["scripts/**", "tests/perf/**"],
+    rules: {
+      "no-console": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Service worker source. Targets the ServiceWorkerGlobalScope, not the

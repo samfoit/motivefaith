@@ -67,6 +67,9 @@ function useInactivityTimeout() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await supabase.auth.signOut();
+        // A full load, as the profile's sign-out does: it remounts these
+        // providers, so the next person doesn't get this user's cached data.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load, on purpose
         window.location.href = "/auth/login";
       }
     }, INACTIVITY_TIMEOUT_MS);
