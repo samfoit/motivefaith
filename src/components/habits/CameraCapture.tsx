@@ -87,6 +87,13 @@ const RING_RADIUS = 36;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 /**
+ * The shutter's red, in sRGB. Tailwind's red-500 is a Display P3 color, and
+ * it was with that red over the live camera that an iPhone painted the dot's
+ * square box black (see Shutter).
+ */
+const RECORD_RED = "#ef4444";
+
+/**
  * How the live camera sits in the viewfinder. "fill" covers the screen and
  * trims the camera's overflow; "fit" shows the camera's whole frame. Either
  * way the capture is exactly what is on screen (see viewfinderCrop).
@@ -228,6 +235,102 @@ function ModeStrip({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * The shutter as one drawing: the ring, the dot or a take's pause bars, and
+ * the take's progress just inside the ring.
+ *
+ * It was a CSS border for the ring and a rounded <div> for the dot. On an
+ * iPhone, once Video's red dot had been up over the live camera, the dot's
+ * square box painted black and its corners cut into the ring, in Photo too,
+ * until Voice let the camera go. A single drawing has no inner box to show,
+ * and anything painted behind it lands on the camera's own black.
+ */
+function Shutter({
+  recording,
+  dot,
+  pressed,
+  paused,
+  progress,
+}: {
+  recording: boolean;
+  /** The dot's fill before a take: white for Photo, red otherwise. */
+  dot: string;
+  pressed: boolean;
+  paused: boolean;
+  /** How much of the take's limit is used, 0 to 1. */
+  progress: number;
+}) {
+  return (
+    <svg aria-hidden viewBox="0 0 80 80" className="block w-full h-full">
+      {recording && (
+        <g transform="rotate(-90 40 40)" fill="none" strokeWidth={4}>
+          <circle cx={40} cy={40} r={RING_RADIUS} stroke="rgba(255,255,255,0.2)" />
+          <circle
+            cx={40}
+            cy={40}
+            r={RING_RADIUS}
+            stroke={RECORD_RED}
+            strokeLinecap="round"
+            strokeDasharray={RING_CIRCUMFERENCE}
+            strokeDashoffset={RING_CIRCUMFERENCE * (1 - progress)}
+            className={cn(
+              "transition-[stroke-dashoffset] duration-1000 ease-linear",
+              paused && "opacity-50",
+            )}
+          />
+        </g>
+      )}
+
+      {/* The ring, drawn over the progress the way the old border was */}
+      <circle
+        cx={40}
+        cy={40}
+        r={38}
+        fill="none"
+        strokeWidth={4}
+        className="transition-colors duration-150"
+        style={{ stroke: recording ? RECORD_RED : "#fff" }}
+      />
+
+      {!recording ? (
+        <circle
+          cx={40}
+          cy={40}
+          r={28}
+          className="transition-transform duration-100"
+          style={{
+            fill: dot,
+            transform: pressed ? "scale(0.9)" : undefined,
+            transformBox: "fill-box",
+            transformOrigin: "center",
+          }}
+        />
+      ) : paused ? (
+        // Paused: back to a record dot, because tapping resumes.
+        <motion.circle
+          cx={40}
+          cy={40}
+          r={14}
+          fill={RECORD_RED}
+          initial={{ scale: 0.6 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 0.15 }}
+        />
+      ) : (
+        <motion.g
+          fill={RECORD_RED}
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.15 }}
+        >
+          <rect x={29} y={26} width={8} height={28} rx={4} />
+          <rect x={43} y={26} width={8} height={28} rx={4} />
+        </motion.g>
+      )}
+    </svg>
   );
 }
 
@@ -1160,7 +1263,8 @@ export function CameraCapture({
       {view === "recording" && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm">
           <motion.div
-            className={cn("w-2.5 h-2.5 rounded-full", paused ? "bg-white/50" : "bg-red-500")}
+            className={cn("w-2.5 h-2.5 rounded-full", paused && "bg-white/50")}
+            style={paused ? undefined : { backgroundColor: RECORD_RED }}
             animate={paused ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
             transition={paused ? { duration: 0 } : { duration: 1, repeat: Infinity }}
           />
@@ -1400,42 +1504,6 @@ export function CameraCapture({
                   className="relative shrink-0"
                   style={{ width: 80, height: 80, touchAction: "none" }}
                 >
-                  {/* Progress ring for recording */}
-                  {view === "recording" && (
-                    <svg
-                      className="absolute inset-0 -rotate-90"
-                      width="80"
-                      height="80"
-                      viewBox="0 0 80 80"
-                    >
-                      <circle
-                        cx="40"
-                        cy="40"
-                        r={RING_RADIUS}
-                        fill="none"
-                        stroke="rgba(255,255,255,0.2)"
-                        strokeWidth="4"
-                      />
-                      <circle
-                        cx="40"
-                        cy="40"
-                        r={RING_RADIUS}
-                        fill="none"
-                        stroke="#ef4444"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        strokeDasharray={RING_CIRCUMFERENCE}
-                        strokeDashoffset={
-                          RING_CIRCUMFERENCE * (1 - elapsed / maxDuration)
-                        }
-                        className={cn(
-                          "transition-[stroke-dashoffset] duration-1000 ease-linear",
-                          paused && "opacity-50",
-                        )}
-                      />
-                    </svg>
-                  )}
-
                   <button
                     type="button"
                     // Voice has no hold and no zoom: the shutter is a plain
@@ -1450,12 +1518,7 @@ export function CameraCapture({
                         })}
                     onContextMenu={(e) => e.preventDefault()}
                     draggable={false}
-                    className={cn(
-                      "absolute inset-0 rounded-full flex items-center justify-center transition-colors duration-150",
-                      view === "viewfinder"
-                        ? "border-4 border-white"
-                        : "border-4 border-red-500",
-                    )}
+                    className="absolute inset-0 rounded-full"
                     aria-label={
                       view === "viewfinder"
                         ? isVoice
@@ -1468,33 +1531,13 @@ export function CameraCapture({
                           : "Pause recording"
                     }
                   >
-                    {view === "viewfinder" ? (
-                      <div
-                        className={cn(
-                          "w-14 h-14 rounded-full transition-transform duration-100",
-                          mode === "photo" ? "bg-white" : "bg-red-500",
-                          isPressed && "scale-90",
-                        )}
-                      />
-                    ) : paused ? (
-                      // Paused: back to a record dot, because tapping resumes.
-                      <motion.div
-                        className="w-7 h-7 rounded-full bg-red-500"
-                        initial={{ scale: 0.6 }}
-                        animate={{ scale: 1 }}
-                        transition={{ duration: 0.15 }}
-                      />
-                    ) : (
-                      <motion.div
-                        className="flex gap-1.5"
-                        initial={{ scale: 0.6, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <span className="block w-2 h-7 rounded-sm bg-red-500" />
-                        <span className="block w-2 h-7 rounded-sm bg-red-500" />
-                      </motion.div>
-                    )}
+                    <Shutter
+                      recording={view === "recording"}
+                      dot={mode === "photo" ? "#fff" : RECORD_RED}
+                      pressed={isPressed}
+                      paused={paused}
+                      progress={elapsed / maxDuration}
+                    />
                   </button>
                 </div>
 
