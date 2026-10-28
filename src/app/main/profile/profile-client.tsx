@@ -187,7 +187,11 @@ export function ProfileClient({
   };
 
   return (
-    <div className="min-h-screen">
+    // No `min-h-screen` wrapper: the layout root is already `min-h-dvh` and
+    // paints the background. Inside `main`, below the TopBar and above the
+    // nav and hill clearance, a full-viewport minimum only added ~300px of
+    // empty scroll under Delete Account on a page that fits on one screen.
+    <>
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
         {/* Profile header */}
         <div className="flex items-center gap-4">
@@ -438,6 +442,6 @@ export function ProfileClient({
         onCancel={() => setCropFile(null)}
       />
       {ToastElements}
-    </div>
+    </>
   );
 }
