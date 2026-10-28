@@ -2,82 +2,51 @@ import type { Page } from "@playwright/test";
 
 interface HabitOptions {
   title: string;
+  /**
+   * The Repeat menu's label for the schedule ("Weekdays", "Custom"). Every
+   * day is the default and needs no choice.
+   */
   frequency?: string;
-  category?: string;
   /**
    * Weekday names ("Thursday") to switch off. Only meaningful with
-   * frequency "Custom", which is the one chip that reveals the day picker.
+   * frequency "Custom", which is the one choice that reveals the days.
    */
   deselectDays?: string[];
 }
 
 /**
  * Create a habit through the wizard and return to the dashboard.
+ *
+ * Two steps: the habit (name, icon, color, repeat), then partners, which is
+ * skipped.
  */
 export async function createHabit(
   page: Page,
-  {
-    title,
-    frequency = "daily",
-    category = "fitness",
-    deselectDays = [],
-  }: HabitOptions,
+  { title, frequency, deselectDays = [] }: HabitOptions,
 ) {
   await page.goto("/main/habits/new");
   await page.waitForLoadState("networkidle");
 
-  // Step 1: Fill in habit name
-  const titleInput = page
-    .getByPlaceholder(/habit name|what.*habit/i)
-    .or(page.getByLabel(/title|name/i));
-  await titleInput.fill(title);
+  // Step 1: the name is typed into the habit card itself.
+  await page.getByLabel("Habit name").fill(title);
 
-  const nextButton = page.getByRole("button", { name: /next|continue/i });
-
-  // Advance past title step
-  if (await nextButton.isVisible().catch(() => false)) {
-    await nextButton.click();
-    await page.waitForTimeout(300);
+  // Repeat is a menu on its row. "Custom" carries the previous choice's days
+  // over, so every day starts on and the caller switches off the ones it
+  // wants free.
+  if (frequency && !/^(daily|every day)$/i.test(frequency)) {
+    await page.getByRole("button", { name: /^repeat/i }).click();
+    await page
+      .getByRole("menuitemradio", { name: new RegExp(`^${frequency}`, "i") })
+      .click();
   }
-
-  // Step 2: Select frequency
-  const frequencyChip = page.getByText(new RegExp(frequency, "i"));
-  if (await frequencyChip.isVisible().catch(() => false)) {
-    await frequencyChip.click();
-  }
-  // "Custom" carries the previous chip's days over, so every day starts on
-  // and the caller switches off the ones it wants free.
   for (const day of deselectDays) {
     await page.getByRole("button", { name: day, exact: true }).click();
   }
-  if (await nextButton.isVisible().catch(() => false)) {
-    await nextButton.click();
-    await page.waitForTimeout(300);
-  }
 
-  // Step 3: Select category
-  const categoryChip = page.getByText(new RegExp(category, "i"));
-  if (await categoryChip.isVisible().catch(() => false)) {
-    await categoryChip.click();
-  }
-  if (await nextButton.isVisible().catch(() => false)) {
-    await nextButton.click();
-    await page.waitForTimeout(300);
-  }
+  await page.getByRole("button", { name: /^next$/i }).click();
 
-  // Step 4: Skip sharing step
-  if (await nextButton.isVisible().catch(() => false)) {
-    await nextButton.click();
-    await page.waitForTimeout(300);
-  }
-
-  // Step 5: Submit on review step
-  const createButton = page.getByRole("button", {
-    name: /create habit|create|done/i,
-  });
-  if (await createButton.isVisible().catch(() => false)) {
-    await createButton.click();
-  }
+  // Step 2: partners are optional.
+  await page.getByRole("button", { name: /^create habit$/i }).click();
 
   await page.waitForURL(/\/main\/dashboard/, { timeout: 10000 });
 }

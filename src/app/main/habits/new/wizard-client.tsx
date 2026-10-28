@@ -1,13 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "motion/react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Sparkles,
-} from "lucide-react";
+import { motion, AnimatePresence, MotionConfig } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useTopBarBack } from "@/components/layout/TopBarSlots";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,24 +13,33 @@ import { applyHabitCreate } from "@/lib/data/dashboard-mutations";
 import type { DashboardData } from "@/lib/data/dashboard";
 import { sendOrQueue } from "@/lib/offline-write";
 import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+import { useFriendsList } from "@/lib/hooks/useFriends";
+import { useGroupsList } from "@/lib/hooks/useGroups";
+import { cn } from "@/lib/utils/cn";
+import { buildTimeWindow, timeWindowsInOrder } from "@/lib/utils/schedule";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import {
-  StepName,
-  StepSchedule,
-  StepColor,
-  StepSharing,
-  StepReview,
-  DEFAULT_FORM,
-  type HabitForm,
-} from "./wizard-steps";
+  HabitFields,
+  LiveHabitCard,
+  PRIMARY_ACTION,
+  PRIMARY_ACTION_UNAVAILABLE,
+} from "@/components/habits/HabitFields";
+import { StepPartners, DEFAULT_FORM, type HabitForm } from "./wizard-steps";
 
 const SuccessScreen = dynamic(
   () => import("./wizard-steps").then((m) => m.SuccessScreen),
   { ssr: false },
 );
 
-const STEP_LABELS = ["Name", "Schedule", "Color", "Partners", "Review"];
+/**
+ * Two steps: the habit, then the people. It used to be five — name,
+ * schedule, color, partners, review — three of them a single control on an
+ * otherwise empty screen, and the review a copy of what the card already
+ * showed. Only the name is required; everything else has a default, so the
+ * first step shows each default and opens it only when touched.
+ */
+const STEPS = ["Habit", "Partners"] as const;
 
 // ---------------------------------------------------------------------------
 // Animation variants
@@ -79,23 +83,23 @@ export function WizardClient() {
     window.scrollTo({ top: 0 });
   }, [step]);
 
-  const update = useCallback(
-    <K extends keyof HabitForm>(key: K, value: HabitForm[K]) => {
-      setForm((prev) => ({ ...prev, [key]: value }));
-    },
-    [],
-  );
+  const change = useCallback((patch: Partial<HabitForm>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
 
-  const canAdvance = (): boolean => {
-    if (step === 0) return form.title.trim().length > 0;
-    if (step === 1) return form.scheduleDays.length > 0;
-    return true;
-  };
+  // Partners are on the second step, but their lists load now, so that step
+  // opens on the people rather than a spinner. Same queries, same cache.
+  useFriendsList(userId ?? undefined);
+  useGroupsList(userId ?? undefined);
+
+  // The card stays editable on both steps, so the name is checked on both.
+  const named = form.title.trim().length > 0;
+  const canAdvance = named && form.scheduleDays.length > 0 && timeWindowsInOrder(form);
 
   const goNext = () => {
-    if (!canAdvance()) return;
+    if (!canAdvance) return;
     setDirection(1);
-    setStep((s) => Math.min(s + 1, STEP_LABELS.length - 1));
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
   const goBack = useCallback(() => {
@@ -108,6 +112,7 @@ export function WizardClient() {
   useTopBarBack(step > 0 ? goBack : null);
 
   const handleSubmit = async () => {
+    if (!canAdvance) return;
     // The session has not resolved, or is gone. Creating a habit with no owner
     // would fail RLS anyway; better to say so than to queue an unusable write.
     if (!userId) {
@@ -135,9 +140,7 @@ export function WizardClient() {
         color: form.color,
         frequency: form.frequency,
         schedule: { days: form.scheduleDays },
-        time_window: form.timeWindowEnabled
-          ? { start: form.timeWindowStart, end: form.timeWindowEnd }
-          : null,
+        time_window: buildTimeWindow(form),
         visibility: form.visibility,
       };
 
@@ -228,24 +231,21 @@ export function WizardClient() {
   }
 
   return (
-    <div>
+    // Every animation here answers a tap; with reduced motion they cut.
+    <MotionConfig reducedMotion="user">
       <div className="max-w-lg mx-auto px-4 pt-4">
-        {/* Step indicator */}
-        <div className="flex items-center gap-2 mb-5">
-          {STEP_LABELS.map((label, i) => (
-            <div key={label} className="flex items-center gap-2 flex-1">
-              <div
-                className={`h-1.5 rounded-full flex-1 transition-colors duration-300 ${
-                  i <= step ? "bg-brand" : "bg-[var(--color-surface-hover)]"
-                }`}
-              />
-            </div>
-          ))}
-        </div>
+        <StepIndicator step={step} />
 
-        {/* Step content */}
-        <div className="relative overflow-hidden -mx-1 px-1">
-          <AnimatePresence mode="wait" custom={direction}>
+        {/* The same card and fields as the edit sheet's. The card stays
+            put while the steps change under it — the habit is the constant,
+            and each step is a question about it. */}
+        <LiveHabitCard form={form} onChange={change} autoFocus />
+
+        {/* Only the questions slide; the card above them stays. Clipped
+            sideways only, for the slide; -mx-1/px-1 keep selection rings at
+            the edges from being sliced by it. */}
+        <div className="relative overflow-x-clip -mx-1 px-1 mt-6">
+          <AnimatePresence mode="wait" custom={direction} initial={false}>
             <motion.div
               key={step}
               custom={direction}
@@ -255,51 +255,118 @@ export function WizardClient() {
               exit="exit"
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] as const }}
             >
-              {step === 0 && <StepName form={form} update={update} />}
-              {step === 1 && <StepSchedule form={form} update={update} />}
-              {step === 2 && <StepColor form={form} update={update} />}
-              {step === 3 && (
-                <StepSharing form={form} update={update} userId={userId ?? ""} />
+              {step === 0 ? (
+                <HabitFields form={form} onChange={change} />
+              ) : (
+                <StepPartners form={form} onChange={change} userId={userId ?? ""} />
               )}
-              {step === 4 && <StepReview form={form} />}
             </motion.div>
           </AnimatePresence>
         </div>
 
-        {/* Navigation buttons. Pinned just above the bottom nav, so Next is
-            in reach on a long step without scrolling for it. */}
-        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-4 mt-6 flex items-center gap-3 border-t border-border bg-[var(--color-bg-primary)] px-4 py-3">
-          {step > 0 && (
-            <Button variant="secondary" onClick={goBack} className="flex-1">
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
-            </Button>
-          )}
-
-          {step < STEP_LABELS.length - 1 ? (
+        {/* No Back button: the bar's arrow steps back through the wizard. */}
+        <ActionBar>
+          {step < STEPS.length - 1 ? (
             <Button
               onClick={goNext}
-              disabled={!canAdvance()}
-              className="flex-1"
+              disabled={!canAdvance}
+              size="lg"
+              className={cn(PRIMARY_ACTION, !canAdvance && PRIMARY_ACTION_UNAVAILABLE)}
             >
-              <span>Next</span>
-              <ArrowRight className="w-4 h-4" />
+              Next
             </Button>
           ) : (
             <Button
               onClick={handleSubmit}
               loading={isSubmitting}
-              disabled={isSubmitting}
-              className="flex-1"
+              disabled={isSubmitting || !canAdvance}
               size="lg"
+              className={cn(PRIMARY_ACTION, !canAdvance && PRIMARY_ACTION_UNAVAILABLE)}
             >
-              <Sparkles className="w-4 h-4" />
-              <span>Create Habit</span>
+              Create habit
             </Button>
           )}
-        </div>
+        </ActionBar>
       </div>
       {ToastElements}
-    </div>
+    </MotionConfig>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step indicator
+// ---------------------------------------------------------------------------
+
+/** Two named steps, so the first says what comes after it. */
+function StepIndicator({ step }: { step: number }) {
+  return (
+    <ol aria-label="Steps" className="grid grid-cols-2 gap-2 mb-4">
+      {STEPS.map((label, i) => (
+        <li key={label} aria-current={i === step ? "step" : undefined}>
+          <div
+            className={cn(
+              "h-1 rounded-full transition-colors duration-300",
+              i <= step ? "bg-brand" : "bg-surface-hover",
+            )}
+          />
+          <p
+            className={cn(
+              "mt-1.5 text-xs font-medium transition-colors duration-300",
+              i === step ? "text-text-primary" : "text-text-tertiary",
+            )}
+          >
+            {label}
+          </p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Action bar
+// ---------------------------------------------------------------------------
+
+/**
+ * The primary button, held just above the bottom nav so it is in reach on a
+ * long step without scrolling for it.
+ *
+ * It only looks like a bar while it is one: with content scrolling beneath
+ * it, it takes the ground and a hairline; at the end of the step it is just
+ * the button after the last row. A full-width rule and slab floating halfway
+ * down a short step was what made the short steps look broken.
+ */
+function ActionBar({ children }: { children: ReactNode }) {
+  const endRef = useRef<HTMLDivElement>(null);
+  const [stuck, setStuck] = useState(false);
+
+  useEffect(() => {
+    const end = endRef.current;
+    if (!end) return;
+    // The end of the step, seen above the nav (4rem), means nothing is
+    // underneath the bar.
+    const observer = new IntersectionObserver(
+      ([entry]) => setStuck(!entry.isIntersecting),
+      { rootMargin: "0px 0px -64px 0px" },
+    );
+    observer.observe(end);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <>
+      <div
+        className={cn(
+          "sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-4 mt-6 px-4 py-3",
+          "border-t transition-colors duration-200",
+          stuck
+            ? "border-border bg-[var(--color-bg-primary)]"
+            : "border-transparent",
+        )}
+      >
+        {children}
+      </div>
+      <div ref={endRef} aria-hidden className="h-px" />
+    </>
   );
 }

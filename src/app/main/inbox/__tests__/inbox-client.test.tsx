@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InboxClient } from "../inbox-client";
+import { ToastProvider } from "@/components/ui/Toast";
 import type { PartnerInboxItem } from "@/lib/types/partners";
 
 const respond = vi.fn();
@@ -35,10 +36,14 @@ function renderInbox(items: PartnerInboxItem[]) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  // The root layout's ToastProvider: answering shows a toast, which throws
+  // without one, after the test that clicked has already passed.
   return render(
-    <QueryClientProvider client={client}>
-      <InboxClient missedHabits={[]} partnerItems={items} userId="me" />
-    </QueryClientProvider>,
+    <ToastProvider>
+      <QueryClientProvider client={client}>
+        <InboxClient missedHabits={[]} partnerItems={items} userId="me" />
+      </QueryClientProvider>
+    </ToastProvider>,
   );
 }
 
@@ -77,6 +82,7 @@ describe("InboxClient partnership sections", () => {
     await userEvent.click(screen.getByRole("button", { name: /Accept Alice Johnson/ }));
 
     expect(respond).toHaveBeenCalledWith({ shareId: "share-1", accept: true });
+    expect(await screen.findByText("Now following Morning Run")).toBeInTheDocument();
   });
 
   it("declines without accepting", async () => {
@@ -87,6 +93,7 @@ describe("InboxClient partnership sections", () => {
     );
 
     expect(respond).toHaveBeenCalledWith({ shareId: "share-1", accept: false });
+    expect(await screen.findByText("Declined")).toBeInTheDocument();
   });
 
   it("does not claim all-caught-up while something is unanswered", () => {

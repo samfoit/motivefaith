@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
-import { CameraCapture } from "../CameraCapture";
+import { CameraCapture, type CameraCaptureProps } from "../CameraCapture";
 import { TranscodeError, type TranscodeOptions } from "@/lib/utils/transcode-video";
 
 // What a picked video is measured against, and how it is trimmed and shrunk,
@@ -443,6 +443,118 @@ describe("CameraCapture retake", () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(camera.getUserMedia).toHaveBeenCalledTimes(1);
     expect(screen.queryByAltText("Captured photo")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * A habit's check-in is sent from the review itself, so the review is the
+ * last step: it carries the private switch, stays up while the take uploads,
+ * and is still there, caption and all, when that fails.
+ */
+describe("CameraCapture sending from the review", () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:take");
+    URL.revokeObjectURL = vi.fn();
+    installCamera();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "mediaDevices");
+  });
+
+  async function renderReview(props: Partial<CameraCaptureProps> = {}) {
+    render(
+      <CameraCapture
+        onCapture={vi.fn()}
+        onClose={vi.fn()}
+        onFallback={vi.fn()}
+        initialCapture={{ file: new File(["jpg"], "shot.jpg", { type: "image/jpeg" }) }}
+        useLabel="Submit"
+        {...props}
+      />,
+    );
+    await act(async () => {});
+  }
+
+  it("offers the private switch when asked, and hands a change up", async () => {
+    const onChange = vi.fn();
+    await renderReview({ privacy: { isPrivate: false, onChange } });
+
+    const toggle = screen.getByRole("switch", { name: "Share check-in only" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(toggle);
+
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("offers no private switch where it isn't asked for", async () => {
+    await renderReview();
+
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
+
+  it("covers the review while the take uploads, and sends it once", async () => {
+    let finish!: () => void;
+    const onCapture = vi.fn(
+      () => new Promise<void>((resolve) => void (finish = resolve)),
+    );
+    await renderReview({ onCapture });
+
+    // Both taps land before React has drawn the overlay over the button.
+    const submit = screen.getByRole("button", { name: "Submit" });
+    act(() => {
+      fireEvent.click(submit);
+      fireEvent.click(submit);
+    });
+
+    expect(onCapture).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Uploading…");
+
+    await act(async () => finish());
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("brings the review back with the reason when sending fails", async () => {
+    const onCapture = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Upload failed. Please try again."))
+      .mockResolvedValueOnce(undefined);
+    await renderReview({ onCapture });
+    fireEvent.change(screen.getByPlaceholderText("Add a caption..."), {
+      target: { value: "sunrise" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Upload failed. Please try again.");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByAltText("Captured photo")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("sunrise")).toBeInTheDocument();
+
+    // Sent again from the same review, the reason goes.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    });
+    expect(onCapture).toHaveBeenCalledTimes(2);
+    expect(onCapture).toHaveBeenLastCalledWith(expect.any(File), "sunrise");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("reviews a take where there is no camera, and says so only on a retake", async () => {
+    Reflect.deleteProperty(navigator, "mediaDevices");
+    await renderReview();
+
+    expect(screen.queryByText("Camera Unavailable")).not.toBeInTheDocument();
+    expect(screen.getByAltText("Captured photo")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Retake" }));
+    });
+    expect(screen.getByText("Camera Unavailable")).toBeInTheDocument();
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { computeEffectiveStreak } from "../streak";
+import { computeEffectiveStreak, countsTowardStreak } from "../streak";
 
 // Pin time to Sunday June 15, 2025 at noon UTC
 const FAKE_NOW = new Date("2025-06-15T12:00:00Z");
@@ -382,6 +382,263 @@ describe("computeEffectiveStreak", () => {
         "UTC",
       );
       expect(result).toBe(7);
+    });
+  });
+
+  // Mirrors habit_last_due_day() and habit_last_counted_week() in migration
+  // 047, which tests/habit-pauses.test.sql covers on the server.
+  describe("pauses", () => {
+    const daily = { streak_current: 5, schedule: null };
+    const done = (day: string) => [{ completed_at: `${day}T10:00:00Z` }];
+
+    it("holds across a pause that just ended", () => {
+      // Done Tuesday, paused Wednesday to Saturday, back today.
+      const result = computeEffectiveStreak(daily, done("2025-06-10"), "UTC", {
+        pauses: [{ started_on: "2025-06-11", ended_on: "2025-06-15" }],
+      });
+      expect(result).toBe(5);
+    });
+
+    it("holds while the habit is still paused", () => {
+      const result = computeEffectiveStreak(daily, done("2025-06-10"), "UTC", {
+        pauses: [{ started_on: "2025-06-11", ended_on: null }],
+      });
+      expect(result).toBe(5);
+    });
+
+    it("still ends on a miss before the pause", () => {
+      // Done Monday, missed Tuesday, paused from Wednesday.
+      const result = computeEffectiveStreak(daily, done("2025-06-09"), "UTC", {
+        pauses: [{ started_on: "2025-06-11", ended_on: "2025-06-15" }],
+      });
+      expect(result).toBe(0);
+    });
+
+    it("steps over a pause longer than the 14 days it searches", () => {
+      const result = computeEffectiveStreak(daily, done("2025-05-01"), "UTC", {
+        pauses: [{ started_on: "2025-05-02", ended_on: "2025-06-15" }],
+      });
+      expect(result).toBe(5);
+    });
+
+    it("steps over pauses and days off together", () => {
+      // Mon–Fri. Done Friday May 30, paused through Friday June 13; Saturday
+      // the 14th is off.
+      const result = computeEffectiveStreak(
+        { streak_current: 8, schedule: { days: [1, 2, 3, 4, 5] } },
+        done("2025-05-30"),
+        "UTC",
+        { pauses: [{ started_on: "2025-05-31", ended_on: "2025-06-14" }] },
+      );
+      expect(result).toBe(8);
+    });
+
+    it("keeps the server's streak when the day before the pause wasn't loaded", () => {
+      // Only check-ins from June 1 on were fetched, and the pause reaches
+      // back past them: this side can't see whether April 30 was done.
+      const result = computeEffectiveStreak(daily, [], "UTC", {
+        pauses: [{ started_on: "2025-05-01", ended_on: "2025-06-15" }],
+        loadedFrom: "2025-06-01",
+      });
+      expect(result).toBe(5);
+    });
+
+    it("checks the day before the pause when it was loaded", () => {
+      const result = computeEffectiveStreak(daily, [], "UTC", {
+        pauses: [{ started_on: "2025-06-11", ended_on: "2025-06-15" }],
+        loadedFrom: "2025-06-01",
+      });
+      expect(result).toBe(0);
+    });
+
+    describe("weekly", () => {
+      const weekly = { streak_current: 4, schedule: null, frequency: "weekly" };
+
+      it("holds across weeks paused to their Saturday", () => {
+        // Done Monday May 26, paused from Wednesday the 28th through today:
+        // the Saturdays of the 31st, the 7th and the 14th were all paused.
+        const result = computeEffectiveStreak(weekly, done("2025-05-26"), "UTC", {
+          pauses: [{ started_on: "2025-05-28", ended_on: "2025-06-15" }],
+        });
+        expect(result).toBe(4);
+      });
+
+      it("holds a week resumed before its Saturday to it", () => {
+        // Back on Wednesday June 11, and not done by that Saturday.
+        const result = computeEffectiveStreak(weekly, done("2025-05-26"), "UTC", {
+          pauses: [{ started_on: "2025-05-28", ended_on: "2025-06-11" }],
+        });
+        expect(result).toBe(0);
+      });
+
+      it("ends without a pause, as before", () => {
+        const result = computeEffectiveStreak(weekly, done("2025-05-26"), "UTC");
+        expect(result).toBe(0);
+      });
+    });
+  });
+
+  // Mirrors habit_last_due_day() and habit_weekly_stand() in migration 049,
+  // which tests/schedule-changes.test.sql covers on the server. Today is
+  // Sunday June 15.
+  describe("schedule changes", () => {
+    const done = (...days: string[]) => days.map((day) => ({ completed_at: `${day}T10:00:00Z` }));
+    const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+
+    it("keeps a day added since as the day off it was", () => {
+      // Mon/Wed/Fri until today, every day from today. Done Friday; Saturday
+      // was a day off when it passed.
+      const result = computeEffectiveStreak(
+        { streak_current: 6, schedule: { days: EVERY_DAY }, frequency: "daily" },
+        done("2025-06-13"),
+        "UTC",
+        { scheduleChanges: [{ changed_on: "2025-06-15", frequency: "specific_days", days: [1, 3, 5] }] },
+      );
+      expect(result).toBe(6);
+    });
+
+    it("would end it if the new days were read into the past", () => {
+      const result = computeEffectiveStreak(
+        { streak_current: 6, schedule: { days: EVERY_DAY }, frequency: "daily" },
+        done("2025-06-13"),
+        "UTC",
+      );
+      expect(result).toBe(0);
+    });
+
+    it("still ends on a day missed before it was taken off", () => {
+      // Every day until today, Mon/Wed/Fri from today: Saturday was due.
+      const result = computeEffectiveStreak(
+        { streak_current: 6, schedule: { days: [1, 3, 5] }, frequency: "specific_days" },
+        done("2025-06-13"),
+        "UTC",
+        { scheduleChanges: [{ changed_on: "2025-06-15", frequency: "daily", days: EVERY_DAY }] },
+      );
+      expect(result).toBe(0);
+    });
+
+    it("reads each day's schedule across two changes", () => {
+      // Weekends until Wednesday the 11th, Tuesdays until Saturday the 14th,
+      // Mon/Wed/Fri since. Every day back to Sunday the 8th was off when it
+      // passed; that Sunday was due, and done.
+      const changes = [
+        { changed_on: "2025-06-14", frequency: "specific_days", days: [2] },
+        { changed_on: "2025-06-11", frequency: "weekends", days: [0, 6] },
+      ];
+      const habit = { streak_current: 3, schedule: { days: [1, 3, 5] }, frequency: "specific_days" };
+      expect(computeEffectiveStreak(habit, done("2025-06-08"), "UTC", { scheduleChanges: changes })).toBe(3);
+      expect(computeEffectiveStreak(habit, done("2025-06-01"), "UTC", { scheduleChanges: changes })).toBe(0);
+    });
+
+    describe("from weekly", () => {
+      const daily = { streak_current: 4, schedule: { days: EVERY_DAY }, frequency: "daily" };
+      const madeDailyToday = [{ changed_on: "2025-06-15", frequency: "weekly", days: EVERY_DAY }];
+
+      it("keeps a weekly streak made daily today", () => {
+        // Done Monday the 9th, last week: the weekly streak stood.
+        const result = computeEffectiveStreak(daily, done("2025-06-09"), "UTC", {
+          scheduleChanges: madeDailyToday,
+        });
+        expect(result).toBe(4);
+      });
+
+      it("ends one that had already lapsed", () => {
+        // Last done the week before last.
+        const result = computeEffectiveStreak(daily, done("2025-06-02"), "UTC", {
+          scheduleChanges: madeDailyToday,
+        });
+        expect(result).toBe(0);
+      });
+
+      it("ends when its first day due as a daily habit is missed", () => {
+        // Made daily yesterday, and not done yesterday.
+        const result = computeEffectiveStreak(daily, done("2025-06-09"), "UTC", {
+          scheduleChanges: [{ changed_on: "2025-06-14", frequency: "weekly", days: EVERY_DAY }],
+        });
+        expect(result).toBe(0);
+      });
+
+      it("keeps the server's streak when the weeks it hung on weren't loaded", () => {
+        const result = computeEffectiveStreak(daily, [], "UTC", {
+          scheduleChanges: madeDailyToday,
+          loadedFrom: "2025-06-10",
+        });
+        expect(result).toBe(4);
+      });
+    });
+  });
+});
+
+describe("countsTowardStreak", () => {
+  const daily = { frequency: "daily" };
+
+  it("counts the first check-in of the day", () => {
+    expect(countsTowardStreak(daily, [], "UTC")).toBe(true);
+  });
+
+  it("does not count another check-in the same day", () => {
+    expect(
+      countsTowardStreak(
+        daily,
+        [{ completed_at: "2025-06-15T08:00:00Z", completion_type: "photo" }],
+        "UTC",
+      ),
+    ).toBe(false);
+  });
+
+  it("counts again the next day", () => {
+    expect(
+      countsTowardStreak(
+        daily,
+        [{ completed_at: "2025-06-14T20:00:00Z", completion_type: "quick" }],
+        "UTC",
+      ),
+    ).toBe(true);
+  });
+
+  it("still counts the check-in after a rain check the same day", () => {
+    expect(
+      countsTowardStreak(
+        daily,
+        [{ completed_at: "2025-06-15T08:00:00Z", completion_type: "rain_check" }],
+        "UTC",
+      ),
+    ).toBe(true);
+  });
+
+  it("reads the day in the user's timezone", () => {
+    // 22:00 on Saturday in Chicago, though already Sunday in UTC.
+    const lastNight = [{ completed_at: "2025-06-15T03:00:00Z", completion_type: "quick" }];
+    expect(countsTowardStreak(daily, lastNight, "America/Chicago")).toBe(true);
+    expect(countsTowardStreak(daily, lastNight, "UTC")).toBe(false);
+  });
+
+  describe("weekly", () => {
+    const weekly = { frequency: "weekly" };
+
+    // Wednesday 18 June, so the week (from Sunday the 15th) is underway.
+    beforeEach(() => {
+      vi.setSystemTime(new Date("2025-06-18T12:00:00Z"));
+    });
+
+    it("does not count a second check-in in the same week", () => {
+      expect(
+        countsTowardStreak(
+          weekly,
+          [{ completed_at: "2025-06-16T10:00:00Z", completion_type: "quick" }],
+          "UTC",
+        ),
+      ).toBe(false);
+    });
+
+    it("counts the first check-in of a new week", () => {
+      expect(
+        countsTowardStreak(
+          weekly,
+          [{ completed_at: "2025-06-14T10:00:00Z", completion_type: "quick" }],
+          "UTC",
+        ),
+      ).toBe(true);
     });
   });
 });

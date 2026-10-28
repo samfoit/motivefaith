@@ -1,23 +1,14 @@
 "use client";
 
-import type React from "react";
 import { motion } from "motion/react";
-import { Clock, Users, UserPlus, Check } from "lucide-react";
-import { cn } from "@/lib/utils/cn";
-import { Input } from "@/components/ui/Input";
-import { TextArea } from "@/components/ui/TextArea";
+import { Check } from "lucide-react";
 import { FriendPicker } from "@/components/social/FriendPicker";
 import { GroupPicker } from "@/components/social/GroupPicker";
 import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
-import {
-  HABIT_EMOJIS,
-  FREQUENCIES,
-  DAYS,
-  type HabitFrequency,
-} from "@/lib/constants/habit";
 import { DEFAULT_HABIT_COLOR } from "@/lib/constants/colors";
-import { ColorPicker } from "@/components/habits/ColorPicker";
+import { DEFAULT_TIME_WINDOW } from "@/lib/utils/schedule";
+import { SECTION_LABEL, type HabitFieldValues } from "@/components/habits/HabitFields";
 import { VisibilityPicker } from "@/components/habits/VisibilityPicker";
 import type { HabitVisibility } from "@/lib/types/partners";
 
@@ -25,16 +16,8 @@ import type { HabitVisibility } from "@/lib/types/partners";
 // Form state type (shared with wizard-client)
 // ---------------------------------------------------------------------------
 
-export interface HabitForm {
-  title: string;
-  emoji: string;
-  description: string;
-  frequency: HabitFrequency;
-  scheduleDays: number[];
-  timeWindowEnabled: boolean;
-  timeWindowStart: string;
-  timeWindowEnd: string;
-  color: string | null;
+/** The habit's own fields (shared with the edit sheet), and who it goes to. */
+export interface HabitForm extends HabitFieldValues {
   visibility: HabitVisibility;
   selectedFriends: string[];
   selectedGroups: string[];
@@ -47,383 +30,67 @@ export const DEFAULT_FORM: HabitForm = {
   frequency: "daily",
   scheduleDays: [0, 1, 2, 3, 4, 5, 6],
   timeWindowEnabled: false,
-  timeWindowStart: "09:00",
-  timeWindowEnd: "12:00",
+  timeWindowStart: DEFAULT_TIME_WINDOW.start,
+  timeWindowEnd: DEFAULT_TIME_WINDOW.end,
+  timeWindowExceptions: [],
   color: DEFAULT_HABIT_COLOR,
   visibility: "private",
   selectedFriends: [],
   selectedGroups: [],
 };
 
-type UpdateFn = <K extends keyof HabitForm>(key: K, val: HabitForm[K]) => void;
+type Change = (patch: Partial<HabitForm>) => void;
 
 // ---------------------------------------------------------------------------
-// Shared: Preview card
+// Step 2: Partners
 // ---------------------------------------------------------------------------
 
-export function PreviewCard({ form }: { form: HabitForm }) {
-  return (
-    <div
-      // Mirrors the dashboard card, tint and all, so the color picker shows
-      // what the habit will actually look like.
-      className="habit-tint flex items-center gap-3 rounded-lg border px-4 py-3 shadow-sm"
-      style={{ ["--habit-color" as string]: form.color ?? undefined } as React.CSSProperties}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xl leading-none">{form.emoji}</span>
-          <h3
-            className="font-semibold text-[var(--color-text-primary)] truncate"
-            style={{ fontSize: "var(--text-base)" }}
-          >
-            {form.title || "Habit name"}
-          </h3>
-        </div>
-        <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
-          New habit — ready to start
-        </p>
-      </div>
-      <div className="flex-shrink-0 w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
-        {/* Empty circle (not completed) */}
-      </div>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-sm text-[var(--color-text-secondary)] flex-shrink-0">
-        {label}
-      </span>
-      <span className="text-sm text-[var(--color-text-primary)] text-right">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 1: Name & Identity
-// ---------------------------------------------------------------------------
-
-export function StepName({
+export function StepPartners({
   form,
-  update,
-}: {
-  form: HabitForm;
-  update: UpdateFn;
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2
-          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
-          style={{ fontSize: "var(--text-lg)" }}
-        >
-          What habit do you want to build?
-        </h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Give it a name and pick an emoji to make it yours.
-        </p>
-      </div>
-
-      <Input
-        label="Habit name"
-        placeholder="e.g. Morning Run, Read 20 Pages"
-        value={form.title}
-        onChange={(e) => update("title", e.target.value)}
-        autoFocus
-      />
-
-      {/* Emoji picker */}
-      <div>
-        <label className="text-sm font-medium text-gray-700 mb-2 block">
-          Choose an icon
-        </label>
-        <div className="grid grid-cols-8 gap-1.5">
-          {HABIT_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => update("emoji", emoji)}
-              className={cn(
-                "aspect-square w-full flex items-center justify-center rounded-lg text-xl transition-all",
-                form.emoji === emoji
-                  ? "bg-brand-light ring-2 ring-brand-ink"
-                  : "hover:bg-[var(--color-surface-hover)]",
-              )}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <TextArea
-        label="Description (optional)"
-        placeholder="Why is this habit important to you?"
-        value={form.description}
-        onChange={(e) => update("description", e.target.value)}
-        rows={2}
-      />
-
-      {/* Live preview */}
-      {form.title.trim() && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <p className="text-xs text-[var(--color-text-tertiary)] mb-2">
-            Preview
-          </p>
-          <PreviewCard form={form} />
-        </motion.div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 2: Schedule
-// ---------------------------------------------------------------------------
-
-export function StepSchedule({
-  form,
-  update,
-}: {
-  form: HabitForm;
-  update: UpdateFn;
-}) {
-  const handleFrequency = (freq: (typeof FREQUENCIES)[number]) => {
-    update("frequency", freq.value);
-    if (freq.days) {
-      update("scheduleDays", freq.days);
-    }
-  };
-
-  const toggleDay = (day: number) => {
-    const next = form.scheduleDays.includes(day)
-      ? form.scheduleDays.filter((d) => d !== day)
-      : [...form.scheduleDays, day];
-    update("scheduleDays", next);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2
-          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
-          style={{ fontSize: "var(--text-lg)" }}
-        >
-          How often?
-        </h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Set a schedule that works for your lifestyle.
-        </p>
-      </div>
-
-      {/* Frequency chips */}
-      <div className="flex flex-wrap gap-2">
-        {FREQUENCIES.map((freq) => (
-          <button
-            key={freq.value}
-            type="button"
-            onClick={() => handleFrequency(freq)}
-            className={cn(
-              "px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
-              form.frequency === freq.value
-                ? "bg-brand text-on-brand shadow-sm"
-                : "bg-elevated ring-1 ring-border text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
-            )}
-          >
-            {freq.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Custom day picker */}
-      {form.frequency === "specific_days" && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-        >
-          <label className="text-sm font-medium text-gray-700 mb-2 block">
-            Which days?
-          </label>
-          <div className="flex gap-2 justify-between">
-            {DAYS.map((day) => (
-              <button
-                key={day.value}
-                type="button"
-                onClick={() => toggleDay(day.value)}
-                aria-label={day.full}
-                className={cn(
-                  "w-10 h-10 rounded-full text-sm font-medium transition-all flex items-center justify-center",
-                  form.scheduleDays.includes(day.value)
-                    ? "bg-brand text-on-brand"
-                    : "bg-elevated ring-1 ring-border text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]",
-                )}
-              >
-                {day.label}
-              </button>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Time window */}
-      <div>
-        <button
-          type="button"
-          onClick={() => update("timeWindowEnabled", !form.timeWindowEnabled)}
-          className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <Clock className="w-4 h-4" />
-          <span>
-            {form.timeWindowEnabled
-              ? "Remove time window"
-              : "Add a time window (optional)"}
-          </span>
-        </button>
-
-        {form.timeWindowEnabled && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            className="flex items-center gap-3 mt-3"
-          >
-            <Input
-              label="From"
-              type="time"
-              value={form.timeWindowStart}
-              onChange={(e) => update("timeWindowStart", e.target.value)}
-              className="flex-1"
-            />
-            <span className="text-[var(--color-text-tertiary)] mt-5">to</span>
-            <Input
-              label="Until"
-              type="time"
-              value={form.timeWindowEnd}
-              onChange={(e) => update("timeWindowEnd", e.target.value)}
-              className="flex-1"
-            />
-          </motion.div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 3: Color
-// ---------------------------------------------------------------------------
-
-export function StepColor({
-  form,
-  update,
-}: {
-  form: HabitForm;
-  update: UpdateFn;
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2
-          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
-          style={{ fontSize: "var(--text-lg)" }}
-        >
-          Pick a color
-        </h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Just so it stands out on your list.
-        </p>
-      </div>
-
-      <ColorPicker value={form.color} onChange={(c) => update("color", c)} />
-
-      {/* Preview */}
-      <div>
-        <p className="text-xs text-[var(--color-text-tertiary)] mb-2">
-          Preview
-        </p>
-        <PreviewCard form={form} />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 4: Sharing
-// ---------------------------------------------------------------------------
-
-export function StepSharing({
-  form,
-  update,
+  onChange,
   userId,
 }: {
   form: HabitForm;
-  update: UpdateFn;
+  onChange: Change;
   userId: string;
 }) {
   const { data: friends, isLoading } = useFriendsList(userId);
   const { data: groups, isLoading: groupsLoading } = useGroupsList(userId);
 
   const toggleFriend = (friendId: string) => {
-    update(
-      "selectedFriends",
-      form.selectedFriends.includes(friendId)
+    onChange({
+      selectedFriends: form.selectedFriends.includes(friendId)
         ? form.selectedFriends.filter((id) => id !== friendId)
         : [...form.selectedFriends, friendId],
-    );
+    });
   };
 
   const toggleGroup = (groupId: string) => {
-    update(
-      "selectedGroups",
-      form.selectedGroups.includes(groupId)
+    onChange({
+      selectedGroups: form.selectedGroups.includes(groupId)
         ? form.selectedGroups.filter((id) => id !== groupId)
         : [...form.selectedGroups, groupId],
-    );
+    });
   };
 
   const inviteCount = form.selectedFriends.length;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2
-          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
-          style={{ fontSize: "var(--text-lg)" }}
-        >
-          Accountability
-        </h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Choose who can find this habit, and who you want following it.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-[var(--color-text-primary)]">
-          Who can find it
-        </p>
+      <section>
+        <p className={SECTION_LABEL}>Who can find it</p>
         <VisibilityPicker
+          variant="segmented"
           value={form.visibility}
-          onChange={(v) => update("visibility", v)}
+          onChange={(visibility) => onChange({ visibility })}
         />
-      </div>
+      </section>
 
       {/* Partners are invited whatever the visibility — private only means
           nobody can stumble across the habit, not that it is unshareable. */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <UserPlus className="w-4 h-4 text-[var(--color-text-secondary)]" />
-          <p className="text-sm font-medium text-[var(--color-text-primary)]">
-            Invite accountability partners
-          </p>
-        </div>
-        <p className="text-xs text-[var(--color-text-secondary)]">
+      <section>
+        <p className={SECTION_LABEL}>Invite partners</p>
+        <p className="text-xs text-text-secondary text-pretty mb-3">
           They get an invitation to accept or decline. Nobody sees your progress
           until they say yes.
         </p>
@@ -433,8 +100,8 @@ export function StepSharing({
             <div className="w-5 h-5 border-2 border-brand-ink border-t-transparent rounded-full animate-spin" />
           </div>
         ) : !friends?.length ? (
-          <div className="rounded-lg bg-elevated shadow-sm p-4">
-            <p className="text-sm text-[var(--color-text-secondary)] text-center">
+          <div className="rounded-lg bg-elevated border border-border p-4">
+            <p className="text-sm text-text-secondary text-center">
               No friends yet. Add friends from the Friends tab to invite
               partners.
             </p>
@@ -445,21 +112,16 @@ export function StepSharing({
             selectedIds={form.selectedFriends}
             onToggle={toggleFriend}
             mode="multi"
-            searchPlaceholder="Search friends\u2026"
+            searchPlaceholder="Search friends…"
           />
         )}
-      </div>
+      </section>
 
       {/* Group sharing is a push into a room you are both already in, so it
           needs no invitation. */}
       {!groupsLoading && groups && groups.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-[var(--color-text-secondary)]" />
-            <p className="text-sm font-medium text-[var(--color-text-primary)]">
-              Share with groups
-            </p>
-          </div>
+        <section>
+          <p className={SECTION_LABEL}>Share with groups</p>
           <GroupPicker
             groups={groups.map((g) => ({
               id: g.id,
@@ -469,91 +131,18 @@ export function StepSharing({
             }))}
             selectedIds={form.selectedGroups}
             onToggle={toggleGroup}
-            searchPlaceholder="Search groups\u2026"
+            searchPlaceholder="Search groups…"
           />
-        </div>
+        </section>
       )}
 
-      <p className="text-xs text-[var(--color-text-tertiary)]">
-        {inviteCount > 0
-          ? `${inviteCount} invitation${inviteCount === 1 ? "" : "s"} will go out when you create the habit.`
-          : "You can change any of this later. This step is optional."}
-      </p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 5: Review
-// ---------------------------------------------------------------------------
-
-export function StepReview({ form }: { form: HabitForm }) {
-  const freqLabel =
-    FREQUENCIES.find((f) => f.value === form.frequency)?.label ??
-    form.frequency;
-  const dayLabels = form.scheduleDays
-    .sort((a, b) => a - b)
-    .map((d) => DAYS.find((day) => day.value === d)?.full ?? "")
-    .filter(Boolean);
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2
-          className="font-display font-medium text-[var(--color-text-primary)] mb-1"
-          style={{ fontSize: "var(--text-lg)" }}
-        >
-          Looking good!
-        </h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Review your habit and hit create when you&apos;re ready.
+      {/* The pickers count what is picked; this only answers whether picking
+          anyone is required. */}
+      {inviteCount === 0 && form.selectedGroups.length === 0 && (
+        <p className="text-xs text-text-tertiary">
+          This step is optional, and you can change any of it later.
         </p>
-      </div>
-
-      {/* Preview card */}
-      <PreviewCard form={form} />
-
-      {/* Details summary */}
-      <div className="space-y-3">
-        <SummaryRow label="Schedule" value={freqLabel} />
-        {form.frequency === "specific_days" && (
-          <SummaryRow label="Days" value={dayLabels.join(", ")} />
-        )}
-        {form.timeWindowEnabled && (
-          <SummaryRow
-            label="Time window"
-            value={`${form.timeWindowStart} – ${form.timeWindowEnd}`}
-          />
-        )}
-        <SummaryRow
-          label="Visibility"
-          value={
-            form.visibility === "public"
-              ? "Public — friends can find it"
-              : "Private — invite only"
-          }
-        />
-        <SummaryRow
-          label="Partners"
-          value={
-            form.selectedFriends.length > 0 || form.selectedGroups.length > 0
-              ? [
-                  form.selectedFriends.length > 0
-                    ? `${form.selectedFriends.length} invite${form.selectedFriends.length === 1 ? "" : "s"}`
-                    : null,
-                  form.selectedGroups.length > 0
-                    ? `${form.selectedGroups.length} group${form.selectedGroups.length === 1 ? "" : "s"}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(", ")
-              : "None yet"
-          }
-        />
-        {form.description && (
-          <SummaryRow label="Description" value={form.description} />
-        )}
-      </div>
+      )}
     </div>
   );
 }

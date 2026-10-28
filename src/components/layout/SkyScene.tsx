@@ -46,7 +46,8 @@ export function SkyScene() {
   const showBand = !isThreadRoute(pathname);
 
   return (
-    <div aria-hidden="true" className="sky-enter pointer-events-none fixed inset-0 -z-10">
+    // Clipped to the screen: the band's hills run 10,000 units either side.
+    <div aria-hidden="true" className="sky-enter pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <SkyStarField
         hour={hour}
         idPrefix="sky"

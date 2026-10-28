@@ -2,8 +2,12 @@ import type { Database } from "@/lib/supabase/types";
 
 export type HabitFrequency = Database["public"]["Enums"]["habit_frequency"];
 
+// Order is what shows first: the icon pickers open on one row. Prayer and
+// the cross lead after the default, for a faith-first habit tracker.
 export const HABIT_EMOJIS = [
   "✅",
+  "🙏",
+  "✝️",
   "🏃",
   "📚",
   "💪",
@@ -33,8 +37,6 @@ export const HABIT_EMOJIS = [
   "💻",
   "🌿",
   "🏊",
-  "✝️",
-  "🙏",
 ];
 
 export const FREQUENCIES: {

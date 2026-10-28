@@ -21,36 +21,51 @@ vi.mock("next/image", () => ({
   ),
 }));
 
-// Mock next/dynamic
+// Mock next/dynamic. The lazy component's own props (the camera's onCapture,
+// initialCapture, useLabel…) stay off the stand-in div, where React warns
+// about every one it doesn't know.
 vi.mock("next/dynamic", () => ({
   default: (_loader: () => Promise<{ default: React.ComponentType }>) => {
-    const Component = (props: Record<string, unknown>) => (
-      <div data-testid="dynamic-component" {...props} />
+    const Component = ({ children }: { children?: React.ReactNode }) => (
+      <div data-testid="dynamic-component">{children}</div>
     );
     Component.displayName = "DynamicComponent";
     return Component;
   },
 }));
 
-// Mock motion/react to avoid animation issues in tests
-vi.mock("motion/react", () => ({
-  motion: new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (typeof prop === "string") {
-          const MotionComponent = ({ children, initial, animate, exit, variants, whileHover, whileTap, custom, transition, layout, layoutId, ...rest }: Record<string, unknown>) => {
-            const Tag = prop as keyof JSX.IntrinsicElements;
-            return <Tag {...(rest as Record<string, unknown>)}>{children as React.ReactNode}</Tag>;
-          };
-          MotionComponent.displayName = `motion.${prop}`;
-          return MotionComponent;
-        }
+// Mock motion/react to avoid animation issues in tests.
+//
+// One component per tag, made once: a new one on every `motion.div` read is a
+// new component type on every render, and React would remount everything
+// under it each time — state lost and elements replaced, which real motion
+// never does.
+vi.mock("motion/react", () => {
+  const makeComponent = (prop: string) => {
+    const MotionComponent = ({ children, initial, animate, exit, variants, whileHover, whileTap, custom, transition, layout, layoutId, onAnimationComplete, ...rest }: Record<string, unknown>) => {
+      const Tag = prop as keyof JSX.IntrinsicElements;
+      return <Tag {...(rest as Record<string, unknown>)}>{children as React.ReactNode}</Tag>;
+    };
+    MotionComponent.displayName = `motion.${prop}`;
+    return MotionComponent;
+  };
+  const components = new Map<string, ReturnType<typeof makeComponent>>();
+  return {
+    motion: new Proxy(
+      {},
+      {
+        get: (_target, prop) => {
+          if (typeof prop !== "string") return undefined;
+          if (!components.has(prop)) components.set(prop, makeComponent(prop));
+          return components.get(prop);
+        },
       },
-    },
-  ),
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
+    ),
+    AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    MotionConfig: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    useReducedMotion: () => false,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Web Storage
@@ -122,6 +137,20 @@ if (!Element.prototype.hasPointerCapture) {
   Element.prototype.releasePointerCapture = () => {};
 }
 
+// jsdom lays nothing out, so it has nothing to scroll and leaves scrolling
+// unimplemented. The color picker scrolls a saved color into view on open.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
+// jsdom draws nothing and plays nothing. Its canvas getContext() answers null
+// and its media pause() does nothing, each after printing "Not implemented",
+// which the camera's tests set off on every take. These give the same answers
+// without the note; a test that needs a drawing context or playback still sets
+// or spies its own.
+HTMLCanvasElement.prototype.getContext = (() => null) as HTMLCanvasElement["getContext"];
+HTMLMediaElement.prototype.pause = () => {};
+
 // ---------------------------------------------------------------------------
 // Blob.arrayBuffer
 //
@@ -148,6 +177,16 @@ class MockIntersectionObserver {
   disconnect = vi.fn();
 }
 vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+
+// Stub ResizeObserver — jsdom has none, and the scrolling picker rows
+// (useScrollRow) measure themselves with it. jsdom lays nothing out, so there
+// is never a size to report.
+class MockResizeObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+if (!globalThis.ResizeObserver) vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
 // Stub matchMedia
 Object.defineProperty(window, "matchMedia", {

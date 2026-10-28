@@ -11,6 +11,11 @@ import { getScheduledDays } from "@/lib/utils/schedule";
 
 export interface WeeklySummaryData {
   totalCompletions: number;
+  /**
+   * Days each habit was done on, summed: what the rate counts. A habit done
+   * twice in a day is two completions but one of its scheduled days.
+   */
+  habitDaysDone: number;
   totalScheduled: number;
   completionRate: number;
   bestStreak: number;
@@ -54,6 +59,33 @@ function getWeekBounds() {
   return { thisStart, thisEnd, prevStart, prevEnd };
 }
 
+/**
+ * What the week's rate counts: the days each habit was scheduled, and the
+ * days it was done on. A weekly habit is due once a week, whatever its days
+ * say, and done once however many days it was done on.
+ */
+export function weekRateCounts(
+  habits: { id: string; frequency?: string | null; schedule: unknown }[],
+  completions: { habit_id: string; completed_at: string | null }[],
+  timeZone: string,
+): { totalScheduled: number; habitDaysDone: number } {
+  const weekly = new Set(habits.filter((h) => h.frequency === "weekly").map((h) => h.id));
+
+  let totalScheduled = 0;
+  for (const habit of habits) {
+    totalScheduled += weekly.has(habit.id) ? 1 : getScheduledDays(habit.schedule).length;
+  }
+
+  const habitDaysDone = new Set(
+    completions.flatMap((c) => {
+      if (!c.completed_at) return [];
+      return [weekly.has(c.habit_id) ? c.habit_id : `${c.habit_id}:${toDateKey(c.completed_at, timeZone)}`];
+    }),
+  ).size;
+
+  return { totalScheduled, habitDaysDone };
+}
+
 // ---------------------------------------------------------------------------
 // Fetcher
 // ---------------------------------------------------------------------------
@@ -82,7 +114,7 @@ async function fetchWeeklySummary(
         .lte("completed_at", prevEnd),
       supabase
         .from("habits")
-        .select("id, title, emoji, schedule, streak_current")
+        .select("id, title, emoji, frequency, schedule, streak_current")
         .eq("user_id", userId)
         .eq("is_paused", false),
       supabase
@@ -108,16 +140,14 @@ async function fetchWeeklySummary(
   const encouragementsSent = sentResult.count;
   const encouragementsReceived = receivedResult.count;
 
-  // Calculate scheduled count for the week
-  let totalScheduled = 0;
-  for (const habit of habits ?? []) {
-    totalScheduled += getScheduledDays(habit.schedule).length;
-  }
+  // Days are keyed in the user's timezone, as the heatmap below keys them.
+  const tz = getBrowserTimezone();
 
   const completions = thisWeekCompletions ?? [];
   const totalCompletions = completions.length;
+  const { totalScheduled, habitDaysDone } = weekRateCounts(habits ?? [], completions, tz);
   const completionRate =
-    totalScheduled > 0 ? (totalCompletions / totalScheduled) * 100 : 0;
+    totalScheduled > 0 ? (habitDaysDone / totalScheduled) * 100 : 0;
 
   // Most consistent habit
   const habitCounts = new Map<string, number>();
@@ -144,7 +174,6 @@ async function fetchWeeklySummary(
   );
 
   // Daily completions map for heatmap (keyed by user's timezone date)
-  const tz = getBrowserTimezone();
   const dailyCompletions: Record<string, number> = {};
   for (const c of completions) {
     if (!c.completed_at) continue;
@@ -156,6 +185,7 @@ async function fetchWeeklySummary(
 
   return {
     totalCompletions,
+    habitDaysDone,
     totalScheduled,
     completionRate,
     bestStreak,

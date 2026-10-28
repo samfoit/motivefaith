@@ -210,6 +210,29 @@ describe("QuickCaptureFlow share step", () => {
     );
   });
 
+  it("sends to a habit already done today, saying it is done", async () => {
+    rpc.mockResolvedValue({
+      data: [HABITS[0], { ...HABITS[1], checked_in_today: true }],
+      error: null,
+    });
+    renderFlow();
+
+    // Asked for every habit due today, not only the ones still to do.
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith(expect.anything(), "get_habits_due_today", expect.anything()),
+    );
+    const fast = await screen.findByRole("checkbox", { name: "Fast" });
+    expect(fast).toHaveAccessibleDescription("Done today");
+    expect(screen.getByRole("checkbox", { name: "Pray" })).not.toHaveAccessibleDescription();
+
+    await userEvent.click(fast);
+    await userEvent.click(screen.getByRole("button", { name: /Send to 1/ }));
+
+    await waitFor(() =>
+      expect(share).toHaveBeenCalledWith(expect.objectContaining({ habitIds: ["h2"] })),
+    );
+  });
+
   it("keeps the selection when the send fails", async () => {
     share.mockRejectedValueOnce(new Error("boom"));
     renderFlow();
@@ -339,18 +362,21 @@ describe("QuickCaptureFlow offline", () => {
       }),
     );
 
-    expect(await screen.findByText("Pray")).toBeInTheDocument();
-    // Checked in already today.
-    expect(screen.queryByText("Fast")).not.toBeInTheDocument();
+    // Checked in already today, so listed after the one still to do — and
+    // still there to send to.
+    await screen.findByRole("checkbox", { name: "Pray" });
+    const rows = within(screen.getByRole("region", { name: "Habits" })).getAllByRole("checkbox");
+    expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(["Pray", "Fast"]);
+    expect(rows[1]).toHaveAccessibleDescription("Done today");
     expect(screen.queryByText(/load/i)).not.toBeInTheDocument();
   });
 
-  it("says the habits need a connection when none are cached — not that they're all done", async () => {
+  it("says the habits need a connection when none are cached — not that none are due", async () => {
     goOffline();
     renderFlow();
 
     expect(await screen.findByText("Your habits need a connection.")).toBeInTheDocument();
-    expect(screen.queryByText("All done for today!")).not.toBeInTheDocument();
+    expect(screen.queryByText("No habits scheduled for today")).not.toBeInTheDocument();
     // Friends and groups come from their own cache, and can still be picked.
     expect(screen.getByText("Bob")).toBeInTheDocument();
   });

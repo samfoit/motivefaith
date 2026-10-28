@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
-import { X, RotateCcw, Image as ImageIcon, Check, Maximize2, Minimize2, Mic } from "lucide-react";
+import { X, RotateCcw, Image as ImageIcon, Check, Maximize2, Minimize2, Mic, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { useCamera } from "@/lib/hooks/useCamera";
@@ -11,6 +11,7 @@ import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
 import { VoiceMeter } from "@/components/habits/VoiceMeter";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { VideoTrimBar } from "@/components/habits/VideoTrimBar";
+import { PrivateToggle } from "@/components/habits/PrivateToggle";
 import { getSupportedMimeType } from "@/lib/utils/media-recorder";
 import { MIME_TO_EXT } from "@/lib/utils/media-types";
 import { checkVideo, readVideoDuration } from "@/lib/utils/check-video";
@@ -32,7 +33,13 @@ type CaptureStage = "viewfinder" | "recording" | "review";
 type CaptureMode = "video" | "photo" | "voice";
 
 export interface CameraCaptureProps {
-  onCapture: (file: File, notes?: string) => void;
+  /**
+   * Hands the take on. A caller that sends it from the review itself, as a
+   * habit's check-in does, returns a promise: the review stays up under
+   * "Uploading…" until it settles, and a rejection's message is shown on it,
+   * with the take still there to send again or retake.
+   */
+  onCapture: (file: File, notes?: string) => void | Promise<void>;
   onClose: () => void;
   onFallback: () => void;
   maxVideoDuration?: number;
@@ -49,11 +56,19 @@ export interface CameraCaptureProps {
    */
   allowVoice?: boolean;
   /**
-   * The review screen's confirm button, in place of "Use Photo": "Send to
-   * Sam" when the camera was opened from a chat and the take goes straight
-   * there.
+   * The review screen's confirm button, in place of "Use Photo", for a take
+   * that goes straight on from there: "Send to Sam" when the camera was
+   * opened from a chat, "Submit" for a habit's check-in.
    */
   useLabel?: string;
+  /**
+   * Offers the private switch on the review, for a check-in whose photo or
+   * video can be kept out of partners' view. Absent hides it.
+   */
+  privacy?: {
+    isPrivate: boolean;
+    onChange: (isPrivate: boolean) => void;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -70,6 +85,13 @@ const SHUTTER_DRAG_SLOP_PX = 10;
 
 const RING_RADIUS = 36;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+/**
+ * The shutter's red, in sRGB. Tailwind's red-500 is a Display P3 color, and
+ * it was with that red over the live camera that an iPhone painted the dot's
+ * square box black (see Shutter).
+ */
+const RECORD_RED = "#ef4444";
 
 /**
  * How the live camera sits in the viewfinder. "fill" covers the screen and
@@ -216,6 +238,102 @@ function ModeStrip({
   );
 }
 
+/**
+ * The shutter as one drawing: the ring, the dot or a take's pause bars, and
+ * the take's progress just inside the ring.
+ *
+ * It was a CSS border for the ring and a rounded <div> for the dot. On an
+ * iPhone, once Video's red dot had been up over the live camera, the dot's
+ * square box painted black and its corners cut into the ring, in Photo too,
+ * until Voice let the camera go. A single drawing has no inner box to show,
+ * and anything painted behind it lands on the camera's own black.
+ */
+function Shutter({
+  recording,
+  dot,
+  pressed,
+  paused,
+  progress,
+}: {
+  recording: boolean;
+  /** The dot's fill before a take: white for Photo, red otherwise. */
+  dot: string;
+  pressed: boolean;
+  paused: boolean;
+  /** How much of the take's limit is used, 0 to 1. */
+  progress: number;
+}) {
+  return (
+    <svg aria-hidden viewBox="0 0 80 80" className="block w-full h-full">
+      {recording && (
+        <g transform="rotate(-90 40 40)" fill="none" strokeWidth={4}>
+          <circle cx={40} cy={40} r={RING_RADIUS} stroke="rgba(255,255,255,0.2)" />
+          <circle
+            cx={40}
+            cy={40}
+            r={RING_RADIUS}
+            stroke={RECORD_RED}
+            strokeLinecap="round"
+            strokeDasharray={RING_CIRCUMFERENCE}
+            strokeDashoffset={RING_CIRCUMFERENCE * (1 - progress)}
+            className={cn(
+              "transition-[stroke-dashoffset] duration-1000 ease-linear",
+              paused && "opacity-50",
+            )}
+          />
+        </g>
+      )}
+
+      {/* The ring, drawn over the progress the way the old border was */}
+      <circle
+        cx={40}
+        cy={40}
+        r={38}
+        fill="none"
+        strokeWidth={4}
+        className="transition-colors duration-150"
+        style={{ stroke: recording ? RECORD_RED : "#fff" }}
+      />
+
+      {!recording ? (
+        <circle
+          cx={40}
+          cy={40}
+          r={28}
+          className="transition-transform duration-100"
+          style={{
+            fill: dot,
+            transform: pressed ? "scale(0.9)" : undefined,
+            transformBox: "fill-box",
+            transformOrigin: "center",
+          }}
+        />
+      ) : paused ? (
+        // Paused: back to a record dot, because tapping resumes.
+        <motion.circle
+          cx={40}
+          cy={40}
+          r={14}
+          fill={RECORD_RED}
+          initial={{ scale: 0.6 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 0.15 }}
+        />
+      ) : (
+        <motion.g
+          fill={RECORD_RED}
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.15 }}
+        >
+          <rect x={29} y={26} width={8} height={28} rx={4} />
+          <rect x={43} y={26} width={8} height={28} rx={4} />
+        </motion.g>
+      )}
+    </svg>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -229,6 +347,7 @@ export function CameraCapture({
   initialCapture,
   allowVoice = true,
   useLabel,
+  privacy,
 }: CameraCaptureProps) {
   const {
     state,
@@ -266,7 +385,10 @@ export function CameraCapture({
   // Not on a reopened review: that is the same visit, not a new open.
   const [coach, setCoach] = useState(() => !initialCapture && coachOpens() < COACH_OPENS);
   const coachCountedRef = useRef(false);
-  /** Why the last video picked from the gallery can't be used. */
+  /**
+   * Why the last video picked from the gallery can't be used, or why the
+   * take couldn't be sent.
+   */
   const [notice, setNotice] = useState<string | null>(null);
   /**
    * A video picked from the gallery, to be trimmed and shrunk when it is
@@ -278,6 +400,9 @@ export function CameraCapture({
   /** How far preparing a picked video has got, 0 to 1, while it runs. */
   const [preparing, setPreparing] = useState<number | null>(null);
   const prepareRef = useRef<AbortController | null>(null);
+  /** The caller is sending the take from the review (see onCapture). */
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const reviewVideoRef = useRef<HTMLVideoElement>(null);
   /** The picked video's length, when it is longer than a video may be. */
   const trimDuration =
@@ -818,6 +943,29 @@ export function CameraCapture({
     void v.play().catch(() => {});
   }, []);
 
+  // --- Hand the take on ---
+  const handOver = useCallback(
+    (file: File, caption: string | undefined) => {
+      stopCamera();
+      const sent = onCapture(file, caption);
+      if (!sent) return;
+      // Set before React draws the overlay, so a second tap already landing
+      // on the button can't send the take twice.
+      sendingRef.current = true;
+      setSending(true);
+      setNotice(null);
+      const settle = () => {
+        sendingRef.current = false;
+        setSending(false);
+      };
+      sent.then(settle, (err: unknown) => {
+        settle();
+        setNotice(err instanceof Error ? err.message : "Couldn't send. Try again.");
+      });
+    },
+    [stopCamera, onCapture],
+  );
+
   /**
    * Trim the picked video to its part and shrink it, then hand it on. Runs
    * from the Use tap itself: transcodeVideo has to start inside a tap.
@@ -841,8 +989,7 @@ export function CameraCapture({
         (prepared) => {
           prepareRef.current = null;
           setPreparing(null);
-          stopCamera();
-          onCapture(prepared, caption);
+          handOver(prepared, caption);
         },
         async (err: unknown) => {
           prepareRef.current = null;
@@ -852,8 +999,7 @@ export function CameraCapture({
           // Not shrunk here. If none of it had to be cut and it fits as it
           // is, it goes as it is, the way it would where this can't run.
           if (trimDuration === null && (await checkVideo(file)) === null) {
-            stopCamera();
-            onCapture(file, caption);
+            handOver(file, caption);
             return;
           }
           setNotice(
@@ -862,7 +1008,7 @@ export function CameraCapture({
         },
       );
     },
-    [trimDuration, trimStart, maxVideoDuration, stopCamera, onCapture],
+    [trimDuration, trimStart, maxVideoDuration, handOver],
   );
 
   const cancelPreparing = useCallback(() => prepareRef.current?.abort(), []);
@@ -887,7 +1033,7 @@ export function CameraCapture({
 
   // --- Use capture ---
   const handleUse = useCallback(() => {
-    if (!capturedBlob) return;
+    if (!capturedBlob || sendingRef.current) return;
 
     // A video picked from the gallery is trimmed and shrunk on the way out.
     if (picked && capturedBlob === picked.file) {
@@ -913,9 +1059,8 @@ export function CameraCapture({
       file = new File([capturedBlob], `${name}-${Date.now()}.${ext}`, { type: mimeType });
     }
 
-    stopCamera();
-    onCapture(file, notes.trim() || undefined);
-  }, [capturedBlob, picked, prepareVideo, stopCamera, onCapture, notes]);
+    handOver(file, notes.trim() || undefined);
+  }, [capturedBlob, picked, prepareVideo, handOver, notes]);
 
   // --- Close handler ---
   const handleClose = useCallback(() => {
@@ -1023,7 +1168,13 @@ export function CameraCapture({
 
   // --- Permission denied / unsupported ---
   // Only in camera mode: a voice note needs no camera, so it is offered here.
-  if (!isVoice && (state === "denied" || state === "unsupported" || errorMessage)) {
+  // Not over a take under review either, which needs no camera: a file picked
+  // where there is none is reviewed here too.
+  if (
+    stage !== "review" &&
+    !isVoice &&
+    (state === "denied" || state === "unsupported" || errorMessage)
+  ) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black p-6">
         <div className="text-center space-y-3">
@@ -1112,7 +1263,8 @@ export function CameraCapture({
       {view === "recording" && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm">
           <motion.div
-            className={cn("w-2.5 h-2.5 rounded-full", paused ? "bg-white/50" : "bg-red-500")}
+            className={cn("w-2.5 h-2.5 rounded-full", paused && "bg-white/50")}
+            style={paused ? undefined : { backgroundColor: RECORD_RED }}
             animate={paused ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
             transition={paused ? { duration: 0 } : { duration: 1, repeat: Infinity }}
           />
@@ -1254,8 +1406,9 @@ export function CameraCapture({
           </div>
         )}
 
-        {/* Why a video picked from the gallery can't be used: in the tip's
-            place, or on a review above the player's own controls */}
+        {/* Why a video picked from the gallery can't be used, or why sending
+            the take failed: in the tip's place, or on a review above the
+            player's own controls */}
         {notice && (stage === "review" || (stage === "viewfinder" && !isVoice)) && (
           <div
             role="alert"
@@ -1351,42 +1504,6 @@ export function CameraCapture({
                   className="relative shrink-0"
                   style={{ width: 80, height: 80, touchAction: "none" }}
                 >
-                  {/* Progress ring for recording */}
-                  {view === "recording" && (
-                    <svg
-                      className="absolute inset-0 -rotate-90"
-                      width="80"
-                      height="80"
-                      viewBox="0 0 80 80"
-                    >
-                      <circle
-                        cx="40"
-                        cy="40"
-                        r={RING_RADIUS}
-                        fill="none"
-                        stroke="rgba(255,255,255,0.2)"
-                        strokeWidth="4"
-                      />
-                      <circle
-                        cx="40"
-                        cy="40"
-                        r={RING_RADIUS}
-                        fill="none"
-                        stroke="#ef4444"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        strokeDasharray={RING_CIRCUMFERENCE}
-                        strokeDashoffset={
-                          RING_CIRCUMFERENCE * (1 - elapsed / maxDuration)
-                        }
-                        className={cn(
-                          "transition-[stroke-dashoffset] duration-1000 ease-linear",
-                          paused && "opacity-50",
-                        )}
-                      />
-                    </svg>
-                  )}
-
                   <button
                     type="button"
                     // Voice has no hold and no zoom: the shutter is a plain
@@ -1401,12 +1518,7 @@ export function CameraCapture({
                         })}
                     onContextMenu={(e) => e.preventDefault()}
                     draggable={false}
-                    className={cn(
-                      "absolute inset-0 rounded-full flex items-center justify-center transition-colors duration-150",
-                      view === "viewfinder"
-                        ? "border-4 border-white"
-                        : "border-4 border-red-500",
-                    )}
+                    className="absolute inset-0 rounded-full"
                     aria-label={
                       view === "viewfinder"
                         ? isVoice
@@ -1419,33 +1531,13 @@ export function CameraCapture({
                           : "Pause recording"
                     }
                   >
-                    {view === "viewfinder" ? (
-                      <div
-                        className={cn(
-                          "w-14 h-14 rounded-full transition-transform duration-100",
-                          mode === "photo" ? "bg-white" : "bg-red-500",
-                          isPressed && "scale-90",
-                        )}
-                      />
-                    ) : paused ? (
-                      // Paused: back to a record dot, because tapping resumes.
-                      <motion.div
-                        className="w-7 h-7 rounded-full bg-red-500"
-                        initial={{ scale: 0.6 }}
-                        animate={{ scale: 1 }}
-                        transition={{ duration: 0.15 }}
-                      />
-                    ) : (
-                      <motion.div
-                        className="flex gap-1.5"
-                        initial={{ scale: 0.6, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <span className="block w-2 h-7 rounded-sm bg-red-500" />
-                        <span className="block w-2 h-7 rounded-sm bg-red-500" />
-                      </motion.div>
-                    )}
+                    <Shutter
+                      recording={view === "recording"}
+                      dot={mode === "photo" ? "#fff" : RECORD_RED}
+                      pressed={isPressed}
+                      paused={paused}
+                      progress={elapsed / maxDuration}
+                    />
                   </button>
                 </div>
 
@@ -1469,6 +1561,14 @@ export function CameraCapture({
             </>
           )}
 
+          {stage === "review" && privacy && (
+            <PrivateToggle
+              tone="dark"
+              isPrivate={privacy.isPrivate}
+              onChange={privacy.onChange}
+              className="mb-4"
+            />
+          )}
           {stage === "review" && (
             <div className="flex gap-4 w-full max-w-xs">
               <Button
@@ -1521,6 +1621,18 @@ export function CameraCapture({
           >
             Cancel
           </Button>
+        </div>
+      )}
+
+      {/* The caller sending the take from here: the review waits underneath,
+          to come back to if it fails */}
+      {sending && (
+        <div
+          role="status"
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/60 backdrop-blur-sm"
+        >
+          <Loader2 className="w-8 h-8 animate-spin text-white" aria-hidden />
+          <p className="text-white text-base font-medium">Uploading…</p>
         </div>
       )}
     </div>

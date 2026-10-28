@@ -14,6 +14,8 @@ import {
 } from "@/components/habits/HabitCardParts";
 import type { Tables } from "@/lib/supabase/types";
 import type { Habit } from "@/lib/types/habit";
+import type { HabitPause } from "@/lib/utils/pauses";
+import type { ScheduleChange } from "@/lib/utils/schedule";
 
 // --- Drawer geometry -------------------------------------------------------
 // The card slides right by exactly the width of the option row, so the icons
@@ -21,10 +23,15 @@ import type { Habit } from "@/lib/types/habit";
 const OPTION_SIZE = 40;
 const OPTION_GAP = 8;
 const DRAWER_PADDING = 12;
-const REVEAL_PX =
-  DRAWER_PADDING * 2 +
-  CHECK_IN_OPTIONS.length * OPTION_SIZE +
-  (CHECK_IN_OPTIONS.length - 1) * OPTION_GAP;
+/** How far the card slides to uncover a row of `count` options. */
+function revealFor(count: number): number {
+  return DRAWER_PADDING * 2 + count * OPTION_SIZE + (count - 1) * OPTION_GAP;
+}
+/**
+ * The drawer once the habit is done for the day. Doing it again is still a
+ * check-in, of any kind; only skipping it is off the table by then.
+ */
+const REPEAT_OPTIONS = CHECK_IN_OPTIONS.filter((o) => o.action !== "rain_check");
 /** Strip of card kept on screen on narrow phones, so it stays grabbable. */
 const MIN_CARD_VISIBLE = 64;
 /** Pointer travel before a gesture commits to horizontal (vs. page scroll). */
@@ -65,7 +72,9 @@ function markDrawerPeekSeen() {
  * Resolved by the browser against the card's own width, so no measurement is
  * needed for the resting state — only the live drag clamps in pixels.
  */
-const OPEN_TRANSFORM = `translate3d(min(${REVEAL_PX}px, calc(100% - ${MIN_CARD_VISIBLE}px)), 0, 0)`;
+function openTransform(revealPx: number): string {
+  return `translate3d(min(${revealPx}px, calc(100% - ${MIN_CARD_VISIBLE}px)), 0, 0)`;
+}
 
 /** Calendar days, not 24-hour periods: last night at 11pm is "yesterday". */
 function formatLastDone(at: Date): string {
@@ -84,12 +93,28 @@ type CompletionSlice = {
 
 export type HabitWithCompletions = Habit & {
   completions: CompletionSlice[];
+  /**
+   * Pauses reaching into the dashboard's window, for days it shows. Absent
+   * from a cache written before they were sent.
+   */
+  pauses?: HabitPause[];
+  /**
+   * Changes to its schedule since the start of that window, so a day it
+   * shows is judged by the schedule it had. Absent from a cache written
+   * before they were sent.
+   */
+  schedule_changes?: ScheduleChange[];
   challenge?: { title: string; emoji: string } | null;
 };
 
 interface HabitCardProps {
   habit: HabitWithCompletions;
   completedToday: boolean;
+  /**
+   * Real check-ins logged today. From the second one on the card says how
+   * many — the filled circle can only say that the day is done.
+   */
+  checkInsToday?: number;
   /**
    * Today was rain-checked: the streak is safe and the day is accounted for,
    * but unlike a completion it does not close the habit off — the user can
@@ -108,6 +133,11 @@ interface HabitCardProps {
    * ("Wednesday"), for the pill.
    */
   movedFrom?: string | null;
+  /**
+   * When today's window opens, as the card shows it ("9 AM"). Today's
+   * rather than the habit's: a habit can keep a different time on some days.
+   */
+  startTime?: string | null;
   onQuickComplete: (habitId: string, origin?: { x: number; y: number }) => void;
   onPress?: (habitId: string) => void;
   /** Fired when a check-in icon is picked from the drawer. */
@@ -129,9 +159,11 @@ interface HabitCardProps {
 export const HabitCard = React.memo(function HabitCard({
   habit,
   completedToday,
+  checkInsToday = 0,
   rainCheckedToday = false,
   rainCheckMovedTo = null,
   movedFrom = null,
+  startTime = null,
   onQuickComplete,
   onPress,
   onCheckIn,
@@ -150,29 +182,9 @@ export const HabitCard = React.memo(function HabitCard({
   const lastCompletionLabel =
     lastDone && !completedToday ? `Last done ${formatLastDone(lastDone)}` : null;
 
-  const timeWindow = habit.time_window as { start?: string; end?: string } | null;
-  const scheduledTime = timeWindow?.start
-    ? (() => {
-      const [h, m] = timeWindow.start!.split(":").map(Number);
-      const suffix = h >= 12 ? "PM" : "AM";
-      const h12 = h % 12 || 12;
-      return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
-    })()
-    : null;
-
   const challengeNameIsTitle =
     habit.challenge?.title.trim().toLowerCase() ===
     habit.title.trim().toLowerCase();
-
-  const handleCircleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (completedToday) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    onQuickComplete(habit.id, {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    });
-  };
 
   // --- Check-in drawer -----------------------------------------------------
 
@@ -180,9 +192,11 @@ export const HabitCard = React.memo(function HabitCard({
   const isOpen = useHabitDrawerStore((s) => s.openHabitId === habit.id);
   const openDrawer = useHabitDrawerStore((s) => s.open);
   const closeDrawer = useHabitDrawerStore((s) => s.close);
-  // Nothing left to check in once the habit is done for the day. A rain check
-  // is not "done" — it can still be upgraded to a real check-in.
-  const drawerEnabled = !completedToday && !!onCheckIn;
+  // Still offered once the habit is done for the day, without the rain check:
+  // see REPEAT_OPTIONS.
+  const drawerEnabled = !!onCheckIn;
+  const options = completedToday ? REPEAT_OPTIONS : CHECK_IN_OPTIONS;
+  const revealPx = revealFor(options.length);
 
   const trackRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -193,6 +207,18 @@ export const HabitCard = React.memo(function HabitCard({
     if (isOpen) closeDrawer(habit.id);
     else openDrawer(habit.id);
   }, [isOpen, habit.id, openDrawer, closeDrawer]);
+
+  const handleCircleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (completedToday) return;
+    // Checking in from the circle settles the card, open drawer and all.
+    closeDrawer(habit.id);
+    const rect = e.currentTarget.getBoundingClientRect();
+    onQuickComplete(habit.id, {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    });
+  };
 
   // The transform lives on the DOM node rather than in the style prop: a drag
   // writes it every pointermove, and routing that through React would re-render
@@ -212,9 +238,10 @@ export const HabitCard = React.memo(function HabitCard({
     const node = surfaceRef.current;
     if (!node || dragRef.current.locked) return;
     node.style.transition = "";
-    // A card completed while its drawer was open slides back on its own.
-    node.style.transform = isOpen && drawerEnabled ? OPEN_TRANSFORM : "";
-  }, [isOpen, drawerEnabled]);
+    // Re-run when the row narrows too: a habit done for the day, with its
+    // drawer open, loses the rain check from under the card.
+    node.style.transform = isOpen && drawerEnabled ? openTransform(revealPx) : "";
+  }, [isOpen, drawerEnabled, revealPx]);
 
   // Opening the drawer by hand teaches more than the peek would.
   useEffect(() => {
@@ -304,7 +331,7 @@ export const HabitCard = React.memo(function HabitCard({
       suppressClickRef.current = false;
       const reveal = Math.max(
         0,
-        Math.min(REVEAL_PX, track.clientWidth - MIN_CARD_VISIBLE),
+        Math.min(revealPx, track.clientWidth - MIN_CARD_VISIBLE),
       );
       dragRef.current = {
         active: true,
@@ -316,7 +343,7 @@ export const HabitCard = React.memo(function HabitCard({
         reveal,
       };
     },
-    [drawerEnabled, isOpen],
+    [drawerEnabled, isOpen, revealPx],
   );
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
@@ -368,12 +395,12 @@ export const HabitCard = React.memo(function HabitCard({
       const node = surfaceRef.current;
       if (node) {
         node.style.transition = ""; // Hand the settle back to the CSS transition.
-        node.style.transform = shouldOpen ? OPEN_TRANSFORM : "";
+        node.style.transform = shouldOpen ? openTransform(revealPx) : "";
       }
       if (shouldOpen) openDrawer(habit.id);
       else closeDrawer(habit.id);
     },
-    [habit.id, openDrawer, closeDrawer],
+    [habit.id, revealPx, openDrawer, closeDrawer],
   );
 
   const handleClick = useCallback(() => {
@@ -416,7 +443,7 @@ export const HabitCard = React.memo(function HabitCard({
           className="absolute inset-y-0 left-0 flex items-center"
           style={{ gap: OPTION_GAP, paddingInline: DRAWER_PADDING }}
         >
-          {CHECK_IN_OPTIONS.map((option, i) => (
+          {options.map((option, i) => (
             <button
               key={option.action}
               type="button"
@@ -513,10 +540,10 @@ export const HabitCard = React.memo(function HabitCard({
           />
 
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            {scheduledTime && (
+            {startTime && (
               <span className="text-xs text-text-secondary flex items-center gap-0.5">
                 <Clock className="w-3 h-3" />
-                {scheduledTime}
+                {startTime}
               </span>
             )}
             {/* A habit created from a challenge usually takes the
@@ -563,6 +590,11 @@ export const HabitCard = React.memo(function HabitCard({
             {lastCompletionLabel && (
               <span className="text-xs text-text-secondary">
                 {lastCompletionLabel}
+              </span>
+            )}
+            {completedToday && checkInsToday > 1 && (
+              <span className="text-xs text-text-secondary">
+                {checkInsToday} check-ins today
               </span>
             )}
           </div>

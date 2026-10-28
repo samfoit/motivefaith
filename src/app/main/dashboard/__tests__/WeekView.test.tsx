@@ -78,6 +78,26 @@ describe("WeekView", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not count a paused day as due", () => {
+    render(
+      <WeekView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        habits={[
+          makeHabit({
+            completions: [{ id: "c1", completed_at: oct(12), completion_type: "quick" }],
+            // Paused Tuesday, back today.
+            pauses: [{ started_on: "2026-10-13", ended_on: "2026-10-14" }],
+          }),
+        ]}
+      />,
+    );
+    // Monday and today are due; Tuesday was paused, not missed.
+    expect(
+      screen.getByRole("button", { name: "Morning Run: done 1 of 2 days so far this week" }),
+    ).toBeInTheDocument();
+  });
+
   it("does not count days before the habit existed", () => {
     render(
       <WeekView
@@ -88,6 +108,74 @@ describe("WeekView", () => {
     );
     expect(
       screen.getByRole("button", { name: "Morning Run: done 0 of 1 day so far this week" }),
+    ).toBeInTheDocument();
+  });
+
+  it("counts a weekly habit done this week once, not missed on the days after", () => {
+    render(
+      <WeekView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        habits={[
+          makeHabit({
+            frequency: "weekly",
+            completions: [{ id: "c1", completed_at: oct(12), completion_type: "quick" }],
+          }),
+        ]}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Morning Run: done 1 of 1 day so far this week" }),
+    ).toBeInTheDocument();
+  });
+
+  it("owes a weekly habit not yet done only today, while its week runs", () => {
+    render(
+      <WeekView timezone={TZ} onHabitPress={vi.fn()} habits={[makeHabit({ frequency: "weekly" })]} />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Morning Run: done 0 of 1 day so far this week" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a day added to the schedule today as the day off it was", () => {
+    render(
+      <WeekView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        habits={[
+          makeHabit({
+            completions: [{ id: "c1", completed_at: oct(12), completion_type: "quick" }],
+            // Mondays and Fridays until today, every day from today.
+            schedule_changes: [{ changed_on: "2026-10-14", frequency: "specific_days", days: [1, 5] }],
+          }),
+        ]}
+      />,
+    );
+    // Monday and today are due; Tuesday was a day off when it passed.
+    expect(
+      screen.getByRole("button", { name: "Morning Run: done 1 of 2 days so far this week" }),
+    ).toBeInTheDocument();
+  });
+
+  it("still counts a day taken off the schedule since as missed", () => {
+    render(
+      <WeekView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        habits={[
+          makeHabit({
+            schedule: { days: [1, 5] },
+            completions: [{ id: "c1", completed_at: oct(12), completion_type: "quick" }],
+            // Every day until today, Mondays and Fridays from today.
+            schedule_changes: [{ changed_on: "2026-10-14", frequency: "daily", days: [0, 1, 2, 3, 4, 5, 6] }],
+          }),
+        ]}
+      />,
+    );
+    // Monday and Tuesday were due; today no longer is.
+    expect(
+      screen.getByRole("button", { name: "Morning Run: done 1 of 2 days so far this week" }),
     ).toBeInTheDocument();
   });
 });

@@ -118,6 +118,18 @@ describe("POST /api/completions", () => {
     expect(body.error).toBe("Failed to save completion");
   });
 
+  it("returns 409 when the habit is paused", async () => {
+    // insert_completion refuses a paused habit's check-in (047).
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "Habit is paused", code: "55000" },
+    });
+    const res = await POST(makeRequest({ habitId: "h1", type: "quick" }));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe("This habit is paused");
+  });
+
   it("omits evidence_url and notes when not provided, so the SQL defaults apply", async () => {
     // `insert_completion` declares both as `TEXT DEFAULT NULL`
     // (supabase/migrations/004_functions.sql), and the generated types mark

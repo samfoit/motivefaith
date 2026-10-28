@@ -43,11 +43,15 @@ const BAND_STARS: [number, number, number, number, string?][] = [
 const SPARKLE = "M0 -7C.8 -1.2 1.2 -.8 7 0C1.2 .8 .8 1.2 0 7C-.8 1.2 -1.2 .8 -7 0C-1.2 -.8 -.8 -1.2 0 -7Z";
 const CLOUD = "M10 24H78A10 10 0 0 0 76 4A14 14 0 0 0 50 -4A12 12 0 0 0 28 2A11 11 0 0 0 10 24Z";
 const BIRD = "M0 0Q4 -4 8 0Q12 -4 16 0";
-// Hills and water run well past the drawing's 390px on both sides, so a wide
-// screen sees more landscape rather than a stretched one.
+// Hills and water run 10,000 units past the drawing on both sides, so a wide
+// screen sees more landscape rather than a stretched one. They used to stop
+// at -1200 and 1600, which left bare edges on anything wider than about
+// 2,800px: an ultrawide, a 4K monitor at 100%, a zoomed-out window. Past that
+// hand-drawn stretch they roll on gently, joined without a kink.
 const FAR_HILLS =
-  "M-1200 174V150C-900 140-600 136-400 142C-200 148-60 136 0 148C60 136 110 132 170 142C230 152 280 128 340 132C365 134 380 138 390 140C500 150 700 130 900 138C1100 146 1400 136 1600 142V174Z";
-const NEAR_HILL = "M-1200 174V160C-700 150-300 154 0 156C40 147 92 149 132 160C150 165 166 170 178 174Z";
+  "M-10000 174V146C-8800 140-7600 150-6400 145C-5200 140-4200 149-3200 144C-2200 139-1500 160-1200 150C-900 140-600 136-400 142C-200 148-60 136 0 148C60 136 110 132 170 142C230 152 280 128 340 132C365 134 380 138 390 140C500 150 700 130 900 138C1100 146 1400 136 1600 142C1800 148 2600 137 3400 143C4200 149 5200 139 6400 144C7600 149 8800 141 10400 145V174Z";
+const NEAR_HILL =
+  "M-10000 174V161C-8600 156-7200 166-5800 161C-4400 156-1700 170-1200 160C-700 150-300 154 0 156C40 147 92 149 132 160C150 165 166 170 178 174Z";
 
 const fill = (v: string) => ({ fill: `var(${v})` });
 const stroke = (v: string) => ({ stroke: `var(${v})` });
@@ -165,7 +169,7 @@ export function SkyBand({ hour, idPrefix, className, style }: DrawingProps) {
       </g>
 
       {/* "He leadeth me beside the still waters" (Psalm 23:2) */}
-      <rect x={-1200} y={HORIZON} width={2800} height={48} style={fill("--sky-water")} />
+      <rect x={-10000} y={HORIZON} width={20400} height={48} style={fill("--sky-water")} />
       <path
         d="M24 185H112M196 193H322M58 205H160M250 211H352M-180 190H-60M440 188H560M-120 206H-20M470 204H600"
         style={stroke("--sky-line")}

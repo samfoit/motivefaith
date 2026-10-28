@@ -484,6 +484,21 @@ describe("replayOutbox: a capture taken offline", () => {
     expect(await mods.getOutboxCount()).toBe(1);
   });
 
+  it("gives up on a take for a habit paused since it was queued", async () => {
+    const mods = await getModules();
+    await queueTake(mods);
+    // share_capture refuses it through insert_completion (047), and will go
+    // on refusing while the habit is paused.
+    const supabase = fakeSupabase({
+      "share_capture.rpc": { error: { code: "55000", message: "Habit is paused" } },
+    });
+
+    const result = await mods.replayOutbox(supabase, USER);
+
+    expect(result).toEqual({ applied: 0, dropped: 1 });
+    expect(await mods.getOutboxCount()).toBe(0);
+  });
+
   it("gives up on a take too large for the bucket", async () => {
     const mods = await getModules();
     await queueTake(mods);

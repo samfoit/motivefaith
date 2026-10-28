@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/cn";
 import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import type { Json } from "@/lib/supabase/types";
+import { TimeRangePicker } from "@/components/habits/TimeRangePicker";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -91,44 +92,6 @@ function ToggleRow({
           )}
         />
       </Switch.Root>
-    </label>
-  );
-}
-
-/**
- * Label above the field rather than beside it: a native time input will not
- * shrink below the width of its own clock control, so two of them side by side
- * with inline labels ran off the card — and off the page — on a 360px phone.
- *
- * That control is also why the row above stacks instead of squeezing. At
- * 320px two columns leave 122px for a field whose own contents measure 120px:
- * the values sit hard against their borders and the gap between the two
- * closes up. WebKit sizes the control larger still, and overflows rather
- * than clipping.
- */
-function TimeSelect({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="min-w-0 space-y-1">
-      <span className="block text-xs text-[var(--color-text-tertiary)]">
-        {label}
-      </span>
-      <input
-        type="time"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "w-full min-w-0 rounded-md border bg-bg-elevated px-2 py-1 text-sm text-text-primary",
-          "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
-        )}
-      />
     </label>
   );
 }
@@ -258,21 +221,15 @@ export function NotificationPreferences({
         <p className="text-xs text-[var(--color-text-tertiary)] mb-2">
           No notifications during these hours
         </p>
-        {/* auto-fit rather than a breakpoint: the pair sits in a card inside
-            a page gutter, so what matters is the width the row actually gets,
-            not the viewport's. Below two 9rem columns it stacks. */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3">
-          <TimeSelect
-            label="From"
-            value={prefs.quiet_start}
-            onChange={(v) => update({ quiet_start: v })}
-          />
-          <TimeSelect
-            label="To"
-            value={prefs.quiet_end}
-            onChange={(v) => update({ quiet_end: v })}
-          />
-        </div>
+        {/* The habit form's own picker. Quiet hours usually run past
+            midnight, so To before From is the normal case here. */}
+        <TimeRangePicker
+          start={prefs.quiet_start}
+          end={prefs.quiet_end}
+          onChange={({ start, end }) => update({ quiet_start: start, quiet_end: end })}
+          labels={{ start: "From", end: "To" }}
+          overnight
+        />
       </div>
     </div>
   );

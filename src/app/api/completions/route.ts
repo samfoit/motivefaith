@@ -1,6 +1,10 @@
 import { verifyCsrf } from "@/lib/utils/csrf";
 import { jsonResponse, requireAuthUser, parseRequestBody } from "@/lib/utils/api-helpers";
-import { COMPLETION_TYPES, VALID_COMPLETION_TYPES } from "@/lib/constants/completion";
+import {
+  COMPLETION_TYPES,
+  HABIT_PAUSED_CODE,
+  VALID_COMPLETION_TYPES,
+} from "@/lib/constants/completion";
 import { VALID_RAIN_CHECK_REASONS, isDateKey } from "@/lib/constants/rain-check";
 import type { Enums } from "@/lib/supabase/types";
 
@@ -188,6 +192,9 @@ export async function POST(request: Request) {
     // sit, and whether the habit is free that day. The client offers only
     // valid days, so this is a malformed request, not a server fault.
     const isInvalid = error.code === "23514";
+    if (error.code === HABIT_PAUSED_CODE) {
+      return jsonResponse({ error: "This habit is paused" }, { status: 409 });
+    }
     if (isRateLimited) {
       return jsonResponse(
         { error: "Too many requests" },

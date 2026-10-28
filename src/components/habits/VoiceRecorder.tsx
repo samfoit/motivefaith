@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
-import { X, Mic } from "lucide-react";
+import { X, Mic, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
@@ -16,7 +16,13 @@ import { MAX_AUDIO_DURATION_S } from "@/lib/constants/limits";
 type RecordingStage = "idle" | "recording" | "review";
 
 export interface VoiceRecorderProps {
-  onCapture: (file: File) => void;
+  /**
+   * Hands the recording on. A caller that sends it from the review itself, as
+   * a habit's check-in does, returns a promise: the review stays up under
+   * "Uploading…" until it settles, and a rejection's message is shown on it,
+   * with the recording still there to send again or retake.
+   */
+  onCapture: (file: File) => void | Promise<void>;
   onClose: () => void;
   maxDuration?: number;
   /**
@@ -56,6 +62,11 @@ export function VoiceRecorder({
   const [permissionState, setPermissionState] = useState<
     "prompt" | "granted" | "denied" | "unsupported"
   >("prompt");
+  /** The caller is sending the recording from the review (see onCapture). */
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  /** Why the recording couldn't be sent. */
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -160,18 +171,33 @@ export function VoiceRecorder({
     setPreviewUrl(null);
     setAudioBlob(null);
     setRecordingTime(0);
+    setSendError(null);
     setStage("idle");
   }, [previewUrl]);
 
   // --- Use recording ---
   const handleUse = useCallback(() => {
-    if (!audioBlob || !mimeInfoRef.current) return;
+    if (!audioBlob || !mimeInfoRef.current || sendingRef.current) return;
     const file = new File(
       [audioBlob],
       `voice-${Date.now()}.${mimeInfoRef.current.extension}`,
       { type: mimeInfoRef.current.mimeType },
     );
-    onCapture(file);
+    const sent = onCapture(file);
+    if (!sent) return;
+    // Set before React draws the overlay, so a second tap already landing
+    // on the button can't send the recording twice.
+    sendingRef.current = true;
+    setSending(true);
+    setSendError(null);
+    const settle = () => {
+      sendingRef.current = false;
+      setSending(false);
+    };
+    sent.then(settle, (err: unknown) => {
+      settle();
+      setSendError(err instanceof Error ? err.message : "Couldn't send. Try again.");
+    });
   }, [audioBlob, onCapture]);
 
   // --- Close handler ---
@@ -269,6 +295,14 @@ export function VoiceRecorder({
         {stage === "review" && previewUrl && (
           <>
             <VoicePlayback src={previewUrl} />
+            {sendError && (
+              <p
+                role="alert"
+                className="max-w-xs rounded-2xl bg-white/10 px-4 py-2.5 text-center text-white text-[13px] leading-snug"
+              >
+                {sendError}
+              </p>
+            )}
           </>
         )}
       </div>
@@ -330,6 +364,18 @@ export function VoiceRecorder({
           )}
         </div>
       </div>
+
+      {/* The caller sending the recording from here: the review waits
+          underneath, to come back to if it fails */}
+      {sending && (
+        <div
+          role="status"
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/60 backdrop-blur-sm"
+        >
+          <Loader2 className="w-8 h-8 animate-spin text-white" aria-hidden />
+          <p className="text-white text-base font-medium">Uploading…</p>
+        </div>
+      )}
     </div>
   );
 }

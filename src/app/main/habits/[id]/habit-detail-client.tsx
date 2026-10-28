@@ -36,6 +36,15 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
 import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
+import {
+  describeDays,
+  formatWindow,
+  getScheduledDays,
+  isHabitScheduledOn,
+  parseTimeWindow,
+  timeWindowGroups,
+  type DayWindow,
+} from "@/lib/utils/schedule";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { EvidenceMedia } from "@/components/ui/EvidenceMedia";
@@ -56,7 +65,13 @@ import type { DashboardData } from "@/lib/data/dashboard";
 import { applyHabitUpdate, removeHabit } from "@/lib/data/dashboard-mutations";
 import { mergePrivateContent } from "@/lib/utils/private-checkin";
 import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
-import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import {
+  isHabitPausedError,
+  isRainCheck,
+  type CompletionType,
+} from "@/lib/constants/completion";
+import { countsTowardStreak } from "@/lib/utils/streak";
+import { countPausedDays, type HabitPause } from "@/lib/utils/pauses";
 import {
   rainCheckReasonLabel,
   type RainCheckReason,
@@ -128,8 +143,6 @@ type PartnerRow = {
   shareId: string;
   status: "accepted" | "pending";
   direction: "invite" | "request";
-  notify_complete: boolean | null;
-  notify_miss: boolean | null;
   profile: Partner;
 };
 
@@ -146,6 +159,19 @@ interface HabitDetailClientProps {
   completions: Completion[];
   /** Every completion in the heatmap's window, dates only. */
   activity: ActivityRow[];
+  /**
+   * Days the habit has been done on, ever. Not total_completions: a habit can
+   * be done more than once a day, and the rate counts days.
+   */
+  daysDone: number;
+  /**
+   * Days — weeks, for a weekly habit — it was due, and done, by the schedule
+   * each had (get_habit_rate, 050). Null before that, when the rate is days
+   * done over the days since it was created.
+   */
+  rate: { due: number; done: number } | null;
+  /** Every time it was paused. Paused days leave the rate's denominator. */
+  pauses: HabitPause[];
   partnerRows: PartnerRow[];
   availableFriends?: Partner[];
   sharedGroups?: SharedGroup[];
@@ -212,6 +238,9 @@ export function HabitDetailClient({
   habit: initialHabit,
   completions: initialCompletions,
   activity: initialActivity,
+  daysDone: initialDaysDone,
+  rate: initialRate,
+  pauses,
   partnerRows,
   availableFriends = [],
   sharedGroups = [],
@@ -226,6 +255,15 @@ export function HabitDetailClient({
   const [habit, setHabit] = useState(initialHabit);
   const [completions, setCompletions] = useState(initialCompletions);
   const [activity, setActivity] = useState(initialActivity);
+  const [daysDone, setDaysDone] = useState(initialDaysDone);
+  const [rate, setRate] = useState(initialRate);
+  // A schedule changed in the edit sheet changes which days were due; the
+  // server's count comes back with router.refresh(), and replaces this one.
+  const [rateFrom, setRateFrom] = useState(initialRate);
+  if (rateFrom !== initialRate) {
+    setRateFrom(initialRate);
+    setRate(initialRate);
+  }
   const [completionOpen, setCompletionOpen] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialCompletions.length >= HISTORY_PAGE_SIZE);
@@ -377,14 +415,17 @@ export function HabitDetailClient({
     return null;
   }, [activity, timezone]);
 
-  const completedToday = useMemo(() => {
+  // Real check-ins today. The first completes the habit for the day; doing
+  // it again is logged too, it just doesn't add to the streak.
+  const checkInsToday = useMemo(() => {
     const today = todayDateKey(timezone);
-    return activity.some(
+    return activity.filter(
       (c) =>
         !isRainCheck(c.completion_type) &&
         toDateKey(c.completed_at, timezone) === today,
-    );
+    ).length;
   }, [activity, timezone]);
+  const completedToday = checkInsToday > 0;
 
   const rainCheckedToday = useMemo(
     () => rainCheckDates.has(todayDateKey(timezone)),
@@ -393,8 +434,12 @@ export function HabitDetailClient({
 
   const [mountTime] = useState(() => Date.now());
   const completionRate = useMemo(() => {
-    const totalComp = habit.total_completions ?? 0;
-    if (totalComp === 0) return 0;
+    if (rate) {
+      return rate.due === 0 ? 0 : Math.min(100, Math.round((rate.done / rate.due) * 100));
+    }
+    // Days done, not check-ins: a habit done three times today was still
+    // only done on one day.
+    if (daysDone === 0) return 0;
     const createdMs = habit.created_at
       ? new Date(habit.created_at).getTime()
       : mountTime;
@@ -403,10 +448,20 @@ export function HabitDetailClient({
       Math.ceil((mountTime - createdMs) / (1000 * 60 * 60 * 24)),
     );
     // Rain-checked days were excused, not failed, so they leave the
-    // denominator entirely rather than counting against the rate.
-    const eligibleDays = Math.max(1, daysSinceCreation - rainCheckDates.size);
-    return Math.min(100, Math.round((totalComp / eligibleDays) * 100));
-  }, [habit.total_completions, habit.created_at, mountTime, rainCheckDates]);
+    // denominator entirely rather than counting against the rate. So do
+    // paused days, but not one counted already as done or rain-checked.
+    const pausedDays = countPausedDays(
+      pauses,
+      toDateKey(new Date(createdMs), timezone),
+      toDateKey(new Date(mountTime), timezone),
+      new Set([...rainCheckDates, ...Object.keys(heatmapData)]),
+    );
+    const eligibleDays = Math.max(
+      1,
+      daysSinceCreation - rainCheckDates.size - pausedDays,
+    );
+    return Math.min(100, Math.round((daysDone / eligibleDays) * 100));
+  }, [rate, daysDone, habit.created_at, mountTime, rainCheckDates, pauses, heatmapData, timezone]);
 
   // --- Handlers ---
 
@@ -449,6 +504,9 @@ export function HabitDetailClient({
     const prevStreak = habit.streak_current ?? 0;
     // A rain check holds the streak and is never counted as a completion.
     const rainCheck = isRainCheck(type);
+    // Only the day's first real check-in advances the streak, so only it can
+    // cross a milestone. Doing the habit again still adds to the total.
+    const counts = !rainCheck && countsTowardStreak(habit, activity, timezone);
 
     // Optimistic update
     const tempCompletion: Completion = {
@@ -467,9 +525,15 @@ export function HabitDetailClient({
     if (!rainCheck) {
       setHabit((h) => ({
         ...h,
-        streak_current: (h.streak_current ?? 0) + 1,
+        streak_current: (h.streak_current ?? 0) + (counts ? 1 : 0),
         total_completions: (h.total_completions ?? 0) + 1,
       }));
+      if (!completedToday) setDaysDone((n) => n + 1);
+      // Today, or this week, was due and is now done — unless today is a day
+      // off, which the rate leaves out.
+      if (counts && (habit.frequency === "weekly" || isHabitScheduledOn(habit, new Date(), timezone))) {
+        setRate((r) => (r ? { due: r.due + 1, done: r.done + 1 } : r));
+      }
     }
 
     try {
@@ -482,7 +546,7 @@ export function HabitDetailClient({
         rainCheckMovedTo,
         isPrivate,
       });
-      if (!rainCheck) checkMilestone(prevStreak + 1);
+      if (counts) checkMilestone(prevStreak + 1);
       router.refresh();
     } catch (err) {
       // Take back only this entry: resetting to the first page would also
@@ -490,14 +554,20 @@ export function HabitDetailClient({
       setCompletions((prev) => prev.filter((c) => c.id !== tempCompletion.id));
       setActivity((prev) => prev.filter((c) => c.id !== tempCompletion.id));
       setHabit(initialHabit);
+      // Paused since this page loaded: say so, with the way back.
+      if (isHabitPausedError(err)) setHabit((h) => ({ ...h, is_paused: true }));
+      setDaysDone(initialDaysDone);
+      setRate(initialRate);
       showToast({
         variant: "error",
         title:
           err instanceof PrivateOfflineError
             ? "You're offline — private check-ins need a connection"
-            : rainCheck
-              ? "Failed to take rain check"
-              : "Failed to log completion",
+            : isHabitPausedError(err)
+              ? "This habit is paused — resume it to check in"
+              : rainCheck
+                ? "Failed to take rain check"
+                : "Failed to log completion",
       });
     }
   };
@@ -718,8 +788,10 @@ export function HabitDetailClient({
         </div>
 
 
-        {/* Complete button */}
-        {!completedToday && !habit.is_paused && (
+        {/* Complete button. Still there once the habit is done today: doing
+            it again is logged and shared like the first time, it just
+            doesn't add to the streak. */}
+        {!habit.is_paused && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -727,6 +799,7 @@ export function HabitDetailClient({
           >
             <Button
               className="w-full"
+              variant={completedToday ? "secondary" : "primary"}
               onClick={async () => {
                 // The first check-in that would reach a partner or a group
                 // waits for a yes — asked before the sheet opens, so "not
@@ -734,7 +807,7 @@ export function HabitDetailClient({
                 if (await confirmSharing([habit.id])) setCompletionOpen(true);
               }}
             >
-              Log completion
+              {completedToday ? "Log another check-in" : "Log completion"}
             </Button>
           </motion.div>
         )}
@@ -742,7 +815,10 @@ export function HabitDetailClient({
         {completedToday && (
           <div className="mb-6 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
             <Zap className="w-4 h-4" />
-            <span>Completed today</span>
+            <span>
+              Completed today
+              {checkInsToday > 1 && ` · ${checkInsToday} check-ins`}
+            </span>
           </div>
         )}
 
@@ -767,9 +843,21 @@ export function HabitDetailClient({
         )}
 
         {habit.is_paused && (
-          <div className="mb-6 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <div className="mb-6 flex items-center gap-2 rounded-lg bg-amber-50 py-2 pl-3 pr-2 text-sm text-amber-700">
             <Pause className="w-4 h-4" />
-            <span>This habit is paused</span>
+            <span className="flex-1">This habit is paused</span>
+            {/* Checking in waits on resuming, so it is offered here and not
+                only under Settings. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-amber-800 hover:bg-amber-100"
+              onClick={handlePauseToggle}
+              loading={isPausing}
+            >
+              <Play className="w-4 h-4" />
+              <span>Resume</span>
+            </Button>
           </div>
         )}
 
@@ -823,12 +911,7 @@ export function HabitDetailClient({
                 label="Created"
                 value={habit.created_at ? format(new Date(habit.created_at), "MMM d, yyyy") : "—"}
               />
-              {habit.time_window && (
-                <DetailRow
-                  label="Time window"
-                  value={`${(habit.time_window as { start?: string }).start ?? "–"} – ${(habit.time_window as { end?: string }).end ?? "–"}`}
-                />
-              )}
+              <TimeWindowDetail habit={habit} />
             </div>
           </Tabs.Content>
 
@@ -940,25 +1023,15 @@ export function HabitDetailClient({
                         @{row.profile.username}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1.5 text-xs text-[var(--color-text-tertiary)]">
-                        {row.notify_complete && (
-                          <span title="Notified on completion">✅</span>
-                        )}
-                        {row.notify_miss && (
-                          <span title="Notified on miss">⏰</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePartner(row.shareId, false)}
-                        disabled={removingShareId === row.shareId}
-                        className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
-                        aria-label={`Remove ${row.profile.display_name}`}
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePartner(row.shareId, false)}
+                      disabled={removingShareId === row.shareId}
+                      className="p-1.5 rounded-lg hover:bg-[var(--color-surface-hover)] text-[var(--color-text-tertiary)] hover:text-miss transition-colors disabled:opacity-50"
+                      aria-label={`Remove ${row.profile.display_name}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -1204,6 +1277,7 @@ export function HabitDetailClient({
         habitSchedule={habit.schedule}
         timezone={timezone}
         defaultPrivate={habit.private_checkins}
+        allowRainCheck={!completedToday && !rainCheckedToday}
         onComplete={handleCompletion}
       />
 
@@ -1259,6 +1333,36 @@ function StatCard({
         {value}
       </p>
       <p className="text-xs text-[var(--color-text-tertiary)]">{label}</p>
+    </div>
+  );
+}
+
+/**
+ * The habit's window, one line per time when some days keep a different
+ * one: "Weekdays · 8 AM – 9 AM", "Weekends · Any time". Left out with no
+ * window at all.
+ */
+function TimeWindowDetail({ habit }: { habit: Habit }) {
+  const groups = timeWindowGroups(
+    parseTimeWindow(habit.time_window),
+    getScheduledDays(habit.schedule),
+  ).filter((g) => g.days.length > 0);
+  if (groups.length === 0) return null;
+
+  const time = (window: DayWindow | null) => (window ? formatWindow(window) : "Any time");
+
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-sm text-[var(--color-text-secondary)]">Time window</span>
+      <span className="text-sm font-medium text-[var(--color-text-primary)] text-right">
+        {groups.length === 1
+          ? time(groups[0].window)
+          : groups.map((g) => (
+              <span key={g.days.join()} className="block">
+                {describeDays(g.days)} · {time(g.window)}
+              </span>
+            ))}
+      </span>
     </div>
   );
 }

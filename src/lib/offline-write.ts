@@ -22,6 +22,7 @@ import type { Database } from "@/lib/supabase/types";
 import type { ShareCaptureParams } from "@/lib/hooks/useShareCapture";
 import { untypedRpc } from "@/lib/supabase/rpc";
 import { isUploadTooLarge } from "@/lib/utils/check-video";
+import { HABIT_PAUSED_CODE } from "@/lib/constants/completion";
 import {
   queueWrite,
   claimOutbox,
@@ -90,7 +91,13 @@ export function isOfflineError(err: unknown): boolean {
 function isPermanent(error: Postgrestish | null | undefined): boolean {
   const code = error?.code ?? "";
   // 42xxx: syntax/access (42501 = RLS denied). 23xxx: integrity violations.
-  return code.startsWith("42") || code.startsWith("23") || code.startsWith("22");
+  // And a habit paused since the take was queued, which takes no check-ins.
+  return (
+    code.startsWith("42") ||
+    code.startsWith("23") ||
+    code.startsWith("22") ||
+    code === HABIT_PAUSED_CODE
+  );
 }
 
 /**

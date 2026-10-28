@@ -695,6 +695,73 @@ export type Database = {
           },
         ]
       }
+      habit_pauses: {
+        Row: {
+          created_at: string
+          ended_on: string | null
+          habit_id: string
+          id: string
+          started_on: string
+        }
+        Insert: {
+          created_at?: string
+          ended_on?: string | null
+          habit_id: string
+          id?: string
+          started_on: string
+        }
+        Update: {
+          created_at?: string
+          ended_on?: string | null
+          habit_id?: string
+          id?: string
+          started_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_pauses_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      habit_schedule_changes: {
+        Row: {
+          changed_on: string
+          created_at: string
+          days: Json | null
+          frequency: Database["public"]["Enums"]["habit_frequency"]
+          habit_id: string
+          id: string
+        }
+        Insert: {
+          changed_on: string
+          created_at?: string
+          days?: Json | null
+          frequency: Database["public"]["Enums"]["habit_frequency"]
+          habit_id: string
+          id?: string
+        }
+        Update: {
+          changed_on?: string
+          created_at?: string
+          days?: Json | null
+          frequency?: Database["public"]["Enums"]["habit_frequency"]
+          habit_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_schedule_changes_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       habit_shares: {
         Row: {
           created_at: string | null

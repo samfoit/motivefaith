@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { habitsLeftToday } from "../capture-habits";
+import { habitsDueToday } from "../capture-habits";
 import type { DashboardData } from "../dashboard";
 
 type CachedHabit = DashboardData["habits"][number];
@@ -38,21 +38,23 @@ function dashboard(habits: CachedHabit[]): DashboardData {
 
 const ids = (habits: { id: string }[]) => habits.map((h) => h.id);
 
-describe("habitsLeftToday", () => {
-  it("lists the habits due today that have nothing logged today, in order", () => {
+describe("habitsDueToday", () => {
+  it("lists the habits due today, the ones already done last", () => {
     const data = dashboard([
-      habit("daily"),
-      habit("thursdays", { schedule: { days: [THURSDAY] } }),
       habit("done", {
         completions: [{ id: "c1", completed_at: "2026-10-22T13:00:00Z", completion_type: "quick" }],
       }),
+      habit("daily"),
+      habit("thursdays", { schedule: { days: [THURSDAY] } }),
       habit("mwf", { schedule: { days: [1, 3, 5] } }),
     ]);
 
-    expect(ids(habitsLeftToday(data, [], NOW))).toEqual(["daily", "thursdays"]);
+    const habits = habitsDueToday(data, [], NOW);
+    expect(ids(habits)).toEqual(["daily", "thursdays", "done"]);
+    expect(habits.map((h) => h.checked_in_today)).toEqual([false, false, true]);
   });
 
-  it("leaves out a habit rain-checked today, as the server's list does", () => {
+  it("lists a habit rain-checked today as still to do, as the server's list does", () => {
     const data = dashboard([
       habit("skipped", {
         completions: [
@@ -61,7 +63,9 @@ describe("habitsLeftToday", () => {
       }),
     ]);
 
-    expect(habitsLeftToday(data, [], NOW)).toEqual([]);
+    expect(habitsDueToday(data, [], NOW)).toEqual([
+      expect.objectContaining({ id: "skipped", checked_in_today: false }),
+    ]);
   });
 
   it("reads today in the dashboard's timezone", () => {
@@ -73,7 +77,9 @@ describe("habitsLeftToday", () => {
       }),
     ]);
 
-    expect(ids(habitsLeftToday(data, [], NOW))).toEqual(["walk"]);
+    expect(habitsDueToday(data, [], NOW)).toEqual([
+      expect.objectContaining({ id: "walk", checked_in_today: false }),
+    ]);
   });
 
   it("includes a makeup a rain check moved onto today", () => {
@@ -91,7 +97,7 @@ describe("habitsLeftToday", () => {
       }),
     ]);
 
-    expect(ids(habitsLeftToday(data, [], NOW))).toEqual(["wednesdays"]);
+    expect(ids(habitsDueToday(data, [], NOW))).toEqual(["wednesdays"]);
   });
 
   it("draws each habit as the picker does, with reach from the server's last list", () => {
@@ -112,7 +118,7 @@ describe("habitsLeftToday", () => {
       },
     ];
 
-    expect(habitsLeftToday(data, lastFetched, NOW)).toEqual([
+    expect(habitsDueToday(data, lastFetched, NOW)).toEqual([
       {
         id: "pray",
         title: "Pray",
@@ -123,6 +129,7 @@ describe("habitsLeftToday", () => {
         partner_ids: ["f1"],
         group_ids: ["g1"],
         private_checkins: true,
+        checked_in_today: false,
       },
       {
         id: "new",
@@ -134,6 +141,7 @@ describe("habitsLeftToday", () => {
         partner_ids: [],
         group_ids: [],
         private_checkins: false,
+        checked_in_today: false,
       },
     ]);
   });

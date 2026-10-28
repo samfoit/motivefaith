@@ -1,9 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { HabitDetailClient } from "./habit-detail-client";
-import { DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
+import { DEFAULT_TIMEZONE, addDays, toDateKey } from "@/lib/utils/timezone";
 import { computeEffectiveStreak } from "@/lib/utils/streak";
 import { mergePrivateContent } from "@/lib/utils/private-checkin";
+import { untypedRpc } from "@/lib/supabase/rpc";
 import {
   HABIT_ACTIVITY_DAYS,
   HABIT_ACTIVITY_MAX_ROWS,
@@ -36,12 +37,19 @@ export default async function HabitDetailPage({ params }: Props) {
   // heatmap, streak and "done today" need every day in the recent window, but
   // only its dates. The History tab needs whole rows, but only one page of
   // them at a time, reaching as far back as the habit goes — years of
-  // logging is never fetched in one go.
+  // logging is never fetched in one go. The rate is counted in the database,
+  // over the habit's whole life: the days it was due and done (050), or,
+  // before that, the days done. Its pauses are stepped over by the streak,
+  // and its schedule changes give each day the schedule it had.
   const [
     { data: profileTz },
     { data: habit },
     { data: activity },
     { data: completions },
+    { data: daysDone },
+    { data: rate },
+    { data: pauses },
+    { data: scheduleChanges },
     { data: shares },
     { data: groupShares },
     { data: friendships },
@@ -69,9 +77,21 @@ export default async function HabitDetailPage({ params }: Props) {
       .order("completed_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(HISTORY_PAGE_SIZE),
+    untypedRpc<number>(supabase, "get_habit_days_done", { p_habit_id: id }),
+    untypedRpc<{ due: number; done: number }[]>(supabase, "get_habit_rate", { p_habit_id: id }),
+    supabase
+      .from("habit_pauses")
+      .select("started_on, ended_on")
+      .eq("habit_id", id)
+      .order("started_on"),
+    supabase
+      .from("habit_schedule_changes")
+      .select("changed_on, frequency, days")
+      .eq("habit_id", id)
+      .order("changed_on"),
     supabase
       .from("habit_shares")
-      .select("id, shared_with, notify_complete, notify_miss, created_at, status, initiated_by")
+      .select("id, shared_with, created_at, status, initiated_by")
       .eq("habit_id", id),
     supabase
       .from("group_habit_shares")
@@ -97,7 +117,16 @@ export default async function HabitDetailPage({ params }: Props) {
     (c): c is typeof c & { completed_at: string } => c.completed_at != null,
   );
 
-  const effectiveStreak = computeEffectiveStreak(habit, validatedActivity, timeZone);
+  // No pauses until migration 047 is applied, and no schedule changes until
+  // 049: the streak then reads as before.
+  const habitPauses = pauses ?? [];
+  const habitScheduleChanges = scheduleChanges ?? [];
+  const effectiveStreak = computeEffectiveStreak(habit, validatedActivity, timeZone, {
+    pauses: habitPauses,
+    scheduleChanges: habitScheduleChanges,
+    // From a moment of the day, so the day after is the first held in full.
+    loadedFrom: addDays(toDateKey(activitySince, timeZone), 1),
+  });
 
   // Resolve dependent lookups in parallel.
   //
@@ -139,8 +168,6 @@ export default async function HabitDetailPage({ params }: Props) {
         direction: (share.initiated_by === user.id ? "invite" : "request") as
           | "invite"
           | "request",
-        notify_complete: share.notify_complete,
-        notify_miss: share.notify_miss,
         profile,
       };
     })
@@ -159,6 +186,13 @@ export default async function HabitDetailPage({ params }: Props) {
       habit={{ ...habit, streak_current: effectiveStreak }}
       completions={validatedCompletions}
       activity={validatedActivity}
+      // No count until migration 044 is applied: fall back to check-ins, which
+      // is what the rate counted before.
+      daysDone={daysDone ?? habit.total_completions ?? 0}
+      // Until migration 050 is applied there is none, and the rate falls back
+      // to days done over days since the habit was created.
+      rate={rate?.[0] ?? null}
+      pauses={habitPauses}
       partnerRows={partnerRows}
       availableFriends={availableFriends}
       sharedGroups={sharedGroups}

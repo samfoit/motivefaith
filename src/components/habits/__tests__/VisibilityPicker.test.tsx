@@ -30,4 +30,22 @@ describe("VisibilityPicker", () => {
       screen.getByText(/ask to follow it/i),
     ).toBeInTheDocument();
   });
+
+  describe("segmented", () => {
+    it("is the same two radios", async () => {
+      const onChange = vi.fn();
+      render(<VisibilityPicker variant="segmented" value="private" onChange={onChange} />);
+
+      expect(screen.getByRole("radio", { name: /Private/ })).toBeChecked();
+      await userEvent.click(screen.getByRole("radio", { name: /Public/ }));
+      expect(onChange).toHaveBeenCalledWith("public");
+    });
+
+    it("explains only the current choice, with the same promise as the cards", () => {
+      render(<VisibilityPicker variant="segmented" value="public" onChange={vi.fn()} />);
+
+      expect(screen.getByRole("radiogroup")).toHaveAccessibleDescription(/ask to follow it/i);
+      expect(screen.queryByText(/Nobody can find this/)).not.toBeInTheDocument();
+    });
+  });
 });

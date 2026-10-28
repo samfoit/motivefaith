@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useId, useMemo, useState } from "react";
 import { Check, Lock, Target, UserRound, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
@@ -29,6 +29,11 @@ export interface PickerHabit {
   group_ids: string[];
   /** The habit's "keep check-in content private" default (039). */
   private_checkins?: boolean;
+  /**
+   * Already checked in today (044). It can still be sent to — doing a habit
+   * again is a check-in too — it just won't add to the streak.
+   */
+  checked_in_today?: boolean;
 }
 
 export interface PickerFriend {
@@ -64,8 +69,8 @@ interface ShareTargetPickerProps {
   habitsLoading: boolean;
   /**
    * Why today's habits couldn't be listed, said where they would be. Without
-   * it an empty list reads "All done for today!", which is only true when
-   * the list actually arrived.
+   * it an empty list reads as nothing being due today, which is only true
+   * when the list actually arrived.
    */
   habitsUnavailable?: string | null;
   friends: PickerFriend[];
@@ -205,8 +210,8 @@ export function ShareTargetPicker({
   const visibleSections = SECTIONS.filter(
     ({ kind }) =>
       (tab === "all" || tab === kind) &&
-      // Keep the habits section on screen while loading or when it's simply
-      // done for the day; hide the others when the user has none.
+      // Keep the habits section on screen while loading or when nothing is
+      // due today; hide the others when the user has none.
       (filtered[kind].length > 0 || (kind === "habit" && !q)),
   );
 
@@ -273,7 +278,7 @@ export function ShareTargetPicker({
                 </p>
               ) : kind === "habit" && rows.length === 0 ? (
                 <p className="text-sm text-text-secondary py-3">
-                  {habitsUnavailable ?? "All done for today!"}
+                  {habitsUnavailable ?? "No habits scheduled for today"}
                 </p>
               ) : (
                 <ul className="space-y-1.5">
@@ -431,6 +436,9 @@ type TargetRowProps = RowProps & {
  * A habit, drawn with the dashboard card's own pieces so the two cannot drift
  * apart. Picking it fills the same circle completing it on the dashboard does
  * — which is what sending to it will do.
+ *
+ * The circle is the pick, so a habit already done today says so in words
+ * instead, under a title that steps back as the dashboard's does.
  */
 const HabitTargetRow = memo(function HabitTargetRow({
   item,
@@ -438,6 +446,8 @@ const HabitTargetRow = memo(function HabitTargetRow({
   onToggle,
 }: RowProps) {
   const habit = item.habit!;
+  const doneId = useId();
+  const done = !!habit.checked_in_today;
   return (
     <li className="[content-visibility:auto] [contain-intrinsic-size:auto_68px]">
       <button
@@ -445,6 +455,7 @@ const HabitTargetRow = memo(function HabitTargetRow({
         role="checkbox"
         aria-checked={selected}
         aria-label={habit.title}
+        aria-describedby={done ? doneId : undefined}
         onClick={() => onToggle(item.kind, item.id)}
         {...habitSurfaceProps(habit.color, {
           className: "group w-full pl-4 text-left active:brightness-[0.98]",
@@ -456,8 +467,14 @@ const HabitTargetRow = memo(function HabitTargetRow({
             title={habit.title}
             streak={habit.streak_current}
             frequency={habit.frequency}
+            muted={done}
             titleAs="span"
           />
+          {done && (
+            <span id={doneId} className="block mt-0.5 text-xs text-text-secondary">
+              Done today
+            </span>
+          )}
         </span>
         <HabitCircle state={selected ? "done" : "open"} />
       </button>

@@ -10,18 +10,24 @@ import {
   useSyncExternalStore,
 } from "react";
 import dynamic from "next/dynamic";
-import { toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
+import { getDayOfWeek, toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
 import {
   isHabitScheduledOn,
   makeupOriginOn,
   parseTimeWindow,
+  windowOn,
+  type DayWindow,
 } from "@/lib/utils/schedule";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import type { MoveLabels } from "@/lib/types/habit";
 import type { CheckInAction } from "@/lib/constants/check-in";
-import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
+import {
+  isHabitPausedError,
+  isRainCheck,
+  type CompletionType,
+} from "@/lib/constants/completion";
 import type { RainCheckReason } from "@/lib/constants/rain-check";
 import { useCompleteHabit, PrivateOfflineError } from "@/lib/hooks/useCompleteHabit";
 import { useConfirmSharing } from "@/lib/hooks/useConfirmSharing";
@@ -40,7 +46,12 @@ import {
 import { useDashboard, dashboardKey } from "@/lib/hooks/useDashboard";
 import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 import type { DashboardData } from "@/lib/data/dashboard";
-import { applyCompletion, removeCompletion } from "@/lib/data/dashboard-mutations";
+import {
+  applyCompletion,
+  removeCompletion,
+  removeHabit,
+} from "@/lib/data/dashboard-mutations";
+import { countsTowardStreak } from "@/lib/utils/streak";
 import { getBrowserTimezone, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 
 /**
@@ -202,6 +213,7 @@ interface DashboardClientProps {
 
 type TimeGroup = "morning" | "afternoon" | "evening" | "anytime";
 
+/** Where today's window puts a habit: no window today is Anytime. */
 function getTimeGroup(
   timeWindow: { start?: string; end?: string } | null,
 ): TimeGroup {
@@ -213,15 +225,19 @@ function getTimeGroup(
   return "evening";
 }
 
-function isCompletedToday(
+/**
+ * Real check-ins logged today. A habit can be done more than once a day; the
+ * first one completes it, and a rain check is not one at all.
+ */
+function checkInsToday(
   completions: { completed_at: string; completion_type?: string | null }[],
   tz: string,
-): boolean {
+): number {
   const today = todayDateKey(tz);
-  return completions.some(
+  return completions.filter(
     (c) =>
       !isRainCheck(c.completion_type) && toDateKey(c.completed_at, tz) === today,
-  );
+  ).length;
 }
 
 /**
@@ -315,6 +331,24 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
   const completeHabit = useCompleteHabit();
   const confirmSharing = useConfirmSharing();
   const { show: showToast, remove: removeToast, ToastElements } = useToast();
+
+  /**
+   * A check-in refused because its habit was paused after this list was
+   * fetched — from another device, often. Paused habits aren't shown here.
+   */
+  const dropPausedHabit = useCallback(
+    (habitId: string, title: string | undefined) => {
+      queryClient.setQueryData<DashboardData>(queryKey, (old) =>
+        removeHabit(old, habitId),
+      );
+      showToast({
+        variant: "error",
+        title: `${title ?? "This habit"} is paused`,
+        description: "Resume it from its page to check in.",
+      });
+    },
+    [queryClient, queryKey, showToast],
+  );
   const [showConfetti, setShowConfetti] = useState(false);
   const [flyout, setFlyout] = useState<{ emoji: string; from: { x: number; y: number } } | null>(null);
   const [completionHabitId, setCompletionHabitId] = useState<string | null>(
@@ -378,13 +412,17 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     ? habits.find((h) => h.id === completionHabitId)
     : null;
 
-  const completionMap = useMemo(() => {
-    const map = new Map<string, boolean>();
-    habits.forEach((h) =>
-      map.set(h.id, isCompletedToday(h.completions, timezone)),
-    );
+  const checkInCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    habits.forEach((h) => map.set(h.id, checkInsToday(h.completions, timezone)));
     return map;
   }, [habits, timezone]);
+
+  const completionMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    checkInCountMap.forEach((count, id) => map.set(id, count > 0));
+    return map;
+  }, [checkInCountMap]);
 
   const rainCheckMap = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -428,6 +466,20 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     [habits, timezone, makeupMap],
   );
 
+  /**
+   * Each habit's window today. A habit can keep a different time on some
+   * days, or none at all — 8 on weekdays, 4 at the weekend — so its section
+   * and the time on its card are today's.
+   */
+  const todayWindowMap = useMemo(() => {
+    const weekday = getDayOfWeek(new Date(), timezone);
+    const map = new Map<string, DayWindow | null>();
+    todayHabits.forEach((h) =>
+      map.set(h.id, windowOn(parseTimeWindow(h.time_window), weekday)),
+    );
+    return map;
+  }, [todayHabits, timezone]);
+
   const groupedHabits = useMemo(() => {
     const groups: Record<TimeGroup, HabitWithCompletions[]> = {
       morning: [],
@@ -436,10 +488,10 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       anytime: [],
     };
     todayHabits.forEach((habit) => {
-      groups[getTimeGroup(parseTimeWindow(habit.time_window))].push(habit);
+      groups[getTimeGroup(todayWindowMap.get(habit.id) ?? null)].push(habit);
     });
     return groups;
-  }, [todayHabits]);
+  }, [todayHabits, todayWindowMap]);
 
   const topStreaks = useMemo(
     () =>
@@ -475,9 +527,13 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     const habitId = completionHabitId;
     const habit = habits.find((h) => h.id === habitId);
     const prevStreak = habit?.streak_current ?? 0;
-    // A rain check holds the streak where it is — it never advances it, and
-    // it can never cross a milestone.
-    const rainCheck = isRainCheck(type);
+    // Only the day's first real check-in advances the streak, so only it can
+    // cross a milestone. A rain check holds the streak where it is, and doing
+    // the habit again today leaves it where the first time put it.
+    const counts =
+      !!habit &&
+      !isRainCheck(type) &&
+      countsTowardStreak(habit, habit.completions, timezone);
 
     // Optimistic update, written to the cache so it is persisted and survives
     // a reload while the write is still queued offline. A fetch already in
@@ -504,8 +560,8 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         rainCheckMovedTo,
         isPrivate,
       });
-      if (!rainCheck) {
-        checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
+      if (counts) {
+        checkMilestone(habit.title, prevStreak + 1, habit.frequency);
       }
       settleWrite(result);
     } catch (err) {
@@ -516,6 +572,8 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
           title: "You're offline",
           description: "Private check-ins need a connection.",
         });
+      } else if (isHabitPausedError(err)) {
+        dropPausedHabit(habitId, habit?.title);
       }
     } finally {
       endWrite();
@@ -542,12 +600,16 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
    */
   const quickComplete = useCallback(
     (habitId: string, origin?: { x: number; y: number }) => {
-      // The pending check as well as the map: two taps landing before the
-      // sharing check answers both act on the render they were made in, and
-      // there the habit is still open.
-      if (completionMap.get(habitId) || pendingRef.current.has(habitId)) return;
+      // One held at a time per habit. Two taps landing before the sharing
+      // check answers both act on the render they were made in, and a second
+      // quick check-in inside the undo window is far likelier a double tap
+      // than the habit done twice in six seconds.
+      if (pendingRef.current.has(habitId)) return;
       const habit = habits.find((h) => h.id === habitId);
       const prevStreak = habit?.streak_current ?? 0;
+      // Done already today: logged all the same, but the streak has the day.
+      const counts =
+        !!habit && countsTowardStreak(habit, habit.completions, timezone);
       const tempId = `temp-${Date.now()}`;
 
       // Fly the emoji to the feed icon to show it's being shared
@@ -582,15 +644,21 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         removeToast(pending.toastId);
         try {
           const result = await completeHabit.mutateAsync({ habitId, type: "quick" });
-          checkMilestone(habit?.title ?? "", prevStreak + 1, habit?.frequency);
+          if (counts) {
+            checkMilestone(habit.title, prevStreak + 1, habit.frequency);
+          }
           settleWrite(result);
-        } catch {
+        } catch (err) {
           restore(snapshot);
-          showToast({
-            variant: "error",
-            title: "Check-in failed",
-            description: habit?.title,
-          });
+          if (isHabitPausedError(err)) {
+            dropPausedHabit(habitId, habit?.title);
+          } else {
+            showToast({
+              variant: "error",
+              title: "Check-in failed",
+              description: habit?.title,
+            });
+          }
         } finally {
           endWrite();
         }
@@ -598,7 +666,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
 
       const toastId = showToast({
         variant: "success",
-        title: `${habit?.emoji ?? "✓"} Checked in`,
+        title: `${habit?.emoji ?? "✓"} ${counts ? "Checked in" : "Checked in again"}`,
         description: habit?.title,
         duration: UNDO_WINDOW_MS,
         action: {
@@ -616,7 +684,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     },
     [
       habits,
-      completionMap,
+      timezone,
       completeHabit,
       checkMilestone,
       queryClient,
@@ -628,9 +696,13 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       settle,
       beginWrite,
       endWrite,
+      dropPausedHabit,
     ],
   );
 
+  // The circle: the day's first check-in. Doing the habit again goes through
+  // the drawer, so a stray tap on a done habit logs nothing.
+  //
   // The first check-in that would reach a partner or a group waits for the
   // user to say that's fine; every other one goes straight through.
   const handleQuickComplete = useCallback(
@@ -668,23 +740,31 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     [router],
   );
 
+  /**
+   * Can today still be rain-checked? Not once the habit is done, and not a
+   * second time — no point stacking another skip on one. Nor on a makeup:
+   * the habit is only on today because an earlier skip promised it, and
+   * moving a promise again would let it be deferred forever. The habit's own
+   * scheduled days still offer it.
+   */
+  const canRainCheck = useCallback(
+    (habitId: string) => {
+      if (completionMap.get(habitId) || rainCheckMap.get(habitId)) return false;
+      const habit = habits.find((h) => h.id === habitId);
+      return !habit || isHabitScheduledOn(habit, new Date(), timezone);
+    },
+    [completionMap, rainCheckMap, habits, timezone],
+  );
+
+  // A habit done today still takes check-ins here — doing it again is one
+  // too, it just doesn't add to the streak.
   const handleCheckIn = useCallback(
     async (
       habitId: string,
       action: CheckInAction,
       origin?: { x: number; y: number },
     ) => {
-      if (completionMap.get(habitId)) return;
-      if (action === "rain_check") {
-        // Already skipped today — no point stacking a second rain check on it.
-        if (rainCheckMap.get(habitId)) return;
-        // A makeup cannot itself be rain-checked: the habit is only on today
-        // because an earlier skip promised it, and moving a promise again
-        // would let it be deferred forever. The habit's own scheduled days
-        // still offer it.
-        const habit = habits.find((h) => h.id === habitId);
-        if (habit && !isHabitScheduledOn(habit, new Date(), timezone)) return;
-      }
+      if (action === "rain_check" && !canRainCheck(habitId)) return;
       // Asked before the camera, recorder or note opens rather than when it
       // is sent, so saying "not now" never throws away a take or a note.
       if (!(await confirmSharing([habitId]))) return;
@@ -696,7 +776,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       setCompletionAction(action);
       setCompletionHabitId(habitId);
     },
-    [completionMap, rainCheckMap, habits, timezone, confirmSharing, quickComplete],
+    [canRainCheck, confirmSharing, quickComplete],
   );
 
   const handleCreateHabit = useCallback(() => {
@@ -752,8 +832,10 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
           groupedHabits={groupedHabits}
           topStreaks={topStreaks}
           completionMap={completionMap}
+          checkInCountMap={checkInCountMap}
           rainCheckMap={rainCheckMap}
           moveMap={moveMap}
+          todayWindowMap={todayWindowMap}
           completedCount={completedCount}
           hasHabits={habits.length > 0}
           onQuickComplete={handleQuickComplete}
@@ -795,6 +877,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         habitSchedule={completionHabit?.schedule}
         timezone={timezone}
         defaultPrivate={completionHabit?.private_checkins ?? false}
+        allowRainCheck={!!completionHabit && canRainCheck(completionHabit.id)}
         onComplete={handleCompletion}
       />
 

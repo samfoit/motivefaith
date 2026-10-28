@@ -26,8 +26,11 @@ export default function OfflinePage() {
       .catch(() => setPending(0));
 
     // Reconnecting should take the user back to something useful, not leave
-    // them looking at an offline screen that is no longer true.
+    // them looking at an offline screen that is no longer true. A full load:
+    // the service worker serves this page in place of one it couldn't fetch,
+    // so there is no real page here to route on from.
     const goOnline = () => {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load, on purpose (above)
       window.location.href = "/main/dashboard";
     };
     window.addEventListener("online", goOnline);

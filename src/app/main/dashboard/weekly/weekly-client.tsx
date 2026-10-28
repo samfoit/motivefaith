@@ -141,7 +141,7 @@ export function WeeklySummaryClient({ userId }: { userId: string }) {
             {rate}%
           </p>
           <p className="text-sm text-[var(--color-text-secondary)] mt-1">
-            {summary.totalCompletions} of {summary.totalScheduled} scheduled
+            {summary.habitDaysDone} of {summary.totalScheduled} scheduled
           </p>
 
           {/* Week comparison */}

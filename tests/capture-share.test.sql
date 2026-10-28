@@ -265,13 +265,13 @@ SET LOCAL role TO authenticated;
 SET LOCAL request.jwt.claims TO '{"sub":"c1000000-0000-4000-8000-000000000001","role":"authenticated"}';
 
 DO $$ BEGIN
-  ASSERT (SELECT frequency FROM public.get_incomplete_habits_today('UTC')
+  ASSERT (SELECT frequency FROM public.get_habits_due_today('UTC')
           WHERE id = 'c5000000-0000-4000-8000-000000000004') = 'weekly',
     'TEST 6 FAILED: a weekly habit should come back as weekly';
-  ASSERT (SELECT color FROM public.get_incomplete_habits_today('UTC')
+  ASSERT (SELECT color FROM public.get_habits_due_today('UTC')
           WHERE id = 'c5000000-0000-4000-8000-000000000004') IS NULL,
     'TEST 6 FAILED: a habit with no color must not get a default one';
-  ASSERT (SELECT emoji FROM public.get_incomplete_habits_today('UTC')
+  ASSERT (SELECT emoji FROM public.get_habits_due_today('UTC')
           WHERE id = 'c5000000-0000-4000-8000-000000000005') IS NULL,
     'TEST 6 FAILED: a habit with no emoji must not get a default one';
   RAISE NOTICE 'TEST 6 PASSED: today''s habits carry their frequency, and no made-up color or emoji';
@@ -297,7 +297,7 @@ SET LOCAL request.jwt.claims TO '{"sub":"c1000000-0000-4000-8000-000000000001","
 DO $$
 DECLARE r JSONB; h RECORD;
 BEGIN
-  SELECT * INTO h FROM public.get_incomplete_habits_today('UTC')
+  SELECT * INTO h FROM public.get_habits_due_today('UTC')
    WHERE id = 'c5000000-0000-4000-8000-000000000006';
   ASSERT h.partner_ids = ARRAY['c2000000-0000-4000-8000-000000000002']::uuid[],
     format('TEST 7 FAILED: partner_ids should name the friend, got %s', h.partner_ids);

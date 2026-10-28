@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 
 const mockVerifyOtp = vi.fn();
 const mockExchangeCode = vi.fn();
@@ -53,7 +53,25 @@ async function submitPassword() {
   const button = await screen.findByRole("button", { name: "Update password" });
   fireEvent.change(screen.getByLabelText("New password"), { target: { value: PASSWORD } });
   fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: PASSWORD } });
-  fireEvent.click(button);
+  await submit(button);
+}
+
+/**
+ * Submitting runs on through several awaits (the breach check, the token,
+ * the update), each setting state. Inside act, React sees all of it rather
+ * than warning about the updates that land after the click.
+ */
+async function submit(button: HTMLElement) {
+  await act(async () => {
+    fireEvent.click(button);
+  });
+}
+
+/** The success toast: the last thing a saved password does before leaving. */
+async function passwordUpdated() {
+  await waitFor(() =>
+    expect(mockShow).toHaveBeenCalledWith(expect.objectContaining({ title: "Password updated" })),
+  );
 }
 
 beforeEach(() => {
@@ -73,7 +91,8 @@ describe("ResetPasswordPage", () => {
     expect(mockVerifyOtp).not.toHaveBeenCalled();
 
     await submitPassword();
-    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalledWith({ password: PASSWORD }));
+    await passwordUpdated();
+    expect(mockUpdateUser).toHaveBeenCalledWith({ password: PASSWORD });
     expect(mockVerifyOtp).toHaveBeenCalledWith({ type: "recovery", token_hash: "abc" });
     expect(window.location.search).toBe("");
   });
@@ -90,8 +109,9 @@ describe("ResetPasswordPage", () => {
       await screen.findByText("Your new password must be different from your current one."),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Update password" }));
-    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalledTimes(2));
+    await submit(screen.getByRole("button", { name: "Update password" }));
+    await passwordUpdated();
+    expect(mockUpdateUser).toHaveBeenCalledTimes(2);
     expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
   });
 
@@ -123,7 +143,7 @@ describe("ResetPasswordPage", () => {
     render(<ResetPasswordPage />);
 
     await submitPassword();
-    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalled());
+    await passwordUpdated();
     expect(mockExchangeCode).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
   });

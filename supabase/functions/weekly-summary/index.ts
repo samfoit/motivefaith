@@ -223,8 +223,8 @@ Deno.serve(async (req) => {
   const now = new Date();
   const { thisStart, thisEnd, prevStart, prevEnd } = getWeekBounds(now);
 
-  type Completion = { user_id: string; habit_id: string };
-  type Habit = { id: string; user_id: string; title: string; emoji: string; schedule: unknown; streak_current: number };
+  type Completion = { user_id: string; habit_id: string; completed_date: string | null };
+  type Habit = { id: string; user_id: string; title: string; emoji: string; frequency: string; schedule: unknown; streak_current: number };
 
   let sent = 0;
 
@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       supabase
         .from("completions")
-        .select("user_id, habit_id")
+        .select("user_id, habit_id, completed_date")
         .in("user_id", userIds)
         .gte("completed_at", thisStart)
         .lte("completed_at", thisEnd),
@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
         .lte("completed_at", prevEnd),
       supabase
         .from("habits")
-        .select("id, user_id, title, emoji, schedule, streak_current")
+        .select("id, user_id, title, emoji, frequency, schedule, streak_current")
         .in("user_id", userIds)
         .eq("is_paused", false),
       supabase
@@ -312,16 +312,27 @@ Deno.serve(async (req) => {
       const thisWeekCompletions = thisWeekByUser.get(profile.id) ?? [];
       const habits = habitsByUser.get(profile.id) ?? [];
 
+      // A weekly habit is due once a week, whatever its days say, and done
+      // once however many days it was done on. Mirrors weekRateCounts() in
+      // src/lib/hooks/useWeeklySummary.ts.
+      const weekly = new Set(habits.filter((h) => h.frequency === "weekly").map((h) => h.id));
       let totalScheduled = 0;
       for (const habit of habits) {
         const schedule = habit.schedule as { days?: number[] } | null;
         const days = schedule?.days ?? [0, 1, 2, 3, 4, 5, 6];
-        totalScheduled += days.length;
+        totalScheduled += weekly.has(habit.id) ? 1 : days.length;
       }
 
       const totalCompletions = thisWeekCompletions.length;
+      // A habit counts once a day toward the rate: done twice in a day, it is
+      // two completions but one scheduled day.
+      const habitDaysDone = new Set(
+        thisWeekCompletions.map((c) =>
+          weekly.has(c.habit_id) ? c.habit_id : `${c.habit_id}:${c.completed_date}`,
+        ),
+      ).size;
       const completionRate = totalScheduled > 0
-        ? (totalCompletions / totalScheduled) * 100
+        ? (habitDaysDone / totalScheduled) * 100
         : 0;
 
       const habitCounts = new Map<string, number>();

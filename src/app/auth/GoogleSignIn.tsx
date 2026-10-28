@@ -110,6 +110,13 @@ export async function destinationAfterGoogle(): Promise<string> {
  * Where Google's button can't be used, the redirect flow: through Google
  * and back by /auth/callback, which sends a new account on to finish its
  * profile the same way.
+ *
+ * `prompt=select_account` makes Google ask which account every time. Left
+ * to itself, Google goes straight back with whichever account the browser is
+ * already signed in to and has used here before, so in the installed app
+ * there was no way to sign in with a different Gmail. Google's own button
+ * always asks, even with a single account, which is why only this flow
+ * needs it.
  */
 function GoogleRedirectButton() {
   async function handleClick() {
@@ -117,6 +124,7 @@ function GoogleRedirectButton() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { prompt: "select_account" },
       },
     });
   }

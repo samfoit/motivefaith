@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
@@ -105,6 +105,17 @@ async function renderDashboard() {
   return await screen.findByRole("button", { name: "Complete Morning Run" });
 }
 
+/**
+ * Runs the fake clock on inside act, so what it sets off (the undo window
+ * closing and writing the check-in, its toast leaving) lands before the next
+ * assertion rather than after the test.
+ */
+async function advance(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
 describe("DashboardClient quick check-in", () => {
   beforeEach(() => {
     mutateAsync.mockClear();
@@ -129,7 +140,7 @@ describe("DashboardClient quick check-in", () => {
     expect(mutateAsync).not.toHaveBeenCalled();
 
     // ...until the undo window closes.
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({
         habitId: "habit-1",
@@ -158,7 +169,7 @@ describe("DashboardClient quick check-in", () => {
     ).not.toBeDisabled();
     expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
 
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -179,7 +190,7 @@ describe("DashboardClient quick check-in", () => {
       await user.click(complete);
       // What a window-focus refetch does.
       await queryClient.refetchQueries({ type: "active" });
-      await vi.advanceTimersByTimeAsync(0);
+      await advance(0);
 
       expect(
         screen.getByRole("button", { name: "Morning Run completed" }),
@@ -188,6 +199,103 @@ describe("DashboardClient quick check-in", () => {
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+});
+
+/**
+ * A habit can be done more than once a day. The first check-in completes it
+ * and advances the streak; every one after it is logged and shared the same
+ * way, but the day is already in the streak.
+ */
+describe("DashboardClient checking in again", () => {
+  // Noon on Wednesday 18 June 2025, UTC, with Morning Run done at 8.
+  const NOW = new Date("2025-06-18T12:00:00Z");
+  const doneToday: HabitWithCompletions = {
+    ...habit,
+    completions: [
+      { id: "c1", completed_at: "2025-06-18T08:00:00Z", completion_type: "quick" },
+    ],
+  };
+
+  beforeEach(() => {
+    mutateAsync.mockClear();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function openDrawer(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Show check-in options for Morning Run",
+      }),
+    );
+  }
+
+  it("logs a quick check-in on a habit already done, without moving the streak", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithHabits([doneToday]);
+
+    // The circle stays done: a second tap there is not how you do it again.
+    expect(
+      await screen.findByRole("button", { name: "Morning Run completed" }),
+    ).toBeDisabled();
+
+    await openDrawer(user);
+    await user.click(
+      screen.getByRole("button", { name: "Quick check-in for Morning Run" }),
+    );
+
+    expect(screen.getByText("Checked in again", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("2 check-ins today")).toBeInTheDocument();
+    expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
+
+    await advance(6000);
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({ habitId: "habit-1", type: "quick" }),
+    );
+  });
+
+  it("does not celebrate a milestone the first check-in already reached", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    // Day 7 was this morning's check-in; a note now is not day 8.
+    renderWithHabits([{ ...doneToday, streak_current: 6 }]);
+
+    await openDrawer(user);
+    await user.click(
+      screen.getByRole("button", { name: "Written note for Morning Run" }),
+    );
+    await user.type(await screen.findByRole("textbox"), "Ran it again at lunch");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "message", notes: "Ran it again at lunch" }),
+      ),
+    );
+    expect(screen.getByLabelText("6-day streak")).toBeInTheDocument();
+    expect(screen.queryByText(/One week faithful/)).not.toBeInTheDocument();
+  });
+
+  it("offers no rain check once the habit is done", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithHabits([doneToday]);
+
+    await openDrawer(user);
+    expect(
+      screen.queryByRole("button", { name: "Rain check for Morning Run" }),
+    ).not.toBeInTheDocument();
+
+    // Nor from the sheet's own picker, reached by backing out of a note.
+    await user.click(
+      screen.getByRole("button", { name: "Written note for Morning Run" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Go back" }));
+    expect(await screen.findByText("Just log it")).toBeInTheDocument();
+    expect(screen.queryByText("Rain check")).not.toBeInTheDocument();
   });
 });
 
@@ -510,7 +618,7 @@ describe("DashboardClient sharing the first check-in", () => {
       screen.getByRole("button", { name: "Complete Morning Run" }),
     ).not.toBeDisabled();
     expect(screen.queryByText("Checked in", { exact: false })).not.toBeInTheDocument();
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -539,7 +647,7 @@ describe("DashboardClient sharing the first check-in", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nap completed" })).toBeDisabled();
 
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
   });
 
@@ -556,7 +664,7 @@ describe("DashboardClient sharing the first check-in", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
 
     expect(screen.getByLabelText("5-day streak")).toBeInTheDocument();
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
     expect(mutateAsync).toHaveBeenCalledTimes(1);
   });
@@ -598,5 +706,59 @@ describe("DashboardClient sharing the first check-in", () => {
     expect(
       screen.getByRole("button", { name: "Morning Run completed" }),
     ).toBeDisabled();
+  });
+});
+
+/**
+ * A habit can keep a different time on some days, or none at all. Its
+ * section and the time on its card are today's.
+ */
+describe("DashboardClient times that differ by day", () => {
+  // 8 to 9, but 4 to 5 at the weekend, and any time on Tuesday.
+  const split: HabitWithCompletions = {
+    ...habit,
+    time_window: {
+      start: "08:00",
+      end: "09:00",
+      days: {
+        "0": { start: "16:00", end: "17:00" },
+        "6": { start: "16:00", end: "17:00" },
+        "2": null,
+      },
+    },
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The heading of the section a habit's card sits in on a given day. */
+  async function placedOn(day: string) {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(day));
+    renderWithHabits([split]);
+    const card = await screen.findByRole("button", { name: "Complete Morning Run" });
+    const heading = screen
+      .getAllByRole("heading", { level: 2 })
+      .find((h) => h.parentElement?.contains(card));
+    return { heading: heading?.textContent, section: heading!.parentElement! };
+  }
+
+  it("shows the usual time on a weekday", async () => {
+    const { heading, section } = await placedOn("2025-06-18T07:00:00Z"); // Wednesday
+    expect(heading).toBe("Morning");
+    expect(within(section).getByText("8 AM")).toBeInTheDocument();
+  });
+
+  it("shows the weekend's own time at the weekend", async () => {
+    const { heading, section } = await placedOn("2025-06-21T07:00:00Z"); // Saturday
+    expect(heading).toBe("Afternoon");
+    expect(within(section).getByText("4 PM")).toBeInTheDocument();
+  });
+
+  it("lists a day with no set time under Anytime, with no time", async () => {
+    const { heading, section } = await placedOn("2025-06-17T07:00:00Z"); // Tuesday
+    expect(heading).toBe("Anytime");
+    expect(within(section).queryByText(/\d (AM|PM)$/)).not.toBeInTheDocument();
   });
 });
