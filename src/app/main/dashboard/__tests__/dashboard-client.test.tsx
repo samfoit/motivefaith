@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
@@ -105,6 +105,17 @@ async function renderDashboard() {
   return await screen.findByRole("button", { name: "Complete Morning Run" });
 }
 
+/**
+ * Runs the fake clock on inside act, so what it sets off (the undo window
+ * closing and writing the check-in, its toast leaving) lands before the next
+ * assertion rather than after the test.
+ */
+async function advance(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
 describe("DashboardClient quick check-in", () => {
   beforeEach(() => {
     mutateAsync.mockClear();
@@ -129,7 +140,7 @@ describe("DashboardClient quick check-in", () => {
     expect(mutateAsync).not.toHaveBeenCalled();
 
     // ...until the undo window closes.
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({
         habitId: "habit-1",
@@ -158,7 +169,7 @@ describe("DashboardClient quick check-in", () => {
     ).not.toBeDisabled();
     expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
 
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -179,7 +190,7 @@ describe("DashboardClient quick check-in", () => {
       await user.click(complete);
       // What a window-focus refetch does.
       await queryClient.refetchQueries({ type: "active" });
-      await vi.advanceTimersByTimeAsync(0);
+      await advance(0);
 
       expect(
         screen.getByRole("button", { name: "Morning Run completed" }),
@@ -242,7 +253,7 @@ describe("DashboardClient checking in again", () => {
     expect(screen.getByText("2 check-ins today")).toBeInTheDocument();
     expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
 
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({ habitId: "habit-1", type: "quick" }),
     );
@@ -607,7 +618,7 @@ describe("DashboardClient sharing the first check-in", () => {
       screen.getByRole("button", { name: "Complete Morning Run" }),
     ).not.toBeDisabled();
     expect(screen.queryByText("Checked in", { exact: false })).not.toBeInTheDocument();
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -636,7 +647,7 @@ describe("DashboardClient sharing the first check-in", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nap completed" })).toBeDisabled();
 
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
   });
 
@@ -653,7 +664,7 @@ describe("DashboardClient sharing the first check-in", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
 
     expect(screen.getByLabelText("5-day streak")).toBeInTheDocument();
-    await vi.advanceTimersByTimeAsync(6000);
+    await advance(6000);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
     expect(mutateAsync).toHaveBeenCalledTimes(1);
   });

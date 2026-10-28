@@ -21,11 +21,13 @@ vi.mock("next/image", () => ({
   ),
 }));
 
-// Mock next/dynamic
+// Mock next/dynamic. The lazy component's own props (the camera's onCapture,
+// initialCapture, useLabel…) stay off the stand-in div, where React warns
+// about every one it doesn't know.
 vi.mock("next/dynamic", () => ({
   default: (_loader: () => Promise<{ default: React.ComponentType }>) => {
-    const Component = (props: Record<string, unknown>) => (
-      <div data-testid="dynamic-component" {...props} />
+    const Component = ({ children }: { children?: React.ReactNode }) => (
+      <div data-testid="dynamic-component">{children}</div>
     );
     Component.displayName = "DynamicComponent";
     return Component;
@@ -140,6 +142,14 @@ if (!Element.prototype.hasPointerCapture) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+// jsdom draws nothing and plays nothing. Its canvas getContext() answers null
+// and its media pause() does nothing, each after printing "Not implemented",
+// which the camera's tests set off on every take. These give the same answers
+// without the note; a test that needs a drawing context or playback still sets
+// or spies its own.
+HTMLCanvasElement.prototype.getContext = (() => null) as HTMLCanvasElement["getContext"];
+HTMLMediaElement.prototype.pause = () => {};
 
 // ---------------------------------------------------------------------------
 // Blob.arrayBuffer

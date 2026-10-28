@@ -9,10 +9,15 @@ vi.mock("next/navigation", async (importOriginal) => {
 
 import { NavigationProgress } from "../NavigationProgress";
 
-/** Click an in-page anchor the way the capture-phase document listener sees it. */
+/**
+ * Click an in-page anchor the way the capture-phase document listener sees it.
+ * The anchor then cancels its own navigation, as Next's <Link> does before it
+ * routes on the client: jsdom can't load another document.
+ */
 function clickLink(href: string) {
   const a = document.createElement("a");
   a.setAttribute("href", href);
+  a.addEventListener("click", (e) => e.preventDefault());
   document.body.appendChild(a);
   act(() => {
     a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

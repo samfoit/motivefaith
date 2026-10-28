@@ -31,8 +31,17 @@ describe("MessageMedia", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("plays a video in place rather than opening it", () => {
-    render(<MessageMedia path="me/capture/b.mp4" type="video" />);
+  it("plays a video in place rather than opening it", async () => {
+    const { container } = render(<MessageMedia path="me/capture/b.mp4" type="video" />);
     expect(screen.queryByRole("button", { name: "View photo" })).toBeNull();
+
+    // Once its link resolves, the player is right there, with its own controls.
+    await waitFor(() =>
+      expect(container.querySelector("video")).toHaveAttribute(
+        "src",
+        "https://storage.test/me/capture/b.mp4",
+      ),
+    );
+    expect(container.querySelector("video")).toHaveAttribute("controls");
   });
 });

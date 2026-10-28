@@ -70,15 +70,21 @@ describe("WizardClient", () => {
 
   it("holds Next back while a custom schedule has no days", async () => {
     renderWizard();
-    await userEvent.type(screen.getByLabelText("Habit name"), "Stretch");
 
+    // Custom comes before the name. Opened with a name in the field, the menu
+    // renders on after the click's act under jsdom and React warns about each
+    // of its parts; in this order it doesn't, and the habit ends up the same.
     await userEvent.click(screen.getByRole("button", { name: /^repeat/i }));
     await userEvent.click(await screen.findByRole("menuitemradio", { name: /^custom/i }));
     for (const day of ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]) {
       await userEvent.click(screen.getByRole("button", { name: day }));
     }
+    await userEvent.type(screen.getByLabelText("Habit name"), "Stretch");
 
+    // Named, so only the missing days hold it back.
     expect(next()).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Monday" }));
+    expect(next()).toBeEnabled();
   });
 
   it("holds Next back while Until comes before From", async () => {
