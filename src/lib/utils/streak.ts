@@ -1,5 +1,5 @@
 import { toDateKey, todayDateKey, subtractDays, addDays, getDayOfWeek } from "./timezone";
-import { parseSchedule, type CompletionRow } from "./schedule";
+import { parseSchedule, scheduleOn, type CompletionRow, type ScheduleChange } from "./schedule";
 import { pauseStartOn, type HabitPause } from "./pauses";
 import { isRainCheck } from "@/lib/constants/completion";
 
@@ -59,7 +59,8 @@ export function countsTowardStreak(
  *
  * Paused days are stepped over, the way habit_last_due_day() and
  * habit_last_counted_week() (047) step over them on the server: a pause
- * keeps the streak, however long it ran.
+ * keeps the streak, however long it ran. Each day is judged by the schedule
+ * it had (049), so changing the days never ends a streak by itself.
  */
 export function computeEffectiveStreak(
   habit: { streak_current: number | null; schedule: unknown; frequency?: string | null },
@@ -67,10 +68,13 @@ export function computeEffectiveStreak(
   timeZone: string,
   {
     pauses = [],
+    scheduleChanges = [],
     loadedFrom,
   }: {
     /** The habit's pauses, from habit_pauses. */
     pauses?: readonly HabitPause[];
+    /** The habit's schedule changes, from habit_schedule_changes. */
+    scheduleChanges?: readonly ScheduleChange[];
     /**
      * The first day `completions` holds in full, if they start somewhere.
      * Only a long pause sends the streak back past it, to a day that can't
@@ -142,8 +146,7 @@ export function computeEffectiveStreak(
   }
 
   // ── Daily-type frequencies: walk backward skipping non-scheduled and paused days ──
-  // Mirrors habit_last_due_day() in migration 047 — keep the two in step.
-  const scheduledDays = parseSchedule(habit.schedule)?.days;
+  // Mirrors habit_last_due_day() in migration 049 — keep the two in step.
 
   // Walk backwards from yesterday to find the most recent scheduled day
   let checkKey = subtractDays(today, 1);
@@ -156,6 +159,21 @@ export function computeEffectiveStreak(
       pauseStart = pauseStartOn(pauses, checkKey);
     }
 
+    // The schedule this day had, which a change since may have replaced.
+    const kept = scheduleOn(habit, scheduleChanges, checkKey);
+
+    if (kept.frequency === "weekly" && kept.until !== null) {
+      // Weekly until a change made it daily: the streak stands if the weekly
+      // one still did then — a covered day in that week or the one it was
+      // held to before, short of today. Mirrors habit_weekly_stand().
+      const since = lastCountedWeek(pauses, weekStartOf(kept.until));
+      for (const dk of [...realDateKeys, ...rainChecks.keys()]) {
+        if (dk >= since && dk <= kept.until && dk < today && coversDay(dk)) return dbStreak;
+      }
+      return unseen(since) ? dbStreak : 0;
+    }
+
+    const scheduledDays = parseSchedule(kept.schedule)?.days;
     const dow = getDayOfWeek(new Date(checkKey + "T12:00:00Z"), timeZone);
     const isScheduled =
       !scheduledDays ||

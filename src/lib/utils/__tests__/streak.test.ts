@@ -477,6 +477,96 @@ describe("computeEffectiveStreak", () => {
       });
     });
   });
+
+  // Mirrors habit_last_due_day() and habit_weekly_stand() in migration 049,
+  // which tests/schedule-changes.test.sql covers on the server. Today is
+  // Sunday June 15.
+  describe("schedule changes", () => {
+    const done = (...days: string[]) => days.map((day) => ({ completed_at: `${day}T10:00:00Z` }));
+    const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+
+    it("keeps a day added since as the day off it was", () => {
+      // Mon/Wed/Fri until today, every day from today. Done Friday; Saturday
+      // was a day off when it passed.
+      const result = computeEffectiveStreak(
+        { streak_current: 6, schedule: { days: EVERY_DAY }, frequency: "daily" },
+        done("2025-06-13"),
+        "UTC",
+        { scheduleChanges: [{ changed_on: "2025-06-15", frequency: "specific_days", days: [1, 3, 5] }] },
+      );
+      expect(result).toBe(6);
+    });
+
+    it("would end it if the new days were read into the past", () => {
+      const result = computeEffectiveStreak(
+        { streak_current: 6, schedule: { days: EVERY_DAY }, frequency: "daily" },
+        done("2025-06-13"),
+        "UTC",
+      );
+      expect(result).toBe(0);
+    });
+
+    it("still ends on a day missed before it was taken off", () => {
+      // Every day until today, Mon/Wed/Fri from today: Saturday was due.
+      const result = computeEffectiveStreak(
+        { streak_current: 6, schedule: { days: [1, 3, 5] }, frequency: "specific_days" },
+        done("2025-06-13"),
+        "UTC",
+        { scheduleChanges: [{ changed_on: "2025-06-15", frequency: "daily", days: EVERY_DAY }] },
+      );
+      expect(result).toBe(0);
+    });
+
+    it("reads each day's schedule across two changes", () => {
+      // Weekends until Wednesday the 11th, Tuesdays until Saturday the 14th,
+      // Mon/Wed/Fri since. Every day back to Sunday the 8th was off when it
+      // passed; that Sunday was due, and done.
+      const changes = [
+        { changed_on: "2025-06-14", frequency: "specific_days", days: [2] },
+        { changed_on: "2025-06-11", frequency: "weekends", days: [0, 6] },
+      ];
+      const habit = { streak_current: 3, schedule: { days: [1, 3, 5] }, frequency: "specific_days" };
+      expect(computeEffectiveStreak(habit, done("2025-06-08"), "UTC", { scheduleChanges: changes })).toBe(3);
+      expect(computeEffectiveStreak(habit, done("2025-06-01"), "UTC", { scheduleChanges: changes })).toBe(0);
+    });
+
+    describe("from weekly", () => {
+      const daily = { streak_current: 4, schedule: { days: EVERY_DAY }, frequency: "daily" };
+      const madeDailyToday = [{ changed_on: "2025-06-15", frequency: "weekly", days: EVERY_DAY }];
+
+      it("keeps a weekly streak made daily today", () => {
+        // Done Monday the 9th, last week: the weekly streak stood.
+        const result = computeEffectiveStreak(daily, done("2025-06-09"), "UTC", {
+          scheduleChanges: madeDailyToday,
+        });
+        expect(result).toBe(4);
+      });
+
+      it("ends one that had already lapsed", () => {
+        // Last done the week before last.
+        const result = computeEffectiveStreak(daily, done("2025-06-02"), "UTC", {
+          scheduleChanges: madeDailyToday,
+        });
+        expect(result).toBe(0);
+      });
+
+      it("ends when its first day due as a daily habit is missed", () => {
+        // Made daily yesterday, and not done yesterday.
+        const result = computeEffectiveStreak(daily, done("2025-06-09"), "UTC", {
+          scheduleChanges: [{ changed_on: "2025-06-14", frequency: "weekly", days: EVERY_DAY }],
+        });
+        expect(result).toBe(0);
+      });
+
+      it("keeps the server's streak when the weeks it hung on weren't loaded", () => {
+        const result = computeEffectiveStreak(daily, [], "UTC", {
+          scheduleChanges: madeDailyToday,
+          loadedFrom: "2025-06-10",
+        });
+        expect(result).toBe(4);
+      });
+    });
+  });
 });
 
 describe("countsTowardStreak", () => {

@@ -39,7 +39,8 @@ export default async function HabitDetailPage({ params }: Props) {
   // them at a time, reaching as far back as the habit goes — years of
   // logging is never fetched in one go. A third, counted in the database,
   // gives the rate its days done over the habit's whole life. Its pauses are
-  // stepped over by the streak, and leave the rate's denominator.
+  // stepped over by the streak, and leave the rate's denominator; its
+  // schedule changes give each day the schedule it had.
   const [
     { data: profileTz },
     { data: habit },
@@ -47,6 +48,7 @@ export default async function HabitDetailPage({ params }: Props) {
     { data: completions },
     { data: daysDone },
     { data: pauses },
+    { data: scheduleChanges },
     { data: shares },
     { data: groupShares },
     { data: friendships },
@@ -81,6 +83,11 @@ export default async function HabitDetailPage({ params }: Props) {
       .eq("habit_id", id)
       .order("started_on"),
     supabase
+      .from("habit_schedule_changes")
+      .select("changed_on, frequency, days")
+      .eq("habit_id", id)
+      .order("changed_on"),
+    supabase
       .from("habit_shares")
       .select("id, shared_with, created_at, status, initiated_by")
       .eq("habit_id", id),
@@ -108,10 +115,13 @@ export default async function HabitDetailPage({ params }: Props) {
     (c): c is typeof c & { completed_at: string } => c.completed_at != null,
   );
 
-  // No pauses until migration 047 is applied: the streak then reads as before.
+  // No pauses until migration 047 is applied, and no schedule changes until
+  // 049: the streak then reads as before.
   const habitPauses = pauses ?? [];
+  const habitScheduleChanges = scheduleChanges ?? [];
   const effectiveStreak = computeEffectiveStreak(habit, validatedActivity, timeZone, {
     pauses: habitPauses,
+    scheduleChanges: habitScheduleChanges,
     // From a moment of the day, so the day after is the first held in full.
     loadedFrom: addDays(toDateKey(activitySince, timeZone), 1),
   });

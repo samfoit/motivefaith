@@ -77,6 +77,25 @@ async function fetchPauses(
 }
 
 /**
+ * Schedule changes that judge a day in the window: one made on a day decides
+ * the schedule of the days before it, so a change on or before the window's
+ * first day holds none it shows.
+ */
+async function fetchScheduleChanges(
+  supabase: SupabaseServerClient,
+  habitIds: string[],
+  fetchStartKey: string,
+) {
+  if (habitIds.length === 0) return [];
+  const { data } = await supabase
+    .from("habit_schedule_changes")
+    .select("habit_id, changed_on, frequency, days")
+    .in("habit_id", habitIds)
+    .gt("changed_on", fetchStartKey);
+  return data ?? [];
+}
+
+/**
  * Everything the dashboard renders.
  *
  * The habits/challenges pair is started before the profile is awaited: neither
@@ -115,9 +134,10 @@ export async function fetchDashboard(
   // into that day: the next is the first held in full.
   const loadedFrom = addDays(fetchStartKey, 1);
 
-  const [recentCompletions, pauses, { data: participants }] = await Promise.all([
+  const [recentCompletions, pauses, scheduleChanges, { data: participants }] = await Promise.all([
     fetchCompletions(supabase, habitIds, fetchStartKey),
     fetchPauses(supabase, habitIds, fetchStartKey),
+    fetchScheduleChanges(supabase, habitIds, fetchStartKey),
     habitIds.length > 0
       ? supabase
         .from("group_challenge_participants")
@@ -169,14 +189,20 @@ export async function fetchDashboard(
       .filter((p) => p.habit_id === habit.id)
       .map(({ started_on, ended_on }) => ({ started_on, ended_on }));
 
+    const habitScheduleChanges = scheduleChanges
+      .filter((c) => c.habit_id === habit.id)
+      .map(({ changed_on, frequency, days }) => ({ changed_on, frequency, days }));
+
     return {
       ...habit,
       streak_current: computeEffectiveStreak(habit, habitCompletions, timezone, {
         pauses: habitPauses,
+        scheduleChanges: habitScheduleChanges,
         loadedFrom,
       }),
       completions: habitCompletions,
       pauses: habitPauses,
+      schedule_changes: habitScheduleChanges,
       challenge: challengeMap.get(habit.id) ?? null,
     };
   });

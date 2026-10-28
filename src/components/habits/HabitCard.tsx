@@ -15,6 +15,7 @@ import {
 import type { Tables } from "@/lib/supabase/types";
 import type { Habit } from "@/lib/types/habit";
 import type { HabitPause } from "@/lib/utils/pauses";
+import type { ScheduleChange } from "@/lib/utils/schedule";
 
 // --- Drawer geometry -------------------------------------------------------
 // The card slides right by exactly the width of the option row, so the icons
@@ -97,6 +98,12 @@ export type HabitWithCompletions = Habit & {
    * from a cache written before they were sent.
    */
   pauses?: HabitPause[];
+  /**
+   * Changes to its schedule since the start of that window, so a day it
+   * shows is judged by the schedule it had. Absent from a cache written
+   * before they were sent.
+   */
+  schedule_changes?: ScheduleChange[];
   challenge?: { title: string; emoji: string } | null;
 };
 

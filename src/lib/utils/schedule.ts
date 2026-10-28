@@ -371,6 +371,40 @@ export function timeFieldsFromWindow(
 }
 
 /**
+ * One change to a habit's schedule, as habit_schedule_changes (049) keeps it:
+ * the owner's day the new schedule took effect, and the schedule before it.
+ * The day of the change and every day after are judged by the newer one.
+ */
+export interface ScheduleChange {
+  changed_on: string;
+  frequency: string;
+  /** schedule.days as it was: null, or no days, for every day. */
+  days: Json | null;
+}
+
+/**
+ * The schedule a habit kept on a day: the one the first change after that
+ * day replaced, or the habit's own. Mirrors the lookup in
+ * habit_last_due_day() (049) — keep the two in step.
+ */
+export function scheduleOn(
+  habit: { frequency?: string | null; schedule: unknown },
+  changes: readonly ScheduleChange[],
+  dayKey: string,
+): { frequency: string | null; schedule: unknown; until: string | null } {
+  let first: ScheduleChange | null = null;
+  for (const c of changes) {
+    if (c.changed_on > dayKey && (first === null || c.changed_on < first.changed_on)) {
+      first = c;
+    }
+  }
+  if (!first) {
+    return { frequency: habit.frequency ?? null, schedule: habit.schedule, until: null };
+  }
+  return { frequency: first.frequency, schedule: { days: first.days }, until: first.changed_on };
+}
+
+/**
  * Check whether a habit is scheduled on a given date in the user's timezone.
  * Treats habits with no schedule or an empty days array as daily (always scheduled).
  */

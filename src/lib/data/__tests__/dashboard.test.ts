@@ -16,6 +16,7 @@ function fakeServerSupabase(tables: Record<string, unknown>): ServerClient {
         eq: () => query,
         in: () => query,
         or: () => query,
+        gt: () => query,
         gte: () => query,
         order: () => query,
         limit: () => query,
@@ -175,6 +176,60 @@ describe("fetchDashboard", () => {
         USER,
       );
       expect(data.habits[0].streak_current).toBe(9);
+    });
+  });
+
+  describe("schedule changes", () => {
+    it("judges the days before a change by the schedule they had, and sends the change on", async () => {
+      // Wednesday the 21st. Mon/Wed/Fri until today, every day from today:
+      // done Monday, and Tuesday was a day off when it passed.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-21T17:00:00Z"));
+      const change = { changed_on: "2026-10-21", frequency: "specific_days", days: [1, 3, 5] };
+      const supabase = (changes: unknown[]) =>
+        fakeServerSupabase({
+          profiles: { display_name: "Sam Foit", timezone: "America/Chicago" },
+          habits: [
+            {
+              id: "run",
+              user_id: USER,
+              title: "Run",
+              description: null,
+              emoji: "🏃",
+              color: null,
+              frequency: "daily",
+              schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
+              time_window: null,
+              streak_current: 5,
+              streak_best: 5,
+              total_completions: 5,
+              is_paused: false,
+              visibility: "private",
+              private_checkins: false,
+              created_at: "2026-01-01T00:00:00Z",
+            },
+          ],
+          completions: [
+            {
+              id: "c1",
+              habit_id: "run",
+              completed_at: "2026-10-19T15:00:00Z",
+              completion_type: "quick",
+              rain_check_moved_to: null,
+            },
+          ],
+          habit_schedule_changes: changes,
+          group_challenges: [],
+          group_challenge_participants: [],
+        });
+
+      const data = await fetchDashboard(supabase([{ habit_id: "run", ...change }]), USER);
+      expect(data.habits[0].streak_current).toBe(5);
+      expect(data.habits[0].schedule_changes).toEqual([change]);
+
+      // Read by today's schedule, Tuesday was a day due and missed.
+      const unchanged = await fetchDashboard(supabase([]), USER);
+      expect(unchanged.habits[0].streak_current).toBe(0);
     });
   });
 });

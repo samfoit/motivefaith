@@ -25,6 +25,57 @@ describe("applyHabitUpdate", () => {
   it("leaves an empty cache empty", () => {
     expect(applyHabitUpdate(undefined, "a", { color: "#ff0000" })).toBeUndefined();
   });
+
+  describe("a new schedule", () => {
+    // Noon on Wednesday 18 June 2025, UTC.
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2025-06-18T12:00:00Z"));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const scheduled = (changes?: unknown[]) =>
+      ({
+        habits: [
+          {
+            id: "a",
+            frequency: "specific_days",
+            schedule: { days: [1, 3, 5] },
+            completions: [],
+            ...(changes ? { schedule_changes: changes } : {}),
+          },
+        ],
+        timezone: "UTC",
+        firstName: "Sam",
+      }) as unknown as DashboardData;
+
+    it("is kept as a change from today, with the schedule it replaced", () => {
+      const next = applyHabitUpdate(scheduled(), "a", {
+        frequency: "daily",
+        schedule: { days: [0, 1, 2, 3, 4, 5, 6] },
+      });
+      expect(next?.habits[0].schedule_changes).toEqual([
+        { changed_on: "2025-06-18", frequency: "specific_days", days: [1, 3, 5] },
+      ]);
+    });
+
+    it("keeps the first change of the day when there is a second", () => {
+      const first = { changed_on: "2025-06-18", frequency: "daily", days: [0, 1, 2, 3, 4, 5, 6] };
+      const next = applyHabitUpdate(scheduled([first]), "a", { schedule: { days: [1] } });
+      expect(next?.habits[0].schedule_changes).toEqual([first]);
+    });
+
+    it("is no change when the days are the same in another order", () => {
+      const next = applyHabitUpdate(scheduled(), "a", {
+        title: "Renamed",
+        frequency: "specific_days",
+        schedule: { days: [5, 3, 1] },
+      });
+      expect(next?.habits[0].schedule_changes).toBeUndefined();
+    });
+  });
 });
 
 describe("removeHabit", () => {

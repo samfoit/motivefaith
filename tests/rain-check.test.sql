@@ -279,25 +279,22 @@ END $$;
 -- there too — since 028, a move may only target a day the habit is free on.
 -- ---------------------------------------------------------------------------
 
+-- Created with that schedule rather than given it after: since 049 a change
+-- is judged from the day it was made, and a habit changed today would still
+-- have been due yesterday.
 INSERT INTO public.habits (id, user_id, title, emoji, frequency, schedule)
-VALUES
-  ('bbbb0005-0000-0000-0000-000000000000', '44444444-4444-4444-4444-444444444444', 'Move Kept',  '↪', 'specific_days', '{"days":[0,1,2,3,4,5,6]}'::jsonb),
-  ('bbbb0006-0000-0000-0000-000000000000', '44444444-4444-4444-4444-444444444444', 'Move Lapsed','↪', 'specific_days', '{"days":[0,1,2,3,4,5,6]}'::jsonb),
-  ('bbbb0007-0000-0000-0000-000000000000', '44444444-4444-4444-4444-444444444444', 'Move Bounds','↪', 'specific_days', '{"days":[0,1,2,3,4,5,6]}'::jsonb);
-
--- Drop yesterday's and tomorrow's weekdays from the scheduled habits.
-UPDATE public.habits
-  SET schedule = jsonb_build_object('days', (
-    SELECT jsonb_agg(d ORDER BY d)
-    FROM generate_series(0, 6) AS d
-    WHERE d <> ((EXTRACT(DOW FROM now())::int + 6) % 7)
-      AND d <> ((EXTRACT(DOW FROM now())::int + 1) % 7)
-  ))
-  WHERE id IN (
-    'bbbb0005-0000-0000-0000-000000000000',
-    'bbbb0006-0000-0000-0000-000000000000',
-    'bbbb0007-0000-0000-0000-000000000000'
-  );
+SELECT h.id::uuid, '44444444-4444-4444-4444-444444444444', h.title, '↪', 'specific_days',
+       jsonb_build_object('days', (
+         SELECT jsonb_agg(d ORDER BY d)
+         FROM generate_series(0, 6) AS d
+         WHERE d <> ((EXTRACT(DOW FROM now())::int + 6) % 7)
+           AND d <> ((EXTRACT(DOW FROM now())::int + 1) % 7)
+       ))
+FROM (VALUES
+  ('bbbb0005-0000-0000-0000-000000000000', 'Move Kept'),
+  ('bbbb0006-0000-0000-0000-000000000000', 'Move Lapsed'),
+  ('bbbb0007-0000-0000-0000-000000000000', 'Move Bounds')
+) AS h(id, title);
 
 -- ---------------------------------------------------------------------------
 -- Test 7: chk_rain_check_moved_to bounds the promise

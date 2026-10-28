@@ -14,6 +14,8 @@ import type { DashboardData } from "@/lib/data/dashboard";
 import type { Database } from "@/lib/supabase/types";
 import { isRainCheck, type CompletionType } from "@/lib/constants/completion";
 import { countsTowardStreak } from "@/lib/utils/streak";
+import { getScheduledDays, type ScheduleChange } from "@/lib/utils/schedule";
+import { todayDateKey } from "@/lib/utils/timezone";
 
 export interface OptimisticCompletion {
   habitId: string;
@@ -141,6 +143,10 @@ export function applyHabitCreate(
  * Apply an edit to a cached habit — title, color, schedule and so on. Without
  * this the dashboard kept showing the old values after a save: the edit sheet
  * lives on the habit page, whose `router.refresh()` never touches this cache.
+ *
+ * A new schedule is kept as a change from today, as the database keeps it
+ * (049), so the days before go on showing the schedule they had — offline
+ * too, until the refetch brings the real row.
  */
 export function applyHabitUpdate(
   data: DashboardData | undefined,
@@ -151,10 +157,33 @@ export function applyHabitUpdate(
 
   return {
     ...data,
-    habits: data.habits.map((habit) =>
-      habit.id === habitId ? { ...habit, ...patch } : habit,
-    ),
+    habits: data.habits.map((habit) => {
+      if (habit.id !== habitId) return habit;
+      const updated = { ...habit, ...patch };
+      if (!scheduleChanged(habit, updated)) return updated;
+
+      const today = todayDateKey(data.timezone);
+      const changes = habit.schedule_changes ?? [];
+      // A second change the same day keeps the first one's schedule before.
+      if (changes.some((c) => c.changed_on === today)) return updated;
+      const change: ScheduleChange = {
+        changed_on: today,
+        frequency: habit.frequency,
+        days: getScheduledDays(habit.schedule),
+      };
+      return { ...updated, schedule_changes: [...changes, change] };
+    }),
   };
+}
+
+function scheduleChanged(
+  before: { frequency: string; schedule: unknown },
+  after: { frequency: string; schedule: unknown },
+): boolean {
+  if (before.frequency !== after.frequency) return true;
+  const a = new Set(getScheduledDays(before.schedule));
+  const b = getScheduledDays(after.schedule);
+  return a.size !== new Set(b).size || b.some((d) => !a.has(d));
 }
 
 /**
