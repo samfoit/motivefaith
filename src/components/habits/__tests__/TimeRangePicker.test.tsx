@@ -105,6 +105,8 @@ describe("TimeRangePicker", () => {
       expect(field("Until")).toHaveAccessibleName("Until, 10 AM");
       expect(screen.getByText(notice)).toBeInTheDocument();
       expect(field("Until")).toHaveAccessibleDescription(notice);
+      // Overnight habits aren't kept; the notice says how to keep one anyway.
+      expect(screen.getByText(/like a fast, track it on the day it ends/)).toBeInTheDocument();
 
       await userEvent.click(within(picker("Until")).getByRole("radio", { name: "PM" }));
       expect(screen.queryByText(notice)).not.toBeInTheDocument();

@@ -265,7 +265,7 @@ export function TimeRangePicker({
         )}
       >
         {outOfOrder &&
-          `${labels.end} has to be after ${labels.start}. A window can't run past midnight.`}
+          `${labels.end} has to be after ${labels.start}. A window can't run past midnight — for something overnight, like a fast, track it on the day it ends.`}
       </p>
     </div>
   );
