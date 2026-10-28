@@ -37,16 +37,17 @@ export default async function HabitDetailPage({ params }: Props) {
   // heatmap, streak and "done today" need every day in the recent window, but
   // only its dates. The History tab needs whole rows, but only one page of
   // them at a time, reaching as far back as the habit goes — years of
-  // logging is never fetched in one go. A third, counted in the database,
-  // gives the rate its days done over the habit's whole life. Its pauses are
-  // stepped over by the streak, and leave the rate's denominator; its
-  // schedule changes give each day the schedule it had.
+  // logging is never fetched in one go. The rate is counted in the database,
+  // over the habit's whole life: the days it was due and done (050), or,
+  // before that, the days done. Its pauses are stepped over by the streak,
+  // and its schedule changes give each day the schedule it had.
   const [
     { data: profileTz },
     { data: habit },
     { data: activity },
     { data: completions },
     { data: daysDone },
+    { data: rate },
     { data: pauses },
     { data: scheduleChanges },
     { data: shares },
@@ -77,6 +78,7 @@ export default async function HabitDetailPage({ params }: Props) {
       .order("id", { ascending: false })
       .limit(HISTORY_PAGE_SIZE),
     untypedRpc<number>(supabase, "get_habit_days_done", { p_habit_id: id }),
+    untypedRpc<{ due: number; done: number }[]>(supabase, "get_habit_rate", { p_habit_id: id }),
     supabase
       .from("habit_pauses")
       .select("started_on, ended_on")
@@ -187,6 +189,9 @@ export default async function HabitDetailPage({ params }: Props) {
       // No count until migration 044 is applied: fall back to check-ins, which
       // is what the rate counted before.
       daysDone={daysDone ?? habit.total_completions ?? 0}
+      // Until migration 050 is applied there is none, and the rate falls back
+      // to days done over days since the habit was created.
+      rate={rate?.[0] ?? null}
       pauses={habitPauses}
       partnerRows={partnerRows}
       availableFriends={availableFriends}

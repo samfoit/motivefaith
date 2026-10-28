@@ -40,6 +40,7 @@ import {
   describeDays,
   formatWindow,
   getScheduledDays,
+  isHabitScheduledOn,
   parseTimeWindow,
   timeWindowGroups,
   type DayWindow,
@@ -163,6 +164,12 @@ interface HabitDetailClientProps {
    * be done more than once a day, and the rate counts days.
    */
   daysDone: number;
+  /**
+   * Days — weeks, for a weekly habit — it was due, and done, by the schedule
+   * each had (get_habit_rate, 050). Null before that, when the rate is days
+   * done over the days since it was created.
+   */
+  rate: { due: number; done: number } | null;
   /** Every time it was paused. Paused days leave the rate's denominator. */
   pauses: HabitPause[];
   partnerRows: PartnerRow[];
@@ -232,6 +239,7 @@ export function HabitDetailClient({
   completions: initialCompletions,
   activity: initialActivity,
   daysDone: initialDaysDone,
+  rate: initialRate,
   pauses,
   partnerRows,
   availableFriends = [],
@@ -248,6 +256,14 @@ export function HabitDetailClient({
   const [completions, setCompletions] = useState(initialCompletions);
   const [activity, setActivity] = useState(initialActivity);
   const [daysDone, setDaysDone] = useState(initialDaysDone);
+  const [rate, setRate] = useState(initialRate);
+  // A schedule changed in the edit sheet changes which days were due; the
+  // server's count comes back with router.refresh(), and replaces this one.
+  const [rateFrom, setRateFrom] = useState(initialRate);
+  if (rateFrom !== initialRate) {
+    setRateFrom(initialRate);
+    setRate(initialRate);
+  }
   const [completionOpen, setCompletionOpen] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialCompletions.length >= HISTORY_PAGE_SIZE);
@@ -418,6 +434,9 @@ export function HabitDetailClient({
 
   const [mountTime] = useState(() => Date.now());
   const completionRate = useMemo(() => {
+    if (rate) {
+      return rate.due === 0 ? 0 : Math.min(100, Math.round((rate.done / rate.due) * 100));
+    }
     // Days done, not check-ins: a habit done three times today was still
     // only done on one day.
     if (daysDone === 0) return 0;
@@ -442,7 +461,7 @@ export function HabitDetailClient({
       daysSinceCreation - rainCheckDates.size - pausedDays,
     );
     return Math.min(100, Math.round((daysDone / eligibleDays) * 100));
-  }, [daysDone, habit.created_at, mountTime, rainCheckDates, pauses, heatmapData, timezone]);
+  }, [rate, daysDone, habit.created_at, mountTime, rainCheckDates, pauses, heatmapData, timezone]);
 
   // --- Handlers ---
 
@@ -510,6 +529,11 @@ export function HabitDetailClient({
         total_completions: (h.total_completions ?? 0) + 1,
       }));
       if (!completedToday) setDaysDone((n) => n + 1);
+      // Today, or this week, was due and is now done — unless today is a day
+      // off, which the rate leaves out.
+      if (counts && (habit.frequency === "weekly" || isHabitScheduledOn(habit, new Date(), timezone))) {
+        setRate((r) => (r ? { due: r.due + 1, done: r.done + 1 } : r));
+      }
     }
 
     try {
@@ -533,6 +557,7 @@ export function HabitDetailClient({
       // Paused since this page loaded: say so, with the way back.
       if (isHabitPausedError(err)) setHabit((h) => ({ ...h, is_paused: true }));
       setDaysDone(initialDaysDone);
+      setRate(initialRate);
       showToast({
         variant: "error",
         title:
