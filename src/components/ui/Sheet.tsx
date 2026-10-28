@@ -137,6 +137,10 @@ export const Sheet: React.FC<SheetProps> = ({
 
         <RadixDialog.Content
           ref={contentRef}
+          // Without a description, say so: Radix otherwise points
+          // aria-describedby at a Description that was never rendered, and
+          // warns about it on every open.
+          {...(description ? null : { "aria-describedby": undefined })}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={() => handlePointerUpOrCancel(true)}

@@ -32,6 +32,24 @@ describe("Sheet", () => {
     expect(screen.getByText("My description")).toBeInTheDocument();
   });
 
+  it("is described by its description, and by nothing without one", () => {
+    const { unmount } = render(
+      <Sheet open title="Described" description="My description">
+        Content
+      </Sheet>,
+    );
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription("My description");
+    unmount();
+
+    render(
+      <Sheet open title="Plain">
+        Content
+      </Sheet>,
+    );
+    // Not pointing at a Description that was never rendered.
+    expect(screen.getByRole("dialog")).not.toHaveAttribute("aria-describedby");
+  });
+
   it("shows drag handle by default", () => {
     render(
       <Sheet open title="Handle">
