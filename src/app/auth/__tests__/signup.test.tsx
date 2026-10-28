@@ -255,7 +255,12 @@ describe("SignupPage with Google", () => {
     await waitFor(() =>
       expect(mockSignInWithOAuth).toHaveBeenCalledWith({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          // Google asks which account every time, so a second Gmail can be
+          // used, rather than going straight back with the last one.
+          queryParams: { prompt: "select_account" },
+        },
       }),
     );
   });
