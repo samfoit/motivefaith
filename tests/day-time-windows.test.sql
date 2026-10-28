@@ -53,13 +53,17 @@ GRANT USAGE, SELECT ON SEQUENCE public._sent_push_id_seq TO authenticated;
 SELECT vault.create_secret('http://stub', 'supabase_url');
 SELECT vault.create_secret('stub-service-key', 'service_role_key');
 
--- Who get_missed_habits would tell about a habit at a given moment.
+-- Who get_missed_habits would tell, at a given moment, that a habit was
+-- missed that day. Since 048 a run can also tell about the day before, which
+-- tests/missed-alert-timing.test.sql covers; every test here is about the
+-- day itself, in UTC.
 CREATE FUNCTION public._told(p_habit UUID, p_at TIMESTAMPTZ) RETURNS TEXT[]
 LANGUAGE sql AS $fn$
   SELECT coalesce(array_agg(p.display_name ORDER BY p.display_name), '{}')
   FROM public.get_missed_habits(p_at) m
   JOIN public.profiles p ON p.id = m.partner_id
   WHERE m.habit_id = p_habit
+    AND m.owner_date = (p_at AT TIME ZONE 'UTC')::date
 $fn$;
 
 -- The habits get_habits_due_for_reminder would remind about at a moment.
@@ -119,19 +123,23 @@ INSERT INTO public.friendships (register_id, addressee_id, status) VALUES
 -- Plain every day, 8 to 9, the same every day
 -- Read  weekly, 8 to 9, done on Monday
 -- Pray  weekly, 8 to 9, not done this week
-INSERT INTO public.habits (id, user_id, title, emoji, frequency, schedule, time_window) VALUES
+--
+-- Every habit and partnership here dates from before the week: a window set,
+-- or a partner added, after it closed is never told missed (048).
+INSERT INTO public.habits (id, user_id, title, emoji, frequency, schedule, time_window, created_at) VALUES
   ('e1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000001', 'Run', '🏃', 'daily',
    '{"days":[0,1,2,3,4,5,6]}',
-   '{"start":"08:00","end":"09:00","days":{"0":{"start":"16:00","end":"17:00"},"6":{"start":"16:00","end":"17:00"},"2":null}}'),
+   '{"start":"08:00","end":"09:00","days":{"0":{"start":"16:00","end":"17:00"},"6":{"start":"16:00","end":"17:00"},"2":null}}',
+   '2026-10-01 00:00+00'),
   ('e2000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000001', 'Plain', NULL, 'daily',
-   '{"days":[0,1,2,3,4,5,6]}', '{"start":"08:00","end":"09:00"}'),
+   '{"days":[0,1,2,3,4,5,6]}', '{"start":"08:00","end":"09:00"}', '2026-10-01 00:00+00'),
   ('e3000000-0000-4000-8000-000000000003', 'd1000000-0000-4000-8000-000000000001', 'Read', '📚', 'weekly',
-   '{"days":[0,1,2,3,4,5,6]}', '{"start":"08:00","end":"09:00"}'),
+   '{"days":[0,1,2,3,4,5,6]}', '{"start":"08:00","end":"09:00"}', '2026-10-01 00:00+00'),
   ('e4000000-0000-4000-8000-000000000004', 'd1000000-0000-4000-8000-000000000001', 'Pray', '🙏', 'weekly',
-   '{"days":[0,1,2,3,4,5,6]}', '{"start":"08:00","end":"09:00"}');
+   '{"days":[0,1,2,3,4,5,6]}', '{"start":"08:00","end":"09:00"}', '2026-10-01 00:00+00');
 
-INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by)
-SELECT h, 'd2000000-0000-4000-8000-000000000002', 'accepted', 'd1000000-0000-4000-8000-000000000001'
+INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by, created_at)
+SELECT h, 'd2000000-0000-4000-8000-000000000002', 'accepted', 'd1000000-0000-4000-8000-000000000001', '2026-10-01 00:00+00'
 FROM unnest(ARRAY[
   'e1000000-0000-4000-8000-000000000001',
   'e2000000-0000-4000-8000-000000000002',
@@ -139,10 +147,10 @@ FROM unnest(ARRAY[
   'e4000000-0000-4000-8000-000000000004'
 ]::uuid[]) AS h;
 
-INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by) VALUES
-  ('e1000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000003', 'declined', 'd1000000-0000-4000-8000-000000000001'),
-  ('e1000000-0000-4000-8000-000000000001', 'd4000000-0000-4000-8000-000000000004', 'pending',  'd1000000-0000-4000-8000-000000000001'),
-  ('e1000000-0000-4000-8000-000000000001', 'd5000000-0000-4000-8000-000000000005', 'accepted', 'd1000000-0000-4000-8000-000000000001');
+INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by, created_at) VALUES
+  ('e1000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000003', 'declined', 'd1000000-0000-4000-8000-000000000001', '2026-10-01 00:00+00'),
+  ('e1000000-0000-4000-8000-000000000001', 'd4000000-0000-4000-8000-000000000004', 'pending',  'd1000000-0000-4000-8000-000000000001', '2026-10-01 00:00+00'),
+  ('e1000000-0000-4000-8000-000000000001', 'd5000000-0000-4000-8000-000000000005', 'accepted', 'd1000000-0000-4000-8000-000000000001', '2026-10-01 00:00+00');
 
 INSERT INTO public.completions (habit_id, user_id, completion_type, completed_at)
 VALUES ('e3000000-0000-4000-8000-000000000003', 'd1000000-0000-4000-8000-000000000001', 'quick', '2026-10-05 10:00+00');
@@ -182,6 +190,11 @@ BEGIN
 
   RAISE NOTICE 'TEST 1 PASSED: malformed days are refused, and the usual window is checked as it always was';
 END $$;
+
+-- Test 1's writes changed Plain's window and changed it back. The tests below
+-- take it as set all along.
+UPDATE public.habits SET timing_changed_at = NULL
+WHERE id = 'e2000000-0000-4000-8000-000000000002';
 
 -- ---------------------------------------------------------------------------
 -- Test 2: the days stay in step with the habit
@@ -374,11 +387,18 @@ RESET role;
 -- the comparison is strict). Today's own window, which ends a minute after
 -- midnight, has always closed — except in the first two minutes of the day.
 
-INSERT INTO public.habits (id, user_id, title, frequency, schedule, time_window) VALUES
+INSERT INTO public.habits (id, user_id, title, frequency, schedule, time_window, created_at) VALUES
   ('e6000000-0000-4000-8000-000000000006', 'd1000000-0000-4000-8000-000000000001', 'Count', 'daily',
-   '{"days":[0,1,2,3,4,5,6]}', '{"start":"23:58","end":"23:59"}');
-INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by)
-VALUES ('e6000000-0000-4000-8000-000000000006', 'd2000000-0000-4000-8000-000000000002', 'accepted', 'd1000000-0000-4000-8000-000000000001');
+   '{"days":[0,1,2,3,4,5,6]}', '{"start":"23:58","end":"23:59"}', now() - interval '2 days');
+INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by, created_at)
+VALUES ('e6000000-0000-4000-8000-000000000006', 'd2000000-0000-4000-8000-000000000002', 'accepted', 'd1000000-0000-4000-8000-000000000001', now() - interval '2 days');
+
+-- Each window Count is given below is taken as set the day before: one set
+-- after it closed is never told missed (048).
+CREATE FUNCTION public._set_yesterday(p_habit UUID) RETURNS VOID
+LANGUAGE sql AS $fn$
+  UPDATE public.habits SET timing_changed_at = now() - interval '1 day' WHERE id = p_habit
+$fn$;
 
 -- The count is for whoever auth.uid() names; it runs as its owner either way.
 SET LOCAL request.jwt.claims TO '{"sub":"d2000000-0000-4000-8000-000000000002","role":"authenticated"}';
@@ -394,6 +414,7 @@ BEGIN
   SET time_window = jsonb_build_object('start', '23:58', 'end', '23:59',
         'days', jsonb_build_object(v_dow, jsonb_build_object('start', '00:00', 'end', '00:01')))
   WHERE id = 'e6000000-0000-4000-8000-000000000006';
+  PERFORM public._set_yesterday('e6000000-0000-4000-8000-000000000006');
   ASSERT public.get_missed_habit_count('UTC') = v_usual + 1,
     format('TEST 7 FAILED: today''s closed window should count, %s then %s',
            v_usual, public.get_missed_habit_count('UTC'));
@@ -402,6 +423,7 @@ BEGIN
   SET time_window = jsonb_build_object('start', '23:58', 'end', '23:59',
         'days', jsonb_build_object(v_dow, NULL))
   WHERE id = 'e6000000-0000-4000-8000-000000000006';
+  PERFORM public._set_yesterday('e6000000-0000-4000-8000-000000000006');
   ASSERT public.get_missed_habit_count('UTC') = v_usual,
     'TEST 7 FAILED: a day with no set time should not count';
 
@@ -429,11 +451,11 @@ END $$;
 -- Night runs 6 PM to 10 AM, saved before the form refused it. At 11 AM its
 -- window has not opened, and done the night before it was not missed.
 
-INSERT INTO public.habits (id, user_id, title, frequency, schedule, time_window) VALUES
+INSERT INTO public.habits (id, user_id, title, frequency, schedule, time_window, created_at) VALUES
   ('e7000000-0000-4000-8000-000000000007', 'd1000000-0000-4000-8000-000000000001', 'Night', 'daily',
-   '{"days":[0,1,2,3,4,5,6]}', '{"start":"18:00","end":"10:00"}');
-INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by)
-VALUES ('e7000000-0000-4000-8000-000000000007', 'd2000000-0000-4000-8000-000000000002', 'accepted', 'd1000000-0000-4000-8000-000000000001');
+   '{"days":[0,1,2,3,4,5,6]}', '{"start":"18:00","end":"10:00"}', '2026-10-01 00:00+00');
+INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by, created_at)
+VALUES ('e7000000-0000-4000-8000-000000000007', 'd2000000-0000-4000-8000-000000000002', 'accepted', 'd1000000-0000-4000-8000-000000000001', '2026-10-01 00:00+00');
 
 DO $$
 DECLARE
@@ -452,6 +474,7 @@ BEGIN
   SET time_window = jsonb_build_object('start', '23:58', 'end', '23:59',
         'days', jsonb_build_object(v_dow, jsonb_build_object('start', '23:00', 'end', '00:00')))
   WHERE id = 'e6000000-0000-4000-8000-000000000006';
+  PERFORM public._set_yesterday('e6000000-0000-4000-8000-000000000006');
   ASSERT public.get_missed_habit_count('UTC') = v_before,
     'TEST 9b FAILED: the badge counted a window that ends before it starts';
 

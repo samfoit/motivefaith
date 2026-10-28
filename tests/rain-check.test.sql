@@ -190,6 +190,13 @@ BEGIN
   INSERT INTO public.habit_shares (habit_id, shared_with, status, initiated_by)
   VALUES ('bbbb0004-0000-0000-0000-000000000000', '55555555-5555-5555-5555-555555555555', 'accepted', '44444444-4444-4444-4444-444444444444');
 
+  -- Both in place since yesterday: a window set, or a partner added, after
+  -- it closed is never counted missed (048).
+  UPDATE public.habits SET timing_changed_at = now() - interval '1 day'
+    WHERE id = 'bbbb0004-0000-0000-0000-000000000000';
+  UPDATE public.habit_shares SET responded_at = now() - interval '1 day'
+    WHERE habit_id = 'bbbb0004-0000-0000-0000-000000000000';
+
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claims',
     '{"sub":"55555555-5555-5555-5555-555555555555","role":"authenticated"}', true);

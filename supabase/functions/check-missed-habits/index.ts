@@ -5,8 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 // ---------------------------------------------------------------------------
 
 /**
- * One partner to tell about one missed habit. get_missed_habits (045) has
- * already chosen them: an accepted partner who wants miss alerts, has a
+ * One partner to tell about one missed habit. get_missed_habits (045, 048)
+ * has already chosen them: an accepted partner who wants miss alerts, has a
  * device to push to, is outside their quiet hours and has not been told
  * about this day yet.
  */
@@ -20,6 +20,12 @@ interface MissedAlert {
   partner_id: string;
   /** The owner's local date of the missed day, as YYYY-MM-DD. */
   owner_date: string;
+  /**
+   * The owner's local date when this run asked, as YYYY-MM-DD. Later than
+   * owner_date for a window that closed late yesterday, or one a partner's
+   * quiet hours held back overnight. Absent before 048.
+   */
+  owner_today?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +60,16 @@ async function sendPush(
     console.error("Failed to invoke send-push:", err);
     return false;
   }
+}
+
+/**
+ * The push's title: "🏃 Olive missed Run", and "… yesterday" when the day
+ * missed is no longer the owner's today. A habit can have no emoji; it is
+ * left out rather than pushed as "null".
+ */
+function missedTitle(alert: MissedAlert): string {
+  const when = alert.owner_today && alert.owner_date < alert.owner_today ? " yesterday" : "";
+  return `${alert.emoji ? `${alert.emoji} ` : ""}${alert.user_name} missed ${alert.title}${when}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,7 +118,9 @@ Deno.serve(async (req) => {
 
   // Pass the current UTC timestamp — the RPC uses each owner's timezone to
   // find their day, and that day's own window, so a habit is only missed
-  // once its window has closed where its owner is.
+  // once its window has closed where its owner is. It looks back to the
+  // owner's yesterday too, for a window that closed after the last run of
+  // the day, or a partner who was in quiet hours when it did.
   const { data: rows, error } = await supabase.rpc("get_missed_habits", {
     check_ts: new Date().toISOString(),
   });
@@ -132,8 +150,7 @@ Deno.serve(async (req) => {
     const results = await Promise.allSettled(
       batch.map((alert) =>
         sendPush(supabaseUrl, {
-          // A habit can have no emoji; leave it out rather than push "null".
-          title: `${alert.emoji ? `${alert.emoji} ` : ""}${alert.user_name} missed ${alert.title}`,
+          title: missedTitle(alert),
           body: "Send some encouragement!",
           url: `/main/feed/${alert.user_id}`,
           type: "missed_habit",
