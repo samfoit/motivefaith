@@ -31,3 +31,7 @@ updates:
       # Waits until eslint-config-next supports ESLint 10.
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+      # typescript-eslint (via eslint-config-next) supports TypeScript <6.1
+      # only; lint refuses to run on 7. Lift once it supports newer.
+      - dependency-name: "typescript"
+        versions: [">=6.1.0"]
