@@ -78,6 +78,7 @@ export function VoiceRecorder({
   useEffect(() => {
     const info = getSupportedAudioMimeType();
     if (!info) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- MediaRecorder support is only knowable in the browser, after hydration.
       setPermissionState("unsupported");
       return;
     }

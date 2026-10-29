@@ -65,6 +65,7 @@ export function AvatarCropper({
   useEffect(() => {
     if (!file) return;
     const url = URL.createObjectURL(file);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- an object URL is a browser resource; it must be made and revoked outside render.
     setSrc(url);
     setImage(null);
     setView(START_VIEW);

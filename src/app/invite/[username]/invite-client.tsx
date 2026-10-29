@@ -62,22 +62,6 @@ export function InviteClient({ state, username }: InviteClientProps) {
     router.replace("/auth/complete-profile");
   }, [state.kind, username, router]);
 
-  // Someone who just made an account to answer this invite has already said
-  // what they want. Making them tap "Add friend" on the far side of signup is
-  // asking the same question twice, so that path sends the request itself.
-  // A viewer who was already signed in gets the button — they may well have
-  // opened the link out of curiosity.
-  const autoSent = useRef(false);
-  useEffect(() => {
-    if (state.kind !== "ready" || autoSent.current) return;
-    if (!arrivedFromSignup.current) return;
-    autoSent.current = true;
-    void handleSend();
-    // handleSend is stable for the life of this state; re-running on identity
-    // changes would double-send.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.kind]);
-
   async function handleSend() {
     if (state.kind !== "ready") return;
     const {
@@ -95,6 +79,22 @@ export function InviteClient({ state, username }: InviteClientProps) {
       showToast({ variant: "error", title: "Could not send the request" });
     }
   }
+
+  // Someone who just made an account to answer this invite has already said
+  // what they want. Making them tap "Add friend" on the far side of signup is
+  // asking the same question twice, so that path sends the request itself.
+  // A viewer who was already signed in gets the button — they may well have
+  // opened the link out of curiosity.
+  const autoSent = useRef(false);
+  useEffect(() => {
+    if (state.kind !== "ready" || autoSent.current) return;
+    if (!arrivedFromSignup.current) return;
+    autoSent.current = true;
+    void handleSend();
+    // handleSend is stable for the life of this state; re-running on identity
+    // changes would double-send.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.kind]);
 
   async function handleAccept() {
     if (state.kind !== "incoming") return;

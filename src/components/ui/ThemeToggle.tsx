@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Sun, Moon, SunMoon } from "lucide-react";
+import { useIsClient } from "@/lib/hooks/useIsClient";
 import { cn } from "@/lib/utils/cn";
 import {
   useThemeStore,
@@ -21,13 +22,9 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
-  const [mounted, setMounted] = React.useState(false);
+  const mounted = useIsClient();
   const preference = useThemeStore((s) => s.preference);
   const setTheme = useThemeStore((s) => s.setTheme);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Use server default until mounted to avoid hydration mismatch
   const activePreference = mounted ? preference : "day";

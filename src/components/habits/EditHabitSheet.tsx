@@ -85,12 +85,14 @@ export function EditHabitSheet({
   const [form, setForm] = useState<EditForm>(initial);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Reset form when habit changes (e.g. sheet reopened with fresh data)
-  React.useEffect(() => {
-    if (open) {
-      setForm(buildFormFromHabit(habit));
-    }
-  }, [open, habit]);
+  // Reset form when habit changes (e.g. sheet reopened with fresh data).
+  // Adjusted during render rather than in an effect, so the sheet never
+  // paints one frame of the previous edit.
+  const [formSync, setFormSync] = useState({ open, habit });
+  if (formSync.open !== open || formSync.habit !== habit) {
+    setFormSync({ open, habit });
+    if (open) setForm(initial);
+  }
 
   const change = useCallback((patch: Partial<EditForm>) => {
     setForm((prev) => ({ ...prev, ...patch }));

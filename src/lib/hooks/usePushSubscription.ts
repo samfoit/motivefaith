@@ -114,6 +114,7 @@ export function usePushSubscription(userId: string) {
     // this first: Safari only exposes PushManager once installed, so the
     // support check below would otherwise call every iPhone unsupported.
     if (isIOS() && !isStandalone()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- push support is only knowable in the browser, after hydration.
       setState("requires-install");
       return;
     }

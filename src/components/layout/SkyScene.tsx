@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
 import { usePathname } from "next/navigation";
+import { useIsClient } from "@/lib/hooks/useIsClient";
 import { useThemeStore } from "@/lib/stores/theme-store";
 import { BAND_H } from "@/lib/lamplight/sky";
 import { SkyBand, SkyStarField } from "@/components/sky/SkyDrawing";
@@ -32,13 +32,9 @@ import { isThreadRoute } from "@/lib/utils/thread-route";
  */
 
 export function SkyScene() {
-  const [mounted, setMounted] = React.useState(false);
+  const mounted = useIsClient();
   const hour = useThemeStore((s) => s.hour);
   const pathname = usePathname();
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) return null;
 
