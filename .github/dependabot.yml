@@ -4,9 +4,30 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    # Small enough to actually get through review each week.
+    open-pull-requests-limit: 5
     groups:
-      minor-and-patch:
+      # Runtime and tooling are separate so a test-only bump never blocks a
+      # change to what ships, and the reverse.
+      production-minor-and-patch:
+        dependency-type: "production"
         update-types:
           - "minor"
           - "patch"
+      development-minor-and-patch:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      # Security fixes arrive as one PR instead of one per package.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    ignore:
+      # Types follow the Node version we deploy on, not the newest release.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # Waits until eslint-config-next supports ESLint 10.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
