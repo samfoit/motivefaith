@@ -414,6 +414,9 @@ describe("DashboardClient moved rain check", () => {
       screen.getByRole("button", { name: "Rain check for Morning Run" }),
     );
 
+    // Radix turns pointer events back on for the sheet a tick after it
+    // opens; until then the body's modal "none" blocks the click.
+    await vi.advanceTimersByTimeAsync(0);
     await user.click(
       screen.getByRole("radio", { name: "Move it to another day" }),
     );
@@ -444,6 +447,9 @@ describe("DashboardClient moved rain check", () => {
     await user.click(
       screen.getByRole("button", { name: "Rain check for Morning Run" }),
     );
+    // Radix turns pointer events back on for the sheet a tick after it
+    // opens; until then the body's modal "none" blocks the click.
+    await vi.advanceTimersByTimeAsync(0);
     await user.click(
       screen.getByRole("radio", { name: "Move it to another day" }),
     );
