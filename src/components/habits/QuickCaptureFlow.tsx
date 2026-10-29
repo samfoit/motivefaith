@@ -137,6 +137,7 @@ export function QuickCaptureFlow() {
   useEffect(() => {
     if (capturedFile) {
       const url = URL.createObjectURL(capturedFile);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- an object URL is a browser resource; it must be made and revoked outside render.
       setPreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return url;

@@ -179,17 +179,22 @@ export function CompletionForm({
   );
   const canMove = moveChoices.length > 0;
 
+  // Each check-in starts from the habit's setting, whatever the last one was.
+  // Adjusted during render rather than in an effect, so the sheet never
+  // paints one frame with the previous check-in's choice.
+  const [privacySync, setPrivacySync] = useState({ open, defaultPrivate });
+  if (privacySync.open !== open || privacySync.defaultPrivate !== defaultPrivate) {
+    setPrivacySync({ open, defaultPrivate });
+    if (open) setIsPrivate(defaultPrivate);
+  }
+
   // Jump straight to the step the habit card asked for. Deliberately keyed on
   // `open` alone: re-running it would drag the user back here after they hit
   // "back", or reopen a camera they just dismissed.
-  // Each check-in starts from the habit's setting, whatever the last one was.
-  useEffect(() => {
-    if (open) setIsPrivate(defaultPrivate);
-  }, [open, defaultPrivate]);
-
   useEffect(() => {
     if (!open || !initialAction) return;
     if (initialAction === "content") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- camera support is only knowable in the browser, and the fallback clicks the file input.
       if (isCameraSupported()) setCameraOpen(true);
       else fileInputRef.current?.click();
     } else if (initialAction === "voice") {

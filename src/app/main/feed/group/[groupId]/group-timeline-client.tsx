@@ -851,35 +851,39 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
                 const m = entry.data as GroupTimelineMessage;
                 const reactions = m.reactions ?? [];
                 const iHearted = reactions.some((r) => r.user_id === userId);
-                const actions: ChatAction[] = [];
-                if (!m.isMe) {
-                  actions.push({
-                    label: iHearted ? "Remove heart" : "Heart",
-                    icon: Heart,
-                    onSelect: () => toggleReaction(m.id, reactions),
-                  });
-                }
-                if (m.content) {
-                  const text = m.content;
-                  actions.push({
-                    label: "Copy text",
-                    icon: Copy,
-                    onSelect: () => {
-                      void navigator.clipboard?.writeText(text).then(
-                        () => showToast({ variant: "success", title: "Copied" }),
-                        () => showToast({ variant: "error", title: "Couldn't copy" }),
-                      );
-                    },
-                  });
-                }
-                if (!m.isMe) {
-                  actions.push({
-                    label: "Report",
-                    icon: Flag,
-                    danger: true,
-                    onSelect: () => setReportTarget({ contentType: "message", contentId: m.id }),
-                  });
-                }
+                const text = m.content;
+                // Built in one expression, not pushed: the React Compiler
+                // reads a push of a ref-reading handler (toggleReaction ->
+                // debouncedRefresh) as a ref access during render.
+                const actions: ChatAction[] = [
+                  ...(!m.isMe
+                    ? [{
+                        label: iHearted ? "Remove heart" : "Heart",
+                        icon: Heart,
+                        onSelect: () => toggleReaction(m.id, reactions),
+                      }]
+                    : []),
+                  ...(text
+                    ? [{
+                        label: "Copy text",
+                        icon: Copy,
+                        onSelect: () => {
+                          void navigator.clipboard?.writeText(text).then(
+                            () => showToast({ variant: "success", title: "Copied" }),
+                            () => showToast({ variant: "error", title: "Couldn't copy" }),
+                          );
+                        },
+                      }]
+                    : []),
+                  ...(!m.isMe
+                    ? [{
+                        label: "Report",
+                        icon: Flag,
+                        danger: true,
+                        onSelect: () => setReportTarget({ contentType: "message", contentId: m.id }),
+                      }]
+                    : []),
+                ];
 
                 return (
                   <ChatRow

@@ -7,9 +7,9 @@ import {
   useEffect,
   useRef,
   useTransition,
-  useSyncExternalStore,
 } from "react";
 import dynamic from "next/dynamic";
+import { useIsClient } from "@/lib/hooks/useIsClient";
 import { getDayOfWeek, toDateKey, todayDateKey, weekdayName } from "@/lib/utils/timezone";
 import {
   isHabitScheduledOn,
@@ -142,22 +142,6 @@ const CompletionFlyout = dynamic(
 // ---------------------------------------------------------------------------
 // Streak milestones
 // ---------------------------------------------------------------------------
-
-/**
- * True only after hydration.
- *
- * `useSyncExternalStore` rather than a `useState` + `useEffect` flag: it needs
- * no subscription, no state update, and no extra render pass, and it is the
- * hydration-safe way to render something the server cannot know.
- */
-const noopSubscribe = () => () => {};
-function useIsClient(): boolean {
-  return useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false,
-  );
-}
 
 function getGreeting(timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
