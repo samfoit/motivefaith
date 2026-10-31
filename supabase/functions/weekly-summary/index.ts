@@ -16,43 +16,24 @@ interface ProfileRow {
   last_weekly_summary_date: string | null;
 }
 
-interface WeeklyStats {
-  totalCompletions: number;
-  totalScheduled: number;
-  completionRate: number;
-  bestStreak: number;
-  mostConsistentHabit: { title: string; emoji: string; count: number } | null;
-  prevWeekCompletions: number;
-  encouragementsSent: number;
-  encouragementsReceived: number;
+/** The columns of a saved week (migration 051) the push reads. */
+interface WeeklyReviewRow {
+  user_id: string;
+  week_start: string;
+  due: number;
+  done: number;
+  completions: number;
+  best_streak: number | null;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getWeekBounds(now: Date): { thisStart: string; thisEnd: string; prevStart: string; prevEnd: string } {
-  const d = new Date(now);
-  d.setHours(0, 0, 0, 0);
-
-  // End of this week = today
-  const thisEnd = d.toISOString();
-
-  // Start of this week = 7 days ago
-  const thisStartDate = new Date(d);
-  thisStartDate.setDate(thisStartDate.getDate() - 6);
-  const thisStart = thisStartDate.toISOString();
-
-  // Previous week
-  const prevEndDate = new Date(thisStartDate);
-  prevEndDate.setDate(prevEndDate.getDate() - 1);
-  const prevEnd = prevEndDate.toISOString();
-
-  const prevStartDate = new Date(prevEndDate);
-  prevStartDate.setDate(prevStartDate.getDate() - 6);
-  const prevStart = prevStartDate.toISOString();
-
-  return { thisStart, thisEnd, prevStart, prevEnd };
+/** A YYYY-MM-DD date moved by whole days. */
+function addDays(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 function getLocalSundayInfo(
@@ -116,25 +97,31 @@ async function sendPush(
   }
 }
 
-function buildSummaryBody(stats: WeeklyStats): string {
+/** The push body, or null when the week has nothing to tell. */
+function buildSummaryBody(week: WeeklyReviewRow, prev: WeeklyReviewRow | undefined): string | null {
+  if (week.due === 0 && week.completions === 0) return null;
+
   const parts: string[] = [];
 
-  const rate = Math.round(stats.completionRate);
-  parts.push(`${rate}% completion rate`);
-
-  if (stats.totalCompletions > 0) {
-    parts.push(`${stats.totalCompletions} completions`);
+  if (week.due > 0) {
+    parts.push(`${Math.round((week.done / week.due) * 100)}% completion rate`);
   }
 
-  if (stats.bestStreak > 0) {
-    parts.push(`${stats.bestStreak} best streak`);
+  if (week.completions > 0) {
+    parts.push(`${week.completions} completions`);
   }
 
-  const diff = stats.totalCompletions - stats.prevWeekCompletions;
-  if (diff > 0) {
-    parts.push(`↑ ${diff} more than last week`);
-  } else if (diff < 0) {
-    parts.push(`↓ ${Math.abs(diff)} fewer than last week`);
+  if (week.best_streak) {
+    parts.push(`${week.best_streak} best streak`);
+  }
+
+  if (prev) {
+    const diff = week.completions - prev.completions;
+    if (diff > 0) {
+      parts.push(`↑ ${diff} more than last week`);
+    } else if (diff < 0) {
+      parts.push(`↓ ${Math.abs(diff)} fewer than last week`);
+    }
   }
 
   return parts.join(" · ");
@@ -205,184 +192,65 @@ Deno.serve(async (req) => {
     if (profile.last_weekly_summary_date === info.localDate) continue;
     eligible.push({ profile, localDate: info.localDate });
   }
-  const eligibleProfiles = eligible.map((e) => e.profile);
 
-  if (eligibleProfiles.length === 0) {
+  if (eligible.length === 0) {
     return new Response(
       JSON.stringify({ ok: true, sent: 0 }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }
 
-  // Per-profile local Sunday date — used to stamp last_weekly_summary_date
-  // after a successful send.
-  const localDateByUser = new Map<string, string>(
-    eligible.map((e) => [e.profile.id, e.localDate]),
-  );
-
-  const now = new Date();
-  const { thisStart, thisEnd, prevStart, prevEnd } = getWeekBounds(now);
-
-  type Completion = { user_id: string; habit_id: string; completed_date: string | null };
-  type Habit = { id: string; user_id: string; title: string; emoji: string; frequency: string; schedule: unknown; streak_current: number };
-
   let sent = 0;
 
-  // Process users in chunks of 100 to prevent memory overflow at scale
+  // Process users in chunks of 100 to keep the .in() lists short
   const CHUNK_SIZE = 100;
   const PUSH_BATCH_SIZE = 50;
 
-  for (let offset = 0; offset < eligibleProfiles.length; offset += CHUNK_SIZE) {
-    const chunk = eligibleProfiles.slice(offset, offset + CHUNK_SIZE);
-    const userIds = chunk.map((p) => p.id);
+  for (let offset = 0; offset < eligible.length; offset += CHUNK_SIZE) {
+    const chunk = eligible.slice(offset, offset + CHUNK_SIZE);
 
-    // Batch-fetch all data for this chunk in parallel (5 queries)
-    const [
-      { data: allThisWeekCompletions },
-      { data: allPrevWeekCompletions },
-      { data: allHabits },
-      { data: allEncSent },
-      { data: allEncReceived },
-    ] = await Promise.all([
-      supabase
-        .from("completions")
-        .select("user_id, habit_id, completed_date")
-        .in("user_id", userIds)
-        .gte("completed_at", thisStart)
-        .lte("completed_at", thisEnd),
-      supabase
-        .from("completions")
-        .select("user_id")
-        .in("user_id", userIds)
-        .gte("completed_at", prevStart)
-        .lte("completed_at", prevEnd),
-      supabase
-        .from("habits")
-        .select("id, user_id, title, emoji, frequency, schedule, streak_current")
-        .in("user_id", userIds)
-        .eq("is_paused", false),
-      supabase
-        .from("encouragements")
-        .select("user_id")
-        .in("user_id", userIds)
-        .gte("created_at", thisStart)
-        .lte("created_at", thisEnd),
-      supabase
-        .from("encouragements")
-        .select("recipient_id")
-        .in("recipient_id", userIds)
-        .gte("created_at", thisStart)
-        .lte("created_at", thisEnd),
-    ]);
-
-    // Index all data by user_id for O(1) lookup
-    const thisWeekByUser = new Map<string, Completion[]>();
-    for (const c of (allThisWeekCompletions ?? []) as Completion[]) {
-      const list = thisWeekByUser.get(c.user_id) ?? [];
-      list.push(c);
-      thisWeekByUser.set(c.user_id, list);
+    // The week that ended yesterday, Saturday, and the one before it, as
+    // save_weekly_reviews() saved them early this Sunday.
+    const weekStarts = new Set<string>();
+    for (const { localDate } of chunk) {
+      weekStarts.add(addDays(localDate, -7));
+      weekStarts.add(addDays(localDate, -14));
     }
 
-    const prevWeekCountByUser = new Map<string, number>();
-    for (const c of (allPrevWeekCompletions ?? []) as { user_id: string }[]) {
-      prevWeekCountByUser.set(c.user_id, (prevWeekCountByUser.get(c.user_id) ?? 0) + 1);
+    const { data: reviews, error: reviewsError } = await supabase
+      .from("weekly_reviews")
+      .select("user_id, week_start, due, done, completions, best_streak")
+      .in("user_id", chunk.map((e) => e.profile.id))
+      .in("week_start", [...weekStarts]);
+
+    if (reviewsError) {
+      console.error("Failed to fetch weekly reviews:", reviewsError);
+      continue;
     }
 
-    const habitsByUser = new Map<string, Habit[]>();
-    for (const h of (allHabits ?? []) as Habit[]) {
-      const list = habitsByUser.get(h.user_id) ?? [];
-      list.push(h);
-      habitsByUser.set(h.user_id, list);
+    const reviewByKey = new Map<string, WeeklyReviewRow>();
+    for (const r of (reviews ?? []) as WeeklyReviewRow[]) {
+      reviewByKey.set(`${r.user_id}:${r.week_start}`, r);
     }
 
-    const encSentByUser = new Map<string, number>();
-    for (const e of (allEncSent ?? []) as { user_id: string }[]) {
-      encSentByUser.set(e.user_id, (encSentByUser.get(e.user_id) ?? 0) + 1);
-    }
+    const pushTasks: Array<{ userId: string; localDate: string; run: () => Promise<boolean> }> = [];
 
-    const encReceivedByUser = new Map<string, number>();
-    for (const e of (allEncReceived ?? []) as { recipient_id: string }[]) {
-      encReceivedByUser.set(e.recipient_id, (encReceivedByUser.get(e.recipient_id) ?? 0) + 1);
-    }
+    for (const { profile, localDate } of chunk) {
+      const week = reviewByKey.get(`${profile.id}:${addDays(localDate, -7)}`);
+      // No saved week: no habit in it, so nothing to tell.
+      if (!week) continue;
 
-    // Compute stats and collect push tasks for this chunk
-    const pushTasks: Array<{ userId: string; run: () => Promise<boolean> }> = [];
-
-    for (const profile of chunk) {
-      const thisWeekCompletions = thisWeekByUser.get(profile.id) ?? [];
-      const habits = habitsByUser.get(profile.id) ?? [];
-
-      // A weekly habit is due once a week, whatever its days say, and done
-      // once however many days it was done on. Mirrors weekRateCounts() in
-      // src/lib/hooks/useWeeklySummary.ts.
-      const weekly = new Set(habits.filter((h) => h.frequency === "weekly").map((h) => h.id));
-      let totalScheduled = 0;
-      for (const habit of habits) {
-        const schedule = habit.schedule as { days?: number[] } | null;
-        const days = schedule?.days ?? [0, 1, 2, 3, 4, 5, 6];
-        totalScheduled += weekly.has(habit.id) ? 1 : days.length;
-      }
-
-      const totalCompletions = thisWeekCompletions.length;
-      // A habit counts once a day toward the rate: done twice in a day, it is
-      // two completions but one scheduled day.
-      const habitDaysDone = new Set(
-        thisWeekCompletions.map((c) =>
-          weekly.has(c.habit_id) ? c.habit_id : `${c.habit_id}:${c.completed_date}`,
-        ),
-      ).size;
-      const completionRate = totalScheduled > 0
-        ? (habitDaysDone / totalScheduled) * 100
-        : 0;
-
-      const habitCounts = new Map<string, number>();
-      for (const c of thisWeekCompletions) {
-        habitCounts.set(c.habit_id, (habitCounts.get(c.habit_id) ?? 0) + 1);
-      }
-
-      const habitMap = new Map(habits.map((h) => [h.id, h]));
-
-      let mostConsistentHabit: WeeklyStats["mostConsistentHabit"] = null;
-      let maxCount = 0;
-      for (const [habitId, count] of habitCounts) {
-        if (count > maxCount) {
-          maxCount = count;
-          const habit = habitMap.get(habitId);
-          if (habit) {
-            mostConsistentHabit = {
-              title: habit.title,
-              emoji: habit.emoji,
-              count,
-            };
-          }
-        }
-      }
-
-      const bestStreak = Math.max(
-        0,
-        ...habits.map((h) => h.streak_current),
-      );
-
-      const stats: WeeklyStats = {
-        totalCompletions,
-        totalScheduled,
-        completionRate,
-        bestStreak,
-        mostConsistentHabit,
-        prevWeekCompletions: prevWeekCountByUser.get(profile.id) ?? 0,
-        encouragementsSent: encSentByUser.get(profile.id) ?? 0,
-        encouragementsReceived: encReceivedByUser.get(profile.id) ?? 0,
-      };
-
-      const body = buildSummaryBody(stats);
+      const body = buildSummaryBody(week, reviewByKey.get(`${profile.id}:${addDays(localDate, -14)}`));
+      if (!body) continue;
 
       pushTasks.push({
         userId: profile.id,
+        localDate,
         run: () =>
           sendPush(supabaseUrl, {
             title: "📊 Your Weekly Summary",
             body,
-            url: "/main/dashboard/weekly",
+            url: `/main/dashboard/weekly/${week.week_start}`,
             type: "weekly_summary",
             user_id: profile.id,
           }),
@@ -400,9 +268,7 @@ Deno.serve(async (req) => {
         const result = results[j];
         if (result.status !== "fulfilled" || !result.value) continue;
         sent += 1;
-        const userId = batch[j].userId;
-        const localDate = localDateByUser.get(userId);
-        if (!localDate) continue;
+        const { userId, localDate } = batch[j];
         const list = sentUserIdsByDate.get(localDate) ?? [];
         list.push(userId);
         sentUserIdsByDate.set(localDate, list);

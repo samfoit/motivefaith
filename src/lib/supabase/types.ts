@@ -955,6 +955,75 @@ export type Database = {
           },
         ]
       }
+      weekly_reviews: {
+        Row: {
+          best_streak: number | null
+          completions: number
+          daily_completions: Json
+          days: Json
+          done: number
+          due: number
+          encouragements_received: number
+          encouragements_sent: number
+          saved_at: string
+          top_habit_count: number | null
+          top_habit_emoji: string | null
+          top_habit_id: string | null
+          top_habit_title: string | null
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          best_streak?: number | null
+          completions: number
+          daily_completions?: Json
+          days?: Json
+          done: number
+          due: number
+          encouragements_received: number
+          encouragements_sent: number
+          saved_at?: string
+          top_habit_count?: number | null
+          top_habit_emoji?: string | null
+          top_habit_id?: string | null
+          top_habit_title?: string | null
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          best_streak?: number | null
+          completions?: number
+          daily_completions?: Json
+          days?: Json
+          done?: number
+          due?: number
+          encouragements_received?: number
+          encouragements_sent?: number
+          saved_at?: string
+          top_habit_count?: number | null
+          top_habit_emoji?: string | null
+          top_habit_id?: string | null
+          top_habit_title?: string | null
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_reviews_top_habit_id_fkey"
+            columns: ["top_habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

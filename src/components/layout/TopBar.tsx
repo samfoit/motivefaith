@@ -49,7 +49,8 @@ const SCREEN_TITLES: Record<string, string | null> = {
 const SUB_PAGES: { pattern: RegExp; title: string | null; parent: string }[] = [
   { pattern: /^\/main\/habits\/new$/, title: "New Habit", parent: "/main/dashboard" },
   { pattern: /^\/main\/habits\/[^/]+$/, title: null, parent: "/main/dashboard" },
-  { pattern: /^\/main\/dashboard\/weekly$/, title: "Weekly Summary", parent: "/main/dashboard" },
+  { pattern: /^\/main\/dashboard\/weekly$/, title: "Weekly Reviews", parent: "/main/dashboard" },
+  { pattern: /^\/main\/dashboard\/weekly\/[^/]+$/, title: "Weekly Review", parent: "/main/dashboard/weekly" },
   { pattern: /^\/main\/feed\/new-group$/, title: "New Group", parent: "/main/feed" },
   { pattern: /^\/main\/feed\/join\/[^/]+$/, title: "Group Invite", parent: "/main/feed" },
   { pattern: /^\/main\/feed\/group\/([^/]+)\/settings$/, title: "Group Settings", parent: "/main/feed/group/$1" },

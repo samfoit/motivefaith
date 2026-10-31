@@ -29,7 +29,8 @@
     "test:missed-alert-timing": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/missed-alert-timing.test.sql",
     "test:schedule-changes": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/schedule-changes.test.sql",
     "test:habit-rate": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/habit-rate.test.sql",
-    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share && npm run test:push-subscriptions && npm run test:checkin-sharing && npm run test:profile-privileges && npm run test:function-privileges && npm run test:repeat-checkins && npm run test:day-time-windows && npm run test:habit-pauses && npm run test:missed-alert-timing && npm run test:schedule-changes && npm run test:habit-rate",
+    "test:weekly-reviews": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/weekly-reviews.test.sql",
+    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share && npm run test:push-subscriptions && npm run test:checkin-sharing && npm run test:profile-privileges && npm run test:function-privileges && npm run test:repeat-checkins && npm run test:day-time-windows && npm run test:habit-pauses && npm run test:missed-alert-timing && npm run test:schedule-changes && npm run test:habit-rate && npm run test:weekly-reviews",
     "analyze": "ANALYZE=true next build"
   },
   "dependencies": {

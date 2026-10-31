@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { CalendarDays, CalendarRange, Check, ListTodo } from "lucide-react";
+import { CalendarDays, CalendarRange, Check, History, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { DashboardView } from "@/lib/constants/dashboard-view";
 import { TOP_BAR_ICON_BUTTON_CLASS } from "@/components/layout/topBarStyles";
@@ -13,6 +14,9 @@ import { TOP_BAR_ICON_BUTTON_CLASS } from "@/components/layout/topBarStyles";
  * on a view and rarely change it, so it cost a row of the first screen on
  * every visit for something used once in a while. The trigger's icon shows
  * the current view, so the choice is still visible without the row.
+ *
+ * Below the views, a way to the weekly reviews: another page, not a view of
+ * this one, so it sits apart from the choice.
  */
 const VIEWS: {
   value: DashboardView;
@@ -24,6 +28,11 @@ const VIEWS: {
   { value: "week", label: "Week", hint: "Seven-day grid", Icon: CalendarRange },
   { value: "month", label: "Month", hint: "This month at a glance", Icon: CalendarDays },
 ];
+
+const ITEM_CLASS = cn(
+  "flex items-center gap-3 rounded-md px-2.5 py-2 cursor-pointer select-none outline-none",
+  "text-text-primary data-[highlighted]:bg-surface-hover",
+);
 
 interface ViewMenuProps {
   value: DashboardView;
@@ -60,10 +69,7 @@ export function ViewMenu({ value, onChange }: ViewMenuProps) {
               <DropdownMenu.RadioItem
                 key={v}
                 value={v}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-2.5 py-2 cursor-pointer select-none outline-none",
-                  "text-text-primary data-[highlighted]:bg-surface-hover",
-                )}
+                className={ITEM_CLASS}
               >
                 <Icon className="w-4 h-4 shrink-0 text-text-secondary" />
                 <span className="flex-1 min-w-0">
@@ -76,6 +82,16 @@ export function ViewMenu({ value, onChange }: ViewMenuProps) {
               </DropdownMenu.RadioItem>
             ))}
           </DropdownMenu.RadioGroup>
+          <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          <DropdownMenu.Item asChild className={ITEM_CLASS}>
+            <Link href="/main/dashboard/weekly">
+              <History className="w-4 h-4 shrink-0 text-text-secondary" />
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-medium">Weekly reviews</span>
+                <span className="block text-xs text-text-tertiary">Each week, kept</span>
+              </span>
+            </Link>
+          </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
