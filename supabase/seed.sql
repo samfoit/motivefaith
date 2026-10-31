@@ -246,8 +246,8 @@ INSERT INTO habits (
    now() - interval '30 days'),
 
   ('00000000-0000-0000-0000-000000000202', 'b2222222-2222-2222-2222-222222222222',
-   'Call Family', 'Weekly call with parents',
-   '📞', '#f59e0b', 'weekly', '{"days":[0]}',
+   'Call Family', 'Sunday call with parents',
+   '📞', '#f59e0b', 'specific_days', '{"days":[0]}',
    NULL, 'social', 'private', false,
    now() - interval '30 days'),
 

@@ -15,6 +15,10 @@
 
 BEGIN;
 
+-- Weekly habits stand here for ones kept weekly before 052, whose weeks are
+-- still judged as weekly. 052 refuses new ones; this rolls back with the rest.
+ALTER TABLE public.habits DROP CONSTRAINT IF EXISTS chk_habit_not_weekly;
+
 CREATE FUNCTION public._today() RETURNS DATE
 LANGUAGE sql AS $fn$ SELECT (now() AT TIME ZONE 'UTC')::date $fn$;
 

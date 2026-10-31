@@ -39,6 +39,11 @@ export const HABIT_EMOJIS = [
   "🏊",
 ];
 
+/**
+ * The ways a habit or challenge can repeat. Not "weekly": a habit is kept on
+ * set days (052). FREQUENCY_LABELS still names it, for weeks kept weekly
+ * before.
+ */
 export const FREQUENCIES: {
   value: HabitFrequency;
   label: string;
@@ -52,7 +57,6 @@ export const FREQUENCIES: {
   },
   { value: "weekends", label: "Weekends", days: [0, 6] },
   { value: "specific_days", label: "Custom", days: null },
-  { value: "weekly", label: "Weekly", days: [0, 1, 2, 3, 4, 5, 6] },
 ];
 
 export const DAYS = [
