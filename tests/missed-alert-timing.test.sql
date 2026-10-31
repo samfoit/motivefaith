@@ -26,6 +26,10 @@
 
 BEGIN;
 
+-- Weekly habits stand here for ones kept weekly before 052, whose weeks are
+-- still judged as weekly. 052 refuses new ones; this rolls back with the rest.
+ALTER TABLE public.habits DROP CONSTRAINT IF EXISTS chk_habit_not_weekly;
+
 -- Who get_missed_habits would tell about a habit at a moment, and about which
 -- of the owner's days: {"Pat@2026-10-08"}.
 CREATE FUNCTION public._told(p_habit UUID, p_at TIMESTAMPTZ) RETURNS TEXT[]

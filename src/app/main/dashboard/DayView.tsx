@@ -153,7 +153,9 @@ export const DayView = memo(function DayView({
                     key={habit.id}
                     className={cn(
                       "shrink-0 flex items-center gap-2.5 rounded-xl py-2.5 pl-2.5 pr-3.5",
-                      "bg-bg-elevated border border-border",
+                      // The flame's color, not --color-border: that is a shade
+                      // off the day ground, and the cards' edges vanished on it.
+                      "bg-bg-elevated border border-streak/40",
                       "text-left dv-streak-btn",
                     )}
                     onClick={() => onHabitPress(habit.id)}

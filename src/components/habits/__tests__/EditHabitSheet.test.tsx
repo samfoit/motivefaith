@@ -257,17 +257,5 @@ describe("EditHabitSheet: a different time on some days", () => {
 
     expect(savedWindow()).toEqual({ start: "18:00", end: "22:00", days: {} });
   });
-
-  it("offers none of it to a weekly habit", async () => {
-    renderSheet(RUN_SPLIT);
-    await userEvent.click(screen.getByRole("button", { name: /^repeat/i }));
-    await userEvent.click(await screen.findByRole("menuitemradio", { name: /^weekly/i }));
-
-    expect(screen.queryByRole("group", { name: /different time/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Different time on some days" })).not.toBeInTheDocument();
-    await userEvent.click(save());
-
-    expect(savedWindow()).toEqual({ start: "08:00", end: "09:00", days: {} });
-  });
 });
 

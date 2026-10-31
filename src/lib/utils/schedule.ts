@@ -166,7 +166,7 @@ export function timeWindowGroups(
 
 /** The Repeat menu's named sets of days, so a group reads as the menu does. */
 const NAMED_DAY_SETS = FREQUENCIES.flatMap((f) =>
-  f.days && f.value !== "weekly" ? [{ label: f.label, days: f.days }] : [],
+  f.days ? [{ label: f.label, days: f.days }] : [],
 );
 
 /**

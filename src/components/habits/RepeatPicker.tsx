@@ -8,16 +8,19 @@ import { FREQUENCIES, type HabitFrequency } from "@/lib/constants/habit";
 import { DayChips } from "@/components/habits/DayChips";
 import { SETTINGS_ROW, SETTINGS_ROW_ICON } from "@/components/habits/HabitSettingsRows";
 
-/** Custom last, as on iOS: it is the one that asks for more. */
+/**
+ * Custom last, as on iOS: it is the one that asks for more. No "once a week,
+ * any day": a habit is kept on set days, so once a week is one day of the
+ * week (052).
+ */
 const MENU = (
-  ["daily", "weeksdays", "weekends", "weekly", "specific_days"] as const
+  ["daily", "weeksdays", "weekends", "specific_days"] as const
 ).map((value) => FREQUENCIES.find((f) => f.value === value)!);
 
 /** What each choice means, where the name alone leaves room to wonder. */
 const HINTS: Partial<Record<HabitFrequency, string>> = {
   weeksdays: "Monday to Friday",
   weekends: "Saturday and Sunday",
-  weekly: "Once a week, any day",
   specific_days: "Choose the days",
 };
 

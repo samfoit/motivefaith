@@ -22,7 +22,6 @@ describe("RepeatPicker", () => {
       "Every day",
       "WeekdaysMonday to Friday",
       "WeekendsSaturday and Sunday",
-      "WeeklyOnce a week, any day",
       "CustomChoose the days",
     ]);
   });
