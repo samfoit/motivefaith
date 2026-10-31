@@ -29,6 +29,15 @@ export const UI_PAIRS: [ColorKey, ColorKey][] = [
   ["sub", "header"], ["ring", "card"], ["flame", "card"],
 ];
 
+/**
+ * Edges that have to show on the ground they sit on: held at 2:1. A card's
+ * edge is not a control outline, so 3:1 would draw it heavier than it needs
+ * to be, but it has to carry by day as well as it does by lamplight.
+ */
+export const EDGE_PAIRS: [ColorKey, ColorKey][] = [
+  ["flameEdge", "card"], ["flameEdge", "ground"],
+];
+
 export function lowest(raw: Record<ColorKey, Rgb>, pairs: [ColorKey, ColorKey][]): number {
   return pairs.reduce((m, [a, b]) => Math.min(m, ratio(raw[a], raw[b])), 99);
 }

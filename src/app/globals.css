@@ -24,6 +24,7 @@
   --color-border: var(--color-border);
   --color-success: var(--color-success);
   --color-streak: var(--color-streak);
+  --color-streak-edge: var(--color-streak-edge);
   --color-miss: var(--color-miss);
   --color-miss-ink: var(--color-miss-ink);
   --color-miss-hover: var(--color-miss-hover);
