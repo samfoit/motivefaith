@@ -10,7 +10,13 @@ import { createClient } from "@/lib/supabase/client";
 export type PushState =
   | "unsupported"
   | "requires-install"
+  // Blocked, one variant per place the switch lives: the browser's settings,
+  // the iOS Settings app, Android's settings for the installed app, or the
+  // page's own permissions in an Android browser.
   | "denied"
+  | "denied-ios"
+  | "denied-android-app"
+  | "denied-android-browser"
   | "prompt"
   | "unsubscribed"
   | "subscribed";
@@ -41,6 +47,22 @@ function isStandalone(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(display-mode: standalone)").matches ||
     ("standalone" in navigator && (navigator as { standalone?: boolean }).standalone === true);
+}
+
+/**
+ * Detect Android. A "desktop site" request drops it from the UA, which is
+ * fine: that page then looks like desktop and gets desktop directions.
+ */
+function isAndroid(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Android/.test(navigator.userAgent);
+}
+
+/** Blocked, told apart by where the person goes to undo it. */
+function deniedState(): PushState {
+  if (isIOS()) return "denied-ios";
+  if (isAndroid()) return isStandalone() ? "denied-android-app" : "denied-android-browser";
+  return "denied";
 }
 
 // ---------------------------------------------------------------------------
@@ -124,44 +146,62 @@ export function usePushSubscription(userId: string) {
       return;
     }
 
-    if (Notification.permission === "denied") {
-      setState("denied");
-      return;
-    }
+    const sync = () => {
+      if (Notification.permission === "denied") {
+        setState(deniedState());
+        return;
+      }
 
-    // Check for an existing subscription
-    navigator.serviceWorker.ready
-      .then(async (reg) => {
-        let sub = await reg.pushManager.getSubscription();
-        if (!sub) {
-          setState(Notification.permission === "default" ? "prompt" : "unsubscribed");
-          return;
-        }
-        setState("subscribed");
-
-        try {
-          // A subscription made under a different VAPID key (e.g. after a key
-          // rotation) is rejected by the push service, so replace it.
-          const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-          if (vapidKey && !sameKey(sub.options.applicationServerKey, vapidKey)) {
-            await deleteSubscription(sub.endpoint);
-            await sub.unsubscribe();
-            sub = await reg.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: urlBase64ToUint8Array(vapidKey),
-            });
+      // Check for an existing subscription
+      navigator.serviceWorker.ready
+        .then(async (reg) => {
+          let sub = await reg.pushManager.getSubscription();
+          if (!sub) {
+            setState(Notification.permission === "default" ? "prompt" : "unsubscribed");
+            return;
           }
+          setState("subscribed");
 
-          // The stored row can be cleared server-side while the browser still
-          // holds a live subscription — re-save it so the two stay in step.
-          await saveSubscription(sub);
-        } catch (err) {
-          console.error("Failed to sync push subscription:", err);
-        }
-      })
-      .catch(() => {
-        setState("unsupported");
-      });
+          try {
+            // A subscription made under a different VAPID key (e.g. after a key
+            // rotation) is rejected by the push service, so replace it.
+            const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+            if (vapidKey && !sameKey(sub.options.applicationServerKey, vapidKey)) {
+              await deleteSubscription(sub.endpoint);
+              await sub.unsubscribe();
+              sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidKey),
+              });
+            }
+
+            // The stored row can be cleared server-side while the browser still
+            // holds a live subscription — re-save it so the two stay in step.
+            await saveSubscription(sub);
+          } catch (err) {
+            console.error("Failed to sync push subscription:", err);
+          }
+        })
+        .catch(() => {
+          setState("unsupported");
+        });
+    };
+    sync();
+
+    // A block is lifted outside the page (in Settings, or the browser's own
+    // screens), so look again on the way back in. Android's installed app only
+    // picks the change up on a fresh launch, which is why the copy asks for one.
+    // Only a change in or out of "denied" counts: Turn On's own prompt moves
+    // permission too, and its subscribe() is still settling the state.
+    let blocked = Notification.permission === "denied";
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if ((Notification.permission === "denied") === blocked) return;
+      blocked = !blocked;
+      sync();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [userId]);
 
   const subscribe = useCallback(async () => {
@@ -174,7 +214,7 @@ export function usePushSubscription(userId: string) {
       // before pushManager.subscribe() will work
       const permission = await Notification.requestPermission();
       if (permission === "denied") {
-        setState("denied");
+        setState(deniedState());
         return;
       }
 
@@ -191,7 +231,7 @@ export function usePushSubscription(userId: string) {
       console.error("Failed to subscribe to push:", err);
       // Re-check permission in case user denied the prompt
       if (Notification.permission === "denied") {
-        setState("denied");
+        setState(deniedState());
       }
     } finally {
       setIsLoading(false);

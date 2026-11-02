@@ -26,6 +26,22 @@ const STATE_CONFIG: Record<
     label: "Blocked",
     description: "Turn them back on in browser settings.",
   },
+  // The installed apps are listed in Settings under their Home Screen name.
+  // Android's only reads the switch on a fresh launch; iOS isn't known to do
+  // better, so both ask for one rather than leave "Blocked" showing.
+  "denied-ios": {
+    label: "Blocked",
+    description: "Allow them in Settings > Notifications > MotiveFaith, then close and reopen the app.",
+  },
+  "denied-android-app": {
+    label: "Blocked",
+    description: "Allow them in Settings > Apps > MotiveFaith > Notifications, then close and reopen the app.",
+  },
+  // Chrome's Android help calls this icon "Page info".
+  "denied-android-browser": {
+    label: "Blocked",
+    description: "Tap the icon left of the web address, allow Notifications under Permissions, then reload.",
+  },
   prompt: {
     label: "Notifications Off",
     description: "Get friend activity and encouragements.",
