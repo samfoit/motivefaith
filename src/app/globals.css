@@ -253,11 +253,6 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes landing-slide-left {
-  from { opacity: 0; transform: translateX(-20px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
 @keyframes landing-scale-in {
   from { opacity: 0; transform: scale(0.9); }
   to   { opacity: 1; transform: scale(1); }
@@ -276,16 +271,6 @@ body {
 @keyframes landing-encourage-in {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes landing-fact-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes landing-fact-out {
-  from { opacity: 1; transform: translateY(0); }
-  to   { opacity: 0; transform: translateY(-12px); }
 }
 
 .landing-hero-text {
@@ -308,28 +293,105 @@ body {
   animation: landing-encourage-in 0.5s var(--ease-out) 1.8s both;
 }
 
-.landing-section-header {
-  animation: landing-fade-up-sm 0.5s var(--ease-out) both;
+/* The landing page's selection: the lamp's wash, not the browser's blue. */
+.landing ::selection {
+  background-color: color-mix(in oklab, var(--color-brand) 35%, transparent);
+  color: inherit;
 }
 
-.landing-feature-list {
-  animation: landing-fade-up-sm 0.5s var(--ease-out) both;
+/* ── Landing demos ── a message landing, a heart arriving */
+.landing-demo-in {
+  animation: landing-encourage-in 0.35s var(--ease-out) both;
 }
 
-.landing-step {
-  animation: landing-slide-left 0.5s var(--ease-out) both;
+.landing-demo-pop {
+  animation: landing-pop 0.35s var(--ease-bounce) both;
 }
 
-.landing-cta {
-  animation: landing-fade-up-sm 0.5s var(--ease-out) both;
+/* The hour slider: the input is clear over a ribbon of the day's colors;
+   only its thumb, the lamp, is drawn. */
+.hour-range {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+  height: 100%;
 }
 
-/* Intersection Observer trigger class — elements start hidden, animate when visible */
-.landing-animate-on-scroll {
-  opacity: 0;
+.hour-range:focus {
+  outline: none;
 }
-.landing-animate-on-scroll.is-visible {
-  animation-play-state: running;
+
+.hour-range::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+
+.hour-range::-moz-range-track {
+  background: transparent;
+}
+
+.hour-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: 8px;
+  border-radius: 9999px;
+  background: var(--color-brand);
+  border: 3px solid var(--color-bg-elevated);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), var(--lamp-glow-fab);
+  transition: transform 150ms var(--ease-out);
+}
+
+.hour-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--color-brand);
+  border: 3px solid var(--color-bg-elevated);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), var(--lamp-glow-fab);
+}
+
+.hour-range:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.hour-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
+}
+
+.hour-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
+}
+
+/* A fingertip needs a bigger lamp to grab than a cursor does. */
+@media (pointer: coarse) {
+  .hour-range::-webkit-slider-thumb {
+    width: 36px;
+    height: 36px;
+    margin-top: 4px;
+  }
+
+  .hour-range::-moz-range-thumb {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* The hour demo's sky band: BAND_H (lib/lamplight/sky.ts) tall, and lower on
+   a short landscape screen so the scene still fits beside the controls. */
+.hour-stage {
+  --band-h: 220px;
+}
+
+@media (max-height: 500px) {
+  .hour-stage {
+    --band-h: 150px;
+  }
 }
 
 /* ── Habit card color ───────────────────────────────────────────────────
@@ -642,10 +704,11 @@ html.theme-shift *::after {
   .update-prompt-drop,
   .view-menu,
   .nav-progress-bar,
-  .landing-animate-on-scroll,
   .landing-checkmark,
   .landing-dot,
-  .landing-encourage {
+  .landing-encourage,
+  .landing-demo-in,
+  .landing-demo-pop {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
