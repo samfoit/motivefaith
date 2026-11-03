@@ -28,9 +28,11 @@ const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render
 interface TurnstileProps {
   onToken: (token: string) => void;
   onExpire?: () => void;
+  /** Change it (useCaptcha's `resetKey`) to fetch a fresh token after one is spent. */
+  resetKey?: number;
 }
 
-export function Turnstile({ onToken, onExpire }: TurnstileProps) {
+export function Turnstile({ onToken, onExpire, resetKey = 0 }: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
 
@@ -49,10 +51,23 @@ export function Turnstile({ onToken, onExpire }: TurnstileProps) {
       "error-callback": () => {
         onExpire?.();
       },
-      theme: "auto",
+      // The app's theme, not the OS's: "auto" drew a white widget on the
+      // night card whenever the phone itself was in light mode.
+      theme:
+        document.documentElement.getAttribute("data-theme") === "dark"
+          ? "dark"
+          : "light",
       size: "normal",
     });
   }, [siteKey, onToken, onExpire]);
+
+  // A spent token can't be verified again: fetch a new one.
+  useEffect(() => {
+    if (resetKey === 0) return;
+    if (widgetIdRef.current !== null && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+  }, [resetKey]);
 
   useEffect(() => {
     // If the script is already loaded, render immediately

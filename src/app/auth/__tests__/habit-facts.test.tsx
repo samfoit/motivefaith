@@ -19,8 +19,8 @@ describe("useCyclingFact (via MobileFactBanner)", () => {
   });
 
   function currentFact() {
-    // The banner renders the emoji and the fact text as siblings.
-    return screen.getByText(/./, { selector: "p.text-xs" }).textContent;
+    // The fact sits in a blockquote; its source is the figcaption.
+    return screen.getByText(/./, { selector: "blockquote p" }).textContent;
   }
 
   it("renders the same fact on every mount, so SSR and hydration agree", () => {
