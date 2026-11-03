@@ -11,13 +11,8 @@ const HABIT_FACTS = [
   },
   {
     emoji: "🧠",
-    fact: "It takes an average of 66 days to form a new habit — spiritual disciplines are no different. Patience and persistence pay off.",
+    fact: "It takes an average of 66 days to form a new habit. Patience and persistence pay off.",
     source: "European Journal of Social Psychology",
-  },
-  {
-    emoji: "🙏",
-    fact: "'Devote yourselves to prayer, being watchful and thankful.' Consistency in prayer transforms your relationship with God.",
-    source: "Colossians 4:2 (NIV)",
   },
   {
     emoji: "🤝",
@@ -30,23 +25,13 @@ const HABIT_FACTS = [
     source: "Duolingo Research",
   },
   {
-    emoji: "✝️",
-    fact: "'Let us not become weary in doing good, for at the proper time we will reap a harvest if we do not give up.'",
-    source: "Galatians 6:9 (NIV)",
-  },
-  {
-    emoji: "🌅",
-    fact: "'Jesus answered, “It is written: ‘Man shall not live on bread alone, but on every word that comes from the mouth of God.’”",
-    source: "Matthew 4:4 (NIV)",
-  },
-  {
     emoji: "📱",
-    fact: "Simply tracking a habit makes you 40% more likely to stick with it. Even tracking your quiet time helps.",
+    fact: "Simply tracking a habit makes you 40% more likely to stick with it.",
     source: "British Journal of Health Psychology",
   },
   {
     emoji: "⚡",
-    fact: "The 2-minute rule: start any discipline with just 2 minutes. A short prayer is better than no prayer.",
+    fact: "The 2-minute rule: start any discipline with just 2 minutes then stop when the time is up. Doing this reinforces the most critical part of habit formation: showing up.",
     source: "James Clear, Atomic Habits",
   },
   {
