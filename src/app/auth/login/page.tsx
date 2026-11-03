@@ -14,6 +14,7 @@ import { DesktopFactsPanel, MobileFactBanner } from "../habit-facts";
 import { GoogleSignIn, destinationAfterGoogle } from "../GoogleSignIn";
 import { LOGIN_RATE_LIMIT, RATE_LIMIT_WINDOW_MS } from "@/lib/constants/limits";
 import { destinationAfterAuth } from "@/lib/constants/pending-invite";
+import { AuthHomeLink } from "../AuthWordmark";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -86,7 +87,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm shrink-0 auth-card-enter">
         <div className="bg-bg-elevated rounded-lg shadow-md p-8">
           <h1 className="font-display text-2xl font-medium text-center mb-2">
-            MotiveFaith
+            <AuthHomeLink />
           </h1>
 
           {deletedBanner && (

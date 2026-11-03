@@ -14,6 +14,7 @@ import { isPasswordBreached } from "@/lib/utils/check-breached-password";
 import { useCaptcha } from "@/lib/hooks/useCaptcha";
 import { DesktopFactsPanel, MobileFactBanner } from "../habit-facts";
 import { GoogleSignIn, destinationAfterGoogle } from "../GoogleSignIn";
+import { AuthWordmark } from "../AuthWordmark";
 
 function validateUsername(value: string): string | null {
   if (value.length < 3) return "Username must be at least 3 characters";
@@ -139,8 +140,9 @@ export default function SignupPage() {
       <div className="w-full max-w-sm shrink-0 auth-card-enter">
         {emailSent ? (
           <div className="bg-bg-elevated rounded-lg shadow-md p-8 text-center">
-            <div className="text-4xl mb-4">📬</div>
-            <h1 className="font-display text-2xl font-medium mb-2">
+            <AuthWordmark />
+            <div className="text-4xl my-4">📬</div>
+            <h1 className="font-display text-lg font-medium mb-2">
               Check your email
             </h1>
             <p className="text-sm text-[var(--color-text-secondary)] mb-6">
@@ -161,7 +163,8 @@ export default function SignupPage() {
           </div>
         ) : (
         <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-          <h1 className="font-display text-2xl font-medium text-center mb-2">
+          <AuthWordmark />
+          <h1 className="font-display text-lg font-medium text-center mb-1">
             Create Account
           </h1>
           <p className="text-sm text-center mb-8 text-[var(--color-text-secondary)]">

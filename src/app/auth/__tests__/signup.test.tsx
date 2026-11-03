@@ -149,6 +149,7 @@ describe("SignupPage", () => {
       screen.getByRole("heading", { name: "Create Account" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Sign in")).toHaveAttribute("href", "/auth/login");
+    expect(screen.getByRole("link", { name: "MotiveFaith" })).toHaveAttribute("href", "/");
   });
 
   it("shows error for username < 3 chars", async () => {

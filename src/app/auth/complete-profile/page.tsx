@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
+import { AuthWordmark } from "../AuthWordmark";
 
 function validateUsername(value: string): string | null {
   if (value.length < 3) return "Username must be at least 3 characters";
@@ -160,13 +161,14 @@ export default function CompleteProfilePage() {
   return (
     <div className="w-full max-w-sm auth-card-enter">
       <div className="bg-bg-elevated rounded-lg shadow-md p-8">
+        <AuthWordmark />
         {avatarUrl && (
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-center my-4">
             <Avatar src={avatarUrl} name={displayName || "User"} size="lg" />
           </div>
         )}
 
-        <h1 className="font-display text-2xl font-medium text-center mb-2">
+        <h1 className="font-display text-lg font-medium text-center mb-1">
           Complete Your Profile
         </h1>
         <p className="text-sm text-center mb-8 text-[var(--color-text-secondary)]">

@@ -10,6 +10,7 @@ import { Turnstile } from "@/components/ui/Turnstile";
 import { checkRateLimitWithToast } from "@/lib/utils/rate-limit-client";
 import { useCaptcha } from "@/lib/hooks/useCaptcha";
 import { FORGOT_PASSWORD_RATE_LIMIT, RATE_LIMIT_WINDOW_MS } from "@/lib/constants/limits";
+import { AuthWordmark } from "../AuthWordmark";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -48,7 +49,8 @@ export default function ForgotPasswordPage() {
   return (
     <div className="w-full max-w-sm auth-card-enter">
       <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-        <h1 className="font-display text-2xl font-medium text-center mb-2">
+        <AuthWordmark />
+        <h1 className="font-display text-lg font-medium text-center mb-1">
           Reset password
         </h1>
         <p

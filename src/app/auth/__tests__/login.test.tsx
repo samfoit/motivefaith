@@ -91,6 +91,7 @@ describe("LoginPage", () => {
   it('renders "MotiveFaith" heading, link to signup, forgot password, and Google button', () => {
     render(<LoginPage />);
     expect(screen.getByRole("heading", { name: "MotiveFaith" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "MotiveFaith" })).toHaveAttribute("href", "/");
     expect(screen.getByText("Sign up")).toHaveAttribute("href", "/auth/signup");
     expect(screen.getByText("Forgot password?")).toHaveAttribute(
       "href",
