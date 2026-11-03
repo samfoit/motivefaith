@@ -439,7 +439,7 @@ body {
 }
 
 /* ── Habit card check-in drawer ──────────────────────────────────────────
-   The card surface slides right off a row of check-in icons. The icons scale
+   The card surface slides left off a row of check-in icons. The icons scale
    in through a custom property rather than a plain transform so the pressed
    state can still override it here — the open/closed scale is written inline
    from React. */

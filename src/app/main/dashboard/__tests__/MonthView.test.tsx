@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MonthView } from "../MonthView";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 
@@ -77,5 +77,26 @@ describe("MonthView", () => {
     expect(
       screen.getByRole("button", { name: "October 13: nothing scheduled" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers the check-in drawer under today only", () => {
+    render(
+      <MonthView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        onCheckIn={vi.fn()}
+        habits={[makeHabit()]}
+      />,
+    );
+    // Today is selected to begin with.
+    expect(
+      screen.getByRole("button", { name: /^Quick check-in for / }),
+    ).toBeInTheDocument();
+
+    // A check-in always logs today, so a past day's rows only open the habit.
+    fireEvent.click(screen.getByRole("button", { name: /^October 12: / }));
+    expect(
+      screen.queryByRole("button", { name: /^Quick check-in for / }),
+    ).not.toBeInTheDocument();
   });
 });

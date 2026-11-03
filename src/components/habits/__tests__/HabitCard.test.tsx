@@ -83,7 +83,7 @@ describe("HabitCard", () => {
 
     const btn = screen.getByRole("button", { name: "Complete Morning Run" });
     expect(btn).toBeInTheDocument();
-    expect(btn).not.toBeDisabled();
+    expect(btn).toHaveAttribute("aria-disabled", "false");
   });
 
   it("disables complete button when already completed", () => {
@@ -96,7 +96,7 @@ describe("HabitCard", () => {
     );
 
     const btn = screen.getByRole("button", { name: "Morning Run completed" });
-    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-disabled", "true");
   });
 
   it("calls onQuickComplete when tapping the complete button", async () => {
@@ -479,7 +479,7 @@ describe("HabitCard", () => {
       const circle = screen.getByRole("button", {
         name: "Morning Run rain-checked today — check in anyway",
       });
-      expect(circle).not.toBeDisabled();
+      expect(circle).toHaveAttribute("aria-disabled", "false");
 
       await user.click(
         screen.getByRole("button", {

@@ -8,11 +8,14 @@ import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import { habitDayState, indexHabitDays } from "./day-state";
 import { DayMark, DayMarkLegendItem } from "./DayMark";
+import { CheckInRow, todayCheckInOptions, type OnCheckIn } from "./CheckInRow";
 
 interface WeekViewProps {
   habits: HabitWithCompletions[];
   timezone: string;
   onHabitPress: (habitId: string) => void;
+  /** Swipe a row left to check in today, as on the Day view. */
+  onCheckIn?: OnCheckIn;
 }
 
 /**
@@ -28,6 +31,7 @@ export const WeekView = memo(function WeekView({
   habits,
   timezone,
   onHabitPress,
+  onCheckIn,
 }: WeekViewProps) {
   const days = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -49,7 +53,11 @@ export const WeekView = memo(function WeekView({
 
         const due = cells.filter((c) => c !== "off" && c !== "upcoming").length;
         const done = cells.filter((c) => c === "done").length;
-        return { habit, cells, due, done };
+        const todayState = cells[days.findIndex((d) => d.key === todayKey)];
+        const options = todayState
+          ? todayCheckInOptions(habit, todayState, todayKey)
+          : null;
+        return { habit, cells, due, done, options };
       }),
     [habits, days, timezone, todayKey],
   );
@@ -92,15 +100,16 @@ export const WeekView = memo(function WeekView({
         </div>
 
         <ul className="divide-y divide-bg-primary">
-          {rows.map(({ habit, cells, due, done }) => (
+          {rows.map(({ habit, cells, due, done, options }) => (
             <li key={habit.id}>
-              <button
-                type="button"
-                onClick={() => onHabitPress(habit.id)}
+              <CheckInRow
+                habit={habit}
+                options={options}
+                onCheckIn={onCheckIn}
+                onPress={onHabitPress}
                 aria-label={`${habit.title}: done ${done} of ${due} ${
                   due === 1 ? "day" : "days"
                 } so far this week`}
-                className="w-full min-h-12 flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-hover transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
               >
                 <div className="flex-1 min-w-0 flex items-center gap-2">
                   <span className="text-base shrink-0" aria-hidden>
@@ -125,7 +134,7 @@ export const WeekView = memo(function WeekView({
                     </div>
                   ))}
                 </div>
-              </button>
+              </CheckInRow>
             </li>
           ))}
         </ul>

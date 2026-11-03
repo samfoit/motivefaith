@@ -1,12 +1,20 @@
 "use client";
 
 import React, { useRef, useCallback, useEffect, useId } from "react";
-import { ChevronRight, Clock, CloudRain, CornerDownRight } from "lucide-react";
+import { ChevronLeft, Clock, CloudRain, CornerDownRight } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 import { isRainCheck } from "@/lib/constants/completion";
 import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
+import {
+  CheckInDrawerOptions,
+  DRAWER_SURFACE_CLASS,
+  DRAWER_SURFACE_STYLE,
+  REPEAT_OPTIONS,
+  originOf,
+  useCheckInDrawer,
+} from "@/components/habits/CheckInDrawer";
 import {
   HabitCircle,
   HabitTitleRow,
@@ -16,28 +24,6 @@ import type { Tables } from "@/lib/supabase/types";
 import type { Habit } from "@/lib/types/habit";
 import type { HabitPause } from "@/lib/utils/pauses";
 import type { ScheduleChange } from "@/lib/utils/schedule";
-
-// --- Drawer geometry -------------------------------------------------------
-// The card slides right by exactly the width of the option row, so the icons
-// end up in the space the card vacated.
-const OPTION_SIZE = 40;
-const OPTION_GAP = 8;
-const DRAWER_PADDING = 12;
-/** How far the card slides to uncover a row of `count` options. */
-function revealFor(count: number): number {
-  return DRAWER_PADDING * 2 + count * OPTION_SIZE + (count - 1) * OPTION_GAP;
-}
-/**
- * The drawer once the habit is done for the day. Doing it again is still a
- * check-in, of any kind; only skipping it is off the table by then.
- */
-const REPEAT_OPTIONS = CHECK_IN_OPTIONS.filter((o) => o.action !== "rain_check");
-/** Strip of card kept on screen on narrow phones, so it stays grabbable. */
-const MIN_CARD_VISIBLE = 64;
-/** Pointer travel before a gesture commits to horizontal (vs. page scroll). */
-const DIRECTION_LOCK_PX = 8;
-/** Fraction of the reveal a drag must cover to settle open. */
-const OPEN_RATIO = 0.4;
 
 /**
  * The one-time peek: how far the card slides on its own to show what is
@@ -66,14 +52,6 @@ function markDrawerPeekSeen() {
   } catch {
     // Nothing to do — it simply may play again next time.
   }
-}
-
-/**
- * Resolved by the browser against the card's own width, so no measurement is
- * needed for the resting state — only the live drag clamps in pixels.
- */
-function openTransform(revealPx: number): string {
-  return `translate3d(min(${revealPx}px, calc(100% - ${MIN_CARD_VISIBLE}px)), 0, 0)`;
 }
 
 /** Calendar days, not 24-hour periods: last night at 11pm is "yesterday". */
@@ -189,59 +167,43 @@ export const HabitCard = React.memo(function HabitCard({
   // --- Check-in drawer -----------------------------------------------------
 
   const drawerId = useId();
-  const isOpen = useHabitDrawerStore((s) => s.openHabitId === habit.id);
-  const openDrawer = useHabitDrawerStore((s) => s.open);
-  const closeDrawer = useHabitDrawerStore((s) => s.close);
   // Still offered once the habit is done for the day, without the rain check:
   // see REPEAT_OPTIONS.
   const drawerEnabled = !!onCheckIn;
   const options = completedToday ? REPEAT_OPTIONS : CHECK_IN_OPTIONS;
-  const revealPx = revealFor(options.length);
 
-  const trackRef = useRef<HTMLDivElement>(null);
-  const surfaceRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const peekAnimationsRef = useRef<Animation[]>([]);
 
-  const toggleDrawer = useCallback(() => {
-    if (isOpen) closeDrawer(habit.id);
-    else openDrawer(habit.id);
-  }, [isOpen, habit.id, openDrawer, closeDrawer]);
+  // Touching the card mid-peek hands it straight back to the user.
+  const cancelPeek = useCallback(() => {
+    for (const a of peekAnimationsRef.current) a.cancel();
+    peekAnimationsRef.current = [];
+  }, []);
 
-  const handleCircleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (completedToday) return;
-    // Checking in from the circle settles the card, open drawer and all.
-    closeDrawer(habit.id);
-    const rect = e.currentTarget.getBoundingClientRect();
-    onQuickComplete(habit.id, {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    });
-  };
-
-  // The transform lives on the DOM node rather than in the style prop: a drag
-  // writes it every pointermove, and routing that through React would re-render
-  // the card on every frame of the gesture.
-  const dragRef = useRef({
-    active: false,
-    locked: false,
-    pointerId: -1,
-    startX: 0,
-    startY: 0,
-    base: 0,
-    reveal: 0,
+  const {
+    isOpen,
+    toggle: toggleDrawer,
+    close: closeDrawer,
+    trackRef,
+    surfaceRef,
+    dragRef,
+    consumeDragClick,
+    trackHandlers,
+  } = useCheckInDrawer({
+    habitId: habit.id,
+    enabled: drawerEnabled,
+    optionCount: options.length,
+    onTouch: cancelPeek,
   });
-  const suppressClickRef = useRef(false);
 
-  useEffect(() => {
-    const node = surfaceRef.current;
-    if (!node || dragRef.current.locked) return;
-    node.style.transition = "";
-    // Re-run when the row narrows too: a habit done for the day, with its
-    // drawer open, loses the rain check from under the card.
-    node.style.transform = isOpen && drawerEnabled ? openTransform(revealPx) : "";
-  }, [isOpen, drawerEnabled, revealPx]);
+  const handleCircleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (consumeDragClick() || completedToday) return;
+    // Checking in from the circle settles the card, open drawer and all.
+    closeDrawer();
+    onQuickComplete(habit.id, originOf(e));
+  };
 
   // Opening the drawer by hand teaches more than the peek would.
   useEffect(() => {
@@ -269,8 +231,8 @@ export const HabitCard = React.memo(function HabitCard({
       const slide = node.animate(
         [
           { transform: "translate3d(0, 0, 0)", easing: ease },
-          { transform: `translate3d(${PEEK_PX}px, 0, 0)`, offset: 0.25 },
-          { transform: `translate3d(${PEEK_PX}px, 0, 0)`, offset: 0.7, easing: ease },
+          { transform: `translate3d(-${PEEK_PX}px, 0, 0)`, offset: 0.25 },
+          { transform: `translate3d(-${PEEK_PX}px, 0, 0)`, offset: 0.7, easing: ease },
           { transform: "translate3d(0, 0, 0)" },
         ],
         timing,
@@ -294,138 +256,27 @@ export const HabitCard = React.memo(function HabitCard({
     }, PEEK_DELAY_MS);
     return () => {
       clearTimeout(timer);
-      for (const a of peekAnimationsRef.current) a.cancel();
-      peekAnimationsRef.current = [];
+      cancelPeek();
     };
-  }, [peek, drawerEnabled]);
-
-  // An open drawer is a transient mode: Escape or a tap anywhere else ends it.
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeDrawer(habit.id);
-    };
-    const onPointerDownOutside = (e: PointerEvent) => {
-      if (!trackRef.current?.contains(e.target as Node)) closeDrawer(habit.id);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("pointerdown", onPointerDownOutside);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("pointerdown", onPointerDownOutside);
-    };
-  }, [isOpen, habit.id, closeDrawer]);
-
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      // Touching the card mid-peek hands it straight back to the user.
-      for (const a of peekAnimationsRef.current) a.cancel();
-      peekAnimationsRef.current = [];
-      if (!drawerEnabled) return;
-      if (e.pointerType === "mouse" && e.button !== 0) return;
-      const track = trackRef.current;
-      if (!track) return;
-      // Cleared here rather than only in the click handler: a gesture that
-      // ends in a pointercancel never produces a click to clear it, and a
-      // stale flag would swallow the next genuine tap.
-      suppressClickRef.current = false;
-      const reveal = Math.max(
-        0,
-        Math.min(revealPx, track.clientWidth - MIN_CARD_VISIBLE),
-      );
-      dragRef.current = {
-        active: true,
-        locked: false,
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        base: isOpen ? reveal : 0,
-        reveal,
-      };
-    },
-    [drawerEnabled, isOpen, revealPx],
-  );
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    const drag = dragRef.current;
-    if (!drag.active || e.pointerId !== drag.pointerId) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-
-    if (!drag.locked) {
-      // Vertical first means the user is scrolling the list — let go of it.
-      if (Math.abs(dy) > DIRECTION_LOCK_PX && Math.abs(dy) >= Math.abs(dx)) {
-        drag.active = false;
-        return;
-      }
-      if (Math.abs(dx) < DIRECTION_LOCK_PX) return;
-      drag.locked = true;
-      suppressClickRef.current = true;
-      surfaceRef.current?.setPointerCapture(e.pointerId);
-      if (surfaceRef.current) surfaceRef.current.style.transition = "none";
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate(10);
-      }
-    }
-
-    const offset = Math.min(drag.reveal, Math.max(0, drag.base + dx));
-    if (surfaceRef.current) {
-      surfaceRef.current.style.transform = `translate3d(${offset}px, 0, 0)`;
-    }
-  }, []);
-
-  const endDrag = useCallback(
-    (e: React.PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag.active || e.pointerId !== drag.pointerId) return;
-      drag.active = false;
-      if (!drag.locked) return; // A tap — the click handler decides what it meant.
-      drag.locked = false;
-
-      const offset = Math.min(
-        drag.reveal,
-        Math.max(0, drag.base + (e.clientX - drag.startX)),
-      );
-      // Opening asks for a deliberate pull; closing only needs a nudge back.
-      const shouldOpen =
-        drag.base > 0
-          ? offset > drag.reveal * (1 - OPEN_RATIO)
-          : offset > drag.reveal * OPEN_RATIO;
-
-      const node = surfaceRef.current;
-      if (node) {
-        node.style.transition = ""; // Hand the settle back to the CSS transition.
-        node.style.transform = shouldOpen ? openTransform(revealPx) : "";
-      }
-      if (shouldOpen) openDrawer(habit.id);
-      else closeDrawer(habit.id);
-    },
-    [habit.id, revealPx, openDrawer, closeDrawer],
-  );
+  }, [peek, drawerEnabled, surfaceRef, dragRef, cancelPeek]);
 
   const handleClick = useCallback(() => {
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false;
-      return;
-    }
+    if (consumeDragClick()) return;
     if (isOpen) {
-      closeDrawer(habit.id);
+      closeDrawer();
       return;
     }
     onPress?.(habit.id);
-  }, [isOpen, habit.id, closeDrawer, onPress]);
+  }, [consumeDragClick, isOpen, habit.id, closeDrawer, onPress]);
 
   const handleCheckIn = useCallback(
-    (action: CheckInAction, e: React.MouseEvent) => {
+    (action: CheckInAction, e: React.MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
-      const rect = e.currentTarget.getBoundingClientRect();
-      closeDrawer(habit.id);
-      onCheckIn?.(habit.id, action, {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      });
+      if (consumeDragClick()) return;
+      closeDrawer();
+      onCheckIn?.(habit.id, action, originOf(e));
     },
-    [habit.id, closeDrawer, onCheckIn],
+    [habit.id, closeDrawer, onCheckIn, consumeDragClick],
   );
 
   return (
@@ -433,43 +284,18 @@ export const HabitCard = React.memo(function HabitCard({
       ref={trackRef}
       className={cn("hc-drawer relative overflow-hidden rounded-lg", className)}
       style={{ ["--habit-color" as string]: habit.color ?? undefined } as React.CSSProperties}
+      {...trackHandlers}
     >
       {/* Check-in drawer, revealed as the card slides off it */}
       {drawerEnabled && (
-        <div
+        <CheckInDrawerOptions
           ref={drawerRef}
           id={drawerId}
-          inert={!isOpen}
-          className="absolute inset-y-0 left-0 flex items-center"
-          style={{ gap: OPTION_GAP, paddingInline: DRAWER_PADDING }}
-        >
-          {options.map((option, i) => (
-            <button
-              key={option.action}
-              type="button"
-              onClick={(e) => handleCheckIn(option.action, e)}
-              aria-label={`${option.label} for ${habit.title}`}
-              className={cn(
-                "hc-option shrink-0 rounded-full text-white shadow-sm",
-                "flex items-center justify-center",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-ink",
-              )}
-              style={{
-                width: OPTION_SIZE,
-                height: OPTION_SIZE,
-                backgroundColor: option.color,
-                // Icons land one after another as the card clears them. The
-                // scale goes through a custom property so the press state can
-                // still override it from the stylesheet.
-                opacity: isOpen ? 1 : 0,
-                ["--hc-option-scale" as string]: isOpen ? "1" : "0.6",
-                transitionDelay: isOpen ? `${60 + i * 40}ms` : "0ms",
-              } as React.CSSProperties}
-            >
-              <option.icon className="w-[18px] h-[18px]" strokeWidth={2.25} />
-            </button>
-          ))}
-        </div>
+          habitTitle={habit.title}
+          options={options}
+          isOpen={isOpen}
+          onPick={handleCheckIn}
+        />
       )}
 
       {/* Card surface */}
@@ -478,21 +304,12 @@ export const HabitCard = React.memo(function HabitCard({
         // The tinted surface also gives the drawer an opaque face to hide behind.
         {...habitSurfaceProps(habit.color, {
           className: cn(
-            "cursor-pointer select-none",
-            "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-            "active:brightness-[0.98]",
+            DRAWER_SURFACE_CLASS,
+            "cursor-pointer select-none active:brightness-[0.98]",
           ),
-          style: {
-            touchAction: "pan-y",
-            WebkitTouchCallout: "none",
-            WebkitTapHighlightColor: "transparent",
-          },
+          style: DRAWER_SURFACE_STYLE,
         })}
         onContextMenu={(e) => e.preventDefault()}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
         onClick={handleClick}
       >
         {/* Drawer handle */}
@@ -501,9 +318,9 @@ export const HabitCard = React.memo(function HabitCard({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              if (consumeDragClick()) return;
               toggleDrawer();
             }}
-            onPointerDown={(e) => e.stopPropagation()}
             aria-expanded={isOpen}
             aria-controls={drawerId}
             aria-label={
@@ -518,7 +335,7 @@ export const HabitCard = React.memo(function HabitCard({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
             )}
           >
-            <ChevronRight
+            <ChevronLeft
               className={cn(
                 "w-4 h-4 transition-transform duration-300",
                 isOpen && "rotate-180",
@@ -603,8 +420,9 @@ export const HabitCard = React.memo(function HabitCard({
         {/* Complete Circle */}
         <button
           onClick={handleCircleClick}
-          onPointerDown={(e) => e.stopPropagation()}
-          disabled={completedToday}
+          // aria-disabled rather than disabled: a disabled button swallows
+          // the pointer events a drag starting on it needs.
+          aria-disabled={completedToday}
           className={cn(
             // after: stretches the 40px circle's tap area to 48px.
             "group relative shrink-0 rounded-full after:absolute after:-inset-1",

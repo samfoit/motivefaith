@@ -135,7 +135,7 @@ describe("DashboardClient quick check-in", () => {
     // Marked done straight away, but nothing has been written yet.
     expect(
       screen.getByRole("button", { name: "Morning Run completed" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Checked in", { exact: false })).toBeInTheDocument();
     expect(mutateAsync).not.toHaveBeenCalled();
 
@@ -166,7 +166,7 @@ describe("DashboardClient quick check-in", () => {
     // window would have elapsed.
     expect(
       screen.getByRole("button", { name: "Complete Morning Run" }),
-    ).not.toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "false");
     expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
 
     await advance(6000);
@@ -194,7 +194,7 @@ describe("DashboardClient quick check-in", () => {
 
       expect(
         screen.getByRole("button", { name: "Morning Run completed" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
       expect(screen.getByLabelText("5-day streak")).toBeInTheDocument();
     } finally {
       fetchSpy.mockRestore();
@@ -242,7 +242,7 @@ describe("DashboardClient checking in again", () => {
     // The circle stays done: a second tap there is not how you do it again.
     expect(
       await screen.findByRole("button", { name: "Morning Run completed" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
 
     await openDrawer(user);
     await user.click(
@@ -366,7 +366,7 @@ describe("DashboardClient rain check", () => {
       screen.getByRole("button", {
         name: "Morning Run rain-checked today — check in anyway",
       }),
-    ).not.toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "false");
   });
 });
 
@@ -622,7 +622,7 @@ describe("DashboardClient sharing the first check-in", () => {
     // Never marked done, never offered an undo, never sent.
     expect(
       screen.getByRole("button", { name: "Complete Morning Run" }),
-    ).not.toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "false");
     expect(screen.queryByText("Checked in", { exact: false })).not.toBeInTheDocument();
     await advance(6000);
     expect(mutateAsync).not.toHaveBeenCalled();
@@ -643,7 +643,7 @@ describe("DashboardClient sharing the first check-in", () => {
 
     expect(
       screen.getByRole("button", { name: "Morning Run completed" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     await waitFor(() =>
       expect(rpc).toHaveBeenCalledWith("confirm_checkin_sharing"),
     );
@@ -651,7 +651,7 @@ describe("DashboardClient sharing the first check-in", () => {
     // Pat watches Nap too, and that goes straight through.
     await user.click(screen.getByRole("button", { name: "Complete Nap" }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Nap completed" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Nap completed" })).toHaveAttribute("aria-disabled", "true");
 
     await advance(6000);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
@@ -711,7 +711,7 @@ describe("DashboardClient sharing the first check-in", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Morning Run completed" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 });
 

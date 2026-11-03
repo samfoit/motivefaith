@@ -8,11 +8,17 @@ import { toDateKey, todayDateKey, getDayOfWeek } from "@/lib/utils/timezone";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import { habitDayState, indexHabitDays, type DayState } from "./day-state";
 import { DayMark } from "./DayMark";
+import { CheckInRow, todayCheckInOptions, type OnCheckIn } from "./CheckInRow";
 
 interface MonthViewProps {
   habits: HabitWithCompletions[];
   timezone: string;
   onHabitPress: (habitId: string) => void;
+  /**
+   * Swipe a habit under today left to check in, as on the Day view. Other
+   * days' rows only open the habit: a check-in always logs today.
+   */
+  onCheckIn?: OnCheckIn;
 }
 
 interface DaySummary {
@@ -43,6 +49,7 @@ export const MonthView = memo(function MonthView({
   habits,
   timezone,
   onHabitPress,
+  onCheckIn,
 }: MonthViewProps) {
   const todayKey = todayDateKey(timezone);
   const [selectedKey, setSelectedKey] = useState(todayKey);
@@ -146,10 +153,15 @@ export const MonthView = memo(function MonthView({
           >
             {selectedHabits.map(({ habit, state }) => (
               <li key={habit.id}>
-                <button
-                  type="button"
-                  onClick={() => onHabitPress(habit.id)}
-                  className="w-full min-h-12 flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-hover transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+                <CheckInRow
+                  habit={habit}
+                  options={
+                    selected.key === todayKey
+                      ? todayCheckInOptions(habit, state, todayKey)
+                      : null
+                  }
+                  onCheckIn={onCheckIn}
+                  onPress={onHabitPress}
                 >
                   <span className="text-base shrink-0" aria-hidden>
                     {habit.emoji}
@@ -169,7 +181,7 @@ export const MonthView = memo(function MonthView({
                   <span className="w-7 flex justify-center shrink-0" aria-hidden>
                     <DayMark state={state} />
                   </span>
-                </button>
+                </CheckInRow>
               </li>
             ))}
           </ul>
