@@ -25,6 +25,8 @@
   --color-success: var(--color-success);
   --color-streak: var(--color-streak);
   --color-miss: var(--color-miss);
+  --color-miss-ink: var(--color-miss-ink);
+  --color-miss-hover: var(--color-miss-hover);
   --color-rain: var(--color-rain);
   --color-encourage: var(--color-encourage);
   --font-sans: var(--font-sans);
@@ -425,6 +427,15 @@ body {
     background-color: color-mix(in srgb, var(--color-brand) 13%, var(--color-bg-elevated));
     border-color: color-mix(in oklab, var(--color-brand) 60%, var(--color-bg-elevated));
   }
+}
+
+/* ── Toast tint ──────────────────────────────────────────────────────────
+   A toast floats over whatever is behind it, so its tint is opaque: the
+   variant's hue (--toast-hue, set by Toast.tsx) mixed into the hour's card,
+   never an alpha that lets the page through. Text stays in the hour's ink. */
+.toast-tint {
+  background-color: color-mix(in oklab, var(--toast-hue, var(--color-text-tertiary)) 12%, var(--color-bg-elevated));
+  border-color: color-mix(in oklab, var(--toast-hue, var(--color-text-tertiary)) 40%, var(--color-border));
 }
 
 /* ── Habit card check-in drawer ──────────────────────────────────────────

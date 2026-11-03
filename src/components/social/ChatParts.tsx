@@ -215,7 +215,7 @@ export function ChatRow({
               <span
                 className={cn(
                   "absolute -bottom-2.5 flex items-center gap-0.5 rounded-full px-1.5 py-0.5",
-                  "bg-bg-elevated text-[11px] font-medium text-miss shadow-sm ring-1 ring-border",
+                  "bg-bg-elevated text-[11px] font-medium text-miss-ink shadow-sm ring-1 ring-border",
                   isMe ? "left-2" : "right-2",
                 )}
                 aria-label={`${heartCount} ${heartCount === 1 ? "heart" : "hearts"}`}
@@ -246,7 +246,7 @@ export function ChatRow({
                 }}
                 className={cn(
                   "flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium transition-colors hover:bg-surface-hover",
-                  action.danger ? "text-miss" : "text-text-primary",
+                  action.danger ? "text-miss-ink" : "text-text-primary",
                 )}
               >
                 <action.icon className={cn("w-5 h-5 shrink-0", !action.danger && "text-text-secondary")} />

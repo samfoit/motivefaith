@@ -96,7 +96,7 @@ export default function LoginPage() {
           )}
 
           {staleBanner && !deletedBanner && (
-            <div className="mb-4 rounded-md border border-miss/30 bg-miss/10 px-3 py-2 text-sm text-miss text-center">
+            <div className="mb-4 rounded-md border border-miss/30 bg-miss/10 px-3 py-2 text-sm text-miss-ink text-center">
               Your account data is no longer available. Please contact
               support if you believe this is a mistake.
             </div>

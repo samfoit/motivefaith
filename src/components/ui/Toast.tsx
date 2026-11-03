@@ -23,12 +23,21 @@ type ToastItem = {
   duration?: number;
 };
 
-const VARIANT_CLASSES: Record<ToastVariant, string> = {
-  success: "bg-green-50 border-green-200 text-green-900",
-  error: "bg-red-50 border-red-200 text-red-900",
-  info: "bg-sky-50 border-sky-200 text-sky-900", // brand/info
-  encourage: "bg-violet-50 border-violet-200 text-violet-900",
+/**
+ * Each variant's hue, washed into the hour's card by .toast-tint in
+ * globals.css. The hue lives in the wash and the border; the words stay in
+ * the hour's ink, so they hold 5:1 or better at every hour. Done is the lamp
+ * lit, so success is gold; info is plain, since blue means a rain check.
+ */
+const VARIANT_HUE: Record<ToastVariant, string> = {
+  success: "var(--color-brand)",
+  error: "var(--color-miss)",
+  info: "var(--color-text-tertiary)",
+  encourage: "var(--color-encourage)",
 };
+
+const TOAST_BUTTON_CLASS =
+  "text-xs px-2 py-1 rounded-md text-text-primary hover:bg-text-primary/10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-ink";
 
 export const ToastProvider: React.FC<{ children?: React.ReactNode }> = ({
   children,
@@ -77,10 +86,11 @@ export const useToast = (): UseToastReturn => {
             if (!open) remove(t.id);
           }}
           className={cn(
-            "pointer-events-auto w-full rounded-md border p-3 shadow-lg",
+            "toast-tint pointer-events-auto w-full rounded-md border p-3 shadow-lg text-text-primary",
             "grid gap-1 auto-rows-max",
-            VARIANT_CLASSES[t.variant ?? "info"],
           )}
+          style={{ ["--toast-hue" as string]: VARIANT_HUE[t.variant ?? "info"] } as React.CSSProperties}
+          data-variant={t.variant ?? "info"}
         >
           {t.title && (
             <RadixToast.Title className="font-medium text-sm">
@@ -89,7 +99,7 @@ export const useToast = (): UseToastReturn => {
           )}
           {t.description && (
             <RadixToast.Description asChild>
-              <div className="text-xs">{t.description}</div>
+              <div className="text-xs text-text-secondary">{t.description}</div>
             </RadixToast.Description>
           )}
 
@@ -101,14 +111,14 @@ export const useToast = (): UseToastReturn => {
               >
                 <button
                   onClick={t.action.onClick}
-                  className="text-xs font-semibold px-2 py-1 rounded-md underline underline-offset-2 hover:bg-white/30"
+                  className={cn(TOAST_BUTTON_CLASS, "font-semibold underline underline-offset-2")}
                 >
                   {t.action.label}
                 </button>
               </RadixToast.Action>
             )}
             <RadixToast.Close asChild>
-              <button className="text-xs px-2 py-1 rounded-md hover:bg-white/30">
+              <button className={TOAST_BUTTON_CLASS}>
                 Close
               </button>
             </RadixToast.Close>

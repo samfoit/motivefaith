@@ -21,6 +21,7 @@ export const TEXT_PAIRS: [ColorKey, ColorKey][] = [
   ["sub", "card"], ["sub", "ground"], ["sub", "tile"],
   ["ring", "card"], ["ring", "ground"],
   ["navText", "nav"], ["accentText", "nav"], ["accentText", "card"], ["accentText", "ground"],
+  ["missText", "card"], ["missText", "ground"], ["missText", "tile"],
 ];
 
 /** Icons and control outlines: held at 3:1. */

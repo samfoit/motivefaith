@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import { palette, isLight, PINNED_HOUR, ALL_VARS, rgb, CSS_VAR } from "../palette";
+import { palette, isLight, PINNED_HOUR, ALL_VARS, rgb, mixRgb, CSS_VAR } from "../palette";
 import { lowest, ratio, TEXT_PAIRS, UI_PAIRS } from "../contrast";
 
 const EVERY_15_MIN = Array.from({ length: 96 }, (_, i) => i / 4);
@@ -11,6 +11,14 @@ describe("palette", () => {
     const { raw } = palette(hour);
     expect(lowest(raw, TEXT_PAIRS)).toBeGreaterThanOrEqual(4.5);
     expect(lowest(raw, UI_PAIRS)).toBeGreaterThanOrEqual(3);
+  });
+
+  // ErrorBanner and the login banner set red text on a 10% wash of the
+  // missed red over the card (bg-miss/10), not on a plain surface.
+  it.each(EVERY_15_MIN)("keeps red text at 4.5:1 on the error wash at hour %s", (hour) => {
+    const { raw } = palette(hour);
+    const wash = mixRgb(raw.card, rgb("#ef4444"), 0.1);
+    expect(ratio(raw.missText, wash)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("keeps dark ink on the gold accent", () => {

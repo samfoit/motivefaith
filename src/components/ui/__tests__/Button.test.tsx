@@ -39,6 +39,16 @@ describe("Button", () => {
     expect(btn.className).toContain("bg-transparent");
   });
 
+  it("applies danger variant classes with an opaque hover", () => {
+    render(<Button variant="danger">Delete</Button>);
+    const btn = screen.getByRole("button");
+    expect(btn.className).toContain("bg-miss");
+    expect(btn.className).toContain("text-on-brand");
+    expect(btn.className).toContain("hover:bg-miss-hover");
+    // A translucent hover lets the night ground through: 4.18:1 at night.
+    expect(btn.className).not.toMatch(/hover:!?bg-miss\/\d+/);
+  });
+
   // Size tests
   it("applies sm size classes", () => {
     render(<Button size="sm">Small</Button>);

@@ -157,7 +157,7 @@ function ActionRow({
       onClick={onClick}
       className={cn(
         "flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium transition-colors hover:bg-surface-hover",
-        danger ? "text-miss" : "text-text-primary",
+        danger ? "text-miss-ink" : "text-text-primary",
       )}
     >
       <Icon className={cn("w-5 h-5 shrink-0", danger ? "text-miss" : "text-text-secondary")} />

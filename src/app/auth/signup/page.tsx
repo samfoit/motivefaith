@@ -244,7 +244,7 @@ export default function SignupPage() {
               </span>
             </label>
             {errors.tos && (
-              <p className="text-xs text-[var(--color-miss)]">{errors.tos}</p>
+              <p className="text-xs text-miss-ink">{errors.tos}</p>
             )}
 
             <Turnstile onToken={handleCaptchaToken} onExpire={handleCaptchaExpire} />

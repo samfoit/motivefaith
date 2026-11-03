@@ -27,6 +27,13 @@
   --color-success: var(--color-brand-ink); /* Done: the lamp is lit */
   --color-streak: #A87410; /* The flame */
   --color-miss: #ef4444; /* Missed habit red (used sparingly) */
+  /* Red as text. --color-miss is a fill, icon and border color; as small text
+     it fails 4.5:1 on light grounds, so error and danger text use this,
+     which the palette carries per hour. */
+  --color-miss-ink: #B91C1C;
+  /* A danger button's hover: lighter, not darker, so its dark label keeps
+     5.7:1. Opaque, so the page behind can't pull it down at night. */
+  --color-miss-hover: #F25F5F;
   --color-rain: #3b82f6; /* Rain check blue — a deliberate skip, never an alarm */
   --color-encourage: #8b5cf6; /* Encouragement purple */
   /* Check-in actions, each its own hue wherever it appears. They sit
@@ -107,6 +114,7 @@
   --color-border: #232838;
   --color-brand-ink: #E9B44C;
   --color-brand-light: #2A2416;
+  --color-miss-ink: #FF8A80;
   --color-streak: #E9B44C;
   --color-rain: #60a5fa;
   --sky-sun: #EDE6D6;

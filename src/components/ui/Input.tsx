@@ -40,7 +40,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             "border-[var(--color-surface-hover)] focus:ring-2 focus:ring-brand-ink focus:border-brand-ink",
             // error state
             hasError &&
-              "border-rose-400 focus:ring-2 focus:ring-rose-500 focus:border-rose-600",
+              "border-miss focus:ring-2 focus:ring-miss focus:border-miss",
             disabled && "opacity-60 cursor-not-allowed",
             className,
           )}
@@ -52,7 +52,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             id={helpId}
             className={cn(
               "text-xs mt-0.5",
-              typeof error === "string" ? "text-[var(--color-miss)]" : "text-[var(--color-text-secondary)]",
+              typeof error === "string" ? "text-miss-ink" : "text-[var(--color-text-secondary)]",
             )}
             aria-live={hasError ? "assertive" : "polite"}
           >

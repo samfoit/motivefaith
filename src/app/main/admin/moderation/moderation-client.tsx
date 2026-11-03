@@ -92,11 +92,13 @@ const REASON_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const STATUS_VARIANT: Record<string, "default" | "health" | "social" | "learning"> = {
-  pending: "learning",
-  reviewed: "default",
-  actioned: "social",
-  dismissed: "default",
+// Pending needs a moderator, so it wears the lamp; actioned means content was
+// taken down, which is the one place red belongs here.
+const STATUS_TONE: Record<string, "neutral" | "brand" | "miss"> = {
+  pending: "brand",
+  reviewed: "neutral",
+  actioned: "miss",
+  dismissed: "neutral",
 };
 
 // ── Component ──
@@ -351,7 +353,7 @@ export function ModerationClient({ initialReports, initialTotal }: ModerationCli
                       <span className="text-sm font-medium text-[var(--color-text-primary)]">
                         {report.reporter?.display_name ?? "Unknown"}
                       </span>
-                      <Pill size="sm" variant={STATUS_VARIANT[report.status] ?? "default"}>
+                      <Pill size="sm" tone={STATUS_TONE[report.status] ?? "neutral"}>
                         {report.status}
                       </Pill>
                       <Pill size="sm">
@@ -436,11 +438,11 @@ export function ModerationClient({ initialReports, initialTotal }: ModerationCli
 
             {/* Report metadata */}
             <div className="flex flex-wrap gap-2">
-              <Pill size="sm" variant={STATUS_VARIANT[selectedReport.status] ?? "default"}>
+              <Pill size="sm" tone={STATUS_TONE[selectedReport.status] ?? "neutral"}>
                 {selectedReport.status}
               </Pill>
               <Pill size="sm">{selectedReport.content_type}</Pill>
-              <Pill size="sm" variant="social">
+              <Pill size="sm" outline>
                 {REASON_LABELS[selectedReport.reason] ?? selectedReport.reason}
               </Pill>
             </div>
@@ -495,8 +497,8 @@ export function ModerationClient({ initialReports, initialTotal }: ModerationCli
                 {(selectedReport.content_type === "completion" ||
                   selectedReport.content_type === "message") && (
                   <Button
-                    variant="primary"
-                    className="flex-1 bg-[var(--color-miss)] hover:bg-[var(--color-miss)]/90"
+                    variant="danger"
+                    className="flex-1"
                     loading={actionLoading}
                     onClick={() => handleDeleteContent(selectedReport)}
                   >

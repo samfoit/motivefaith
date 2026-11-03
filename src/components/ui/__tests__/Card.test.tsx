@@ -31,36 +31,36 @@ describe("Container (Card)", () => {
     expect(el.className).toContain("hover:shadow-md");
   });
 
-  it("applies preset accent class for 'health'", () => {
-    const { container } = render(
-      <Container colorAccent="health">Health</Container>,
-    );
+  it("has a hairline border from the tokens", () => {
+    const { container } = render(<Container>Border</Container>);
     const el = container.firstChild as HTMLElement;
-    expect(el.className).toContain("border-emerald-400");
-    expect(el.className).toContain("border-l-[3px]");
+    expect(el.className).toContain("border-border");
+    expect(el.className).not.toContain("habit-tint");
   });
 
-  it("applies preset accent class for 'productivity'", () => {
-    const { container } = render(
-      <Container colorAccent="productivity">Prod</Container>,
-    );
+  it("tints with a habit color through .habit-tint", () => {
+    const { container } = render(<Container tint="#14B8A6">Tinted</Container>);
     const el = container.firstChild as HTMLElement;
-    expect(el.className).toContain("border-indigo-400");
+    expect(el.className).toContain("habit-tint");
+    expect(el.style.getPropertyValue("--habit-color")).toBe("#14B8A6");
   });
 
-  it("applies custom string as accent class when not a preset key", () => {
+  it("keeps a caller's style alongside the tint", () => {
     const { container } = render(
-      <Container colorAccent="border-red-500">Custom</Container>,
+      <Container tint="#14B8A6" style={{ marginTop: 4 }}>
+        Styled
+      </Container>,
     );
     const el = container.firstChild as HTMLElement;
-    expect(el.className).toContain("border-red-500");
-    expect(el.className).toContain("border-l-[3px]");
+    expect(el.style.marginTop).toBe("4px");
+    expect(el.style.getPropertyValue("--habit-color")).toBe("#14B8A6");
   });
 
-  it("has no accent when colorAccent is null", () => {
-    const { container } = render(<Container>No accent</Container>);
+  it("has no tint when tint is null", () => {
+    const { container } = render(<Container tint={null}>Plain</Container>);
     const el = container.firstChild as HTMLElement;
-    expect(el.className).not.toContain("border-l-[3px]");
+    expect(el.className).not.toContain("habit-tint");
+    expect(el.style.getPropertyValue("--habit-color")).toBe("");
   });
 
   it("forwards ref and merges className", () => {

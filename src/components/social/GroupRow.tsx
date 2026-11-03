@@ -57,7 +57,7 @@ export const GroupRow = React.memo(function GroupRow({
             >
               {group.name}
             </p>
-            <Pill size="sm" variant="default">
+            <Pill size="sm">
               {memberCount}
             </Pill>
           </div>

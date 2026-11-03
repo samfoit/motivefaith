@@ -133,7 +133,7 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
           </div>
 
           <div className="px-5 py-4 space-y-4">
-            <div className="rounded-md border border-miss/30 bg-miss/5 px-3 py-2 text-xs text-miss">
+            <div className="rounded-md border border-miss/30 bg-miss/5 px-3 py-2 text-xs text-miss-ink">
               Any groups you created will be handed off to the oldest
               remaining admin, or deleted if you are the last member.
             </div>
@@ -158,7 +158,7 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
               <label className="block text-sm font-medium text-text-primary">
                 To confirm, type the phrase below
               </label>
-              <div className="rounded-md border border-miss/40 bg-miss/10 px-3 py-2 font-mono text-base font-semibold text-miss select-all text-center">
+              <div className="rounded-md border border-miss/40 bg-miss/10 px-3 py-2 font-mono text-base font-semibold text-miss-ink select-all text-center">
                 {CONFIRM_PHRASE}
               </div>
               <input
@@ -183,7 +183,7 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
               onExpire={handleCaptchaExpire}
             />
 
-            {error && <p className="text-xs text-miss">{error}</p>}
+            {error && <p className="text-xs text-miss-ink">{error}</p>}
           </div>
 
           <div className="px-5 py-4 border-t border-surface-hover flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">

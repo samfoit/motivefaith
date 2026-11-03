@@ -123,7 +123,7 @@ export function RepeatPicker({ frequency, days, onChange }: RepeatPickerProps) {
               className="px-4 pb-3"
             />
             {days.length === 0 && (
-              <p className="px-4 pb-3 -mt-1 text-xs text-[var(--color-miss)]">
+              <p className="px-4 pb-3 -mt-1 text-xs text-miss-ink">
                 Choose at least one day.
               </p>
             )}

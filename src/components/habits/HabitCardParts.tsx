@@ -131,7 +131,7 @@ export function HabitCircle({
       aria-hidden
       className={cn(
         "w-10 h-10 rounded-full flex items-center justify-center",
-        "transition-all duration-200 ease-bounce",
+        "transition-all duration-200 ease-(--ease-bounce)",
         state === "done" && "bg-brand text-on-brand shadow-[var(--lamp-glow-done)]",
         state === "rain" && "border-2",
         state === "open" &&
