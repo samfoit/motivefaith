@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef } from "react";
+import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import {
   CHECK_IN_OPTIONS,
@@ -305,4 +306,55 @@ export const CheckInDrawerOptions = React.forwardRef<
 export function originOf(e: React.MouseEvent<HTMLElement>) {
   const rect = e.currentTarget.getBoundingClientRect();
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+interface DrawerHandleProps {
+  isOpen: boolean;
+  /** The drawer's id, for aria-controls. */
+  drawerId: string;
+  habitTitle: string;
+  onToggle: () => void;
+  className?: string;
+}
+
+/**
+ * The arrow that opens the drawer without a swipe: the only way in with a
+ * mouse or a keyboard, and the sign there is a drawer at all. It points the
+ * way the surface slides and turns round once it has; three dots would
+ * promise a dropdown menu instead.
+ */
+export function DrawerHandle({
+  isOpen,
+  drawerId,
+  habitTitle,
+  onToggle,
+  className,
+}: DrawerHandleProps) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      aria-expanded={isOpen}
+      aria-controls={drawerId}
+      aria-label={
+        isOpen
+          ? `Hide check-in options for ${habitTitle}`
+          : `Show check-in options for ${habitTitle}`
+      }
+      // 28px wide to keep the title close; the tap area reaches 44px.
+      className={cn(
+        "relative shrink-0 w-7 h-11 flex items-center justify-center rounded-md after:absolute after:-inset-x-2 after:inset-y-0",
+        "text-text-secondary hover:text-text-primary",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
+        className,
+      )}
+    >
+      <ChevronLeft
+        className={cn("w-5 h-5 transition-transform duration-300", isOpen && "rotate-180")}
+      />
+    </button>
+  );
 }

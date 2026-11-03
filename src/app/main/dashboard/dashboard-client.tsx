@@ -844,6 +844,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
           timezone={timezone}
           onHabitPress={handleHabitPress}
           onCheckIn={handleCheckIn}
+          onQuickComplete={handleQuickComplete}
         />
       )}
 

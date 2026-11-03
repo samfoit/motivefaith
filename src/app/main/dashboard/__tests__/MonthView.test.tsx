@@ -99,4 +99,50 @@ describe("MonthView", () => {
       screen.queryByRole("button", { name: /^Quick check-in for / }),
     ).not.toBeInTheDocument();
   });
+
+  it("leads today's rows with a circle that checks in", () => {
+    const onQuickComplete = vi.fn();
+    const onHabitPress = vi.fn();
+    render(
+      <MonthView
+        timezone={TZ}
+        onHabitPress={onHabitPress}
+        onQuickComplete={onQuickComplete}
+        habits={[makeHabit()]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Complete / }));
+    expect(onQuickComplete).toHaveBeenCalledWith("habit-1", expect.any(Object));
+    expect(onHabitPress).not.toHaveBeenCalled();
+
+    // A past day's mark only reports.
+    fireEvent.click(screen.getByRole("button", { name: /^October 12: / }));
+    expect(screen.queryByRole("button", { name: /^Complete / })).not.toBeInTheDocument();
+  });
+
+  it("logs nothing from a circle already done", () => {
+    const onQuickComplete = vi.fn();
+    render(
+      <MonthView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        onQuickComplete={onQuickComplete}
+        habits={[
+          makeHabit({
+            completions: [
+              {
+                id: "c1",
+                completed_at: new Date(2026, 9, 14, 9).toISOString(),
+                completion_type: "quick",
+              },
+            ],
+          }),
+        ]}
+      />,
+    );
+    const circle = screen.getByRole("button", { name: / completed$/ });
+    expect(circle).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(circle);
+    expect(onQuickComplete).not.toHaveBeenCalled();
+  });
 });

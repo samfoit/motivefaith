@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useCallback, useEffect, useId } from "react";
-import { ChevronLeft, Clock, CloudRain, CornerDownRight } from "lucide-react";
+import { Clock, CloudRain, CornerDownRight } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils/cn";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
@@ -11,6 +11,7 @@ import {
   CheckInDrawerOptions,
   DRAWER_SURFACE_CLASS,
   DRAWER_SURFACE_STYLE,
+  DrawerHandle,
   REPEAT_OPTIONS,
   originOf,
   useCheckInDrawer,
@@ -305,47 +306,40 @@ export const HabitCard = React.memo(function HabitCard({
         {...habitSurfaceProps(habit.color, {
           className: cn(
             DRAWER_SURFACE_CLASS,
-            "cursor-pointer select-none active:brightness-[0.98]",
+            // Circle first; the handle last, beside the drawer it opens, and
+            // the strip of card left on screen while the drawer is open.
+            "gap-3 pl-4 pr-2 cursor-pointer select-none active:brightness-[0.98]",
           ),
           style: DRAWER_SURFACE_STYLE,
         })}
         onContextMenu={(e) => e.preventDefault()}
         onClick={handleClick}
       >
-        {/* Drawer handle */}
-        {drawerEnabled ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (consumeDragClick()) return;
-              toggleDrawer();
-            }}
-            aria-expanded={isOpen}
-            aria-controls={drawerId}
-            aria-label={
-              isOpen
-                ? `Hide check-in options for ${habit.title}`
-                : `Show check-in options for ${habit.title}`
-            }
-            // 28px wide to keep the title close; the tap area reaches 44px.
-            className={cn(
-              "relative shrink-0 -my-1 w-7 h-11 flex items-center justify-center rounded-md after:absolute after:-inset-x-2 after:inset-y-0",
-              "text-text-tertiary hover:text-text-secondary",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-ink",
-            )}
-          >
-            <ChevronLeft
-              className={cn(
-                "w-4 h-4 transition-transform duration-300",
-                isOpen && "rotate-180",
-              )}
-            />
-          </button>
-        ) : (
-          <div className="shrink-0 w-7" aria-hidden />
-        )}
-
+        {/* Complete Circle */}
+        <button
+          onClick={handleCircleClick}
+          // aria-disabled rather than disabled: a disabled button swallows
+          // the pointer events a drag starting on it needs.
+          aria-disabled={completedToday}
+          className={cn(
+            // after: stretches the 40px circle's tap area to 48px.
+            "group relative shrink-0 rounded-full after:absolute after:-inset-1",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-ink",
+            !completedToday && "active:scale-90 transition-transform",
+          )}
+          aria-label={
+            completedToday
+              ? `${habit.title} completed`
+              : rainCheckedToday
+                ? `${habit.title} rain-checked today — check in anyway`
+                : `Complete ${habit.title}`
+          }
+        >
+          <HabitCircle
+            state={completedToday ? "done" : rainCheckedToday ? "rain" : "open"}
+            animateDone
+          />
+        </button>
         {/* Emoji + Content */}
         <div className="flex-1 min-w-0">
           <HabitTitleRow
@@ -417,31 +411,21 @@ export const HabitCard = React.memo(function HabitCard({
           </div>
         </div>
 
-        {/* Complete Circle */}
-        <button
-          onClick={handleCircleClick}
-          // aria-disabled rather than disabled: a disabled button swallows
-          // the pointer events a drag starting on it needs.
-          aria-disabled={completedToday}
-          className={cn(
-            // after: stretches the 40px circle's tap area to 48px.
-            "group relative shrink-0 rounded-full after:absolute after:-inset-1",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-ink",
-            !completedToday && "active:scale-90 transition-transform",
-          )}
-          aria-label={
-            completedToday
-              ? `${habit.title} completed`
-              : rainCheckedToday
-                ? `${habit.title} rain-checked today — check in anyway`
-                : `Complete ${habit.title}`
-          }
-        >
-          <HabitCircle
-            state={completedToday ? "done" : rainCheckedToday ? "rain" : "open"}
-            animateDone
+        {/* Drawer handle */}
+        {drawerEnabled ? (
+          <DrawerHandle
+            isOpen={isOpen}
+            drawerId={drawerId}
+            habitTitle={habit.title}
+            onToggle={() => {
+              if (!consumeDragClick()) toggleDrawer();
+            }}
+            className="-my-1"
           />
-        </button>
+        ) : (
+          <div className="shrink-0 w-7" aria-hidden />
+        )}
+
       </div>
     </div>
   );

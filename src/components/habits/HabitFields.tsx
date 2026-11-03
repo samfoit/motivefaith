@@ -83,9 +83,11 @@ export function LiveHabitCard({
   return (
     <div
       {...habitSurfaceProps(form.color, {
-        className: "pl-4 focus-within:ring-2 focus-within:ring-brand-ink",
+        // The circle leads, as on the dashboard card.
+        className: "gap-3 pl-4 focus-within:ring-2 focus-within:ring-brand-ink",
       })}
     >
+      <HabitCircle state="open" />
       <span className="text-xl leading-none shrink-0" aria-hidden>
         {form.emoji}
       </span>
@@ -117,7 +119,6 @@ export function LiveHabitCard({
           </span>
         )}
       </div>
-      <HabitCircle state="open" />
     </div>
   );
 }

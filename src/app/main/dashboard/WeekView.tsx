@@ -64,10 +64,11 @@ export const WeekView = memo(function WeekView({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg bg-elevated shadow-sm overflow-hidden">
-        {/* Day header — said once for the whole grid. */}
+      <div>
+        {/* Day header — said once for the whole grid. Inset a pixel more
+            than the rows' content, for the cards' borders. */}
         <div
-          className="flex items-end gap-2 px-3 pt-2.5 pb-2 border-b border-bg-primary"
+          className="flex items-end gap-2 pl-[13px] pr-[5px] pb-2"
           aria-hidden
         >
           <div className="flex-1" />
@@ -78,7 +79,7 @@ export const WeekView = memo(function WeekView({
                 <div
                   key={key}
                   className={cn(
-                    "w-7 flex flex-col items-center leading-none",
+                    "w-6 flex flex-col items-center leading-none",
                     isToday ? "text-brand-ink" : "text-text-secondary",
                   )}
                 >
@@ -97,9 +98,12 @@ export const WeekView = memo(function WeekView({
               );
             })}
           </div>
+          {/* Over the rows' check-in arrows. */}
+          <div className="w-7 shrink-0" />
         </div>
 
-        <ul className="divide-y divide-bg-primary">
+        {/* A card per habit, in its color, as on the Day view. */}
+        <ul className="space-y-2">
           {rows.map(({ habit, cells, due, done, options }) => (
             <li key={habit.id}>
               <CheckInRow
@@ -129,7 +133,7 @@ export const WeekView = memo(function WeekView({
                 </div>
                 <div className="flex shrink-0" aria-hidden>
                   {cells.map((state, i) => (
-                    <div key={days[i].key} className="w-7 h-5 flex items-center justify-center">
+                    <div key={days[i].key} className="w-6 h-5 flex items-center justify-center">
                       <DayMark state={state} />
                     </div>
                   ))}
