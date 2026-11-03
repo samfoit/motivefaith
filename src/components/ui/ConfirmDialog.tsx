@@ -53,8 +53,8 @@ export function ConfirmDialog({
               </Button>
             </RadixDialog.Close>
             <Button
-              variant="primary"
-              className="flex-1 !bg-miss hover:!bg-miss/90"
+              variant="danger"
+              className="flex-1"
               onClick={onConfirm}
               loading={loading}
             >

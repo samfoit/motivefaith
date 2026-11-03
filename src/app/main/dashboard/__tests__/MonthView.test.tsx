@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MonthView } from "../MonthView";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 
@@ -77,5 +77,72 @@ describe("MonthView", () => {
     expect(
       screen.getByRole("button", { name: "October 13: nothing scheduled" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers the check-in drawer under today only", () => {
+    render(
+      <MonthView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        onCheckIn={vi.fn()}
+        habits={[makeHabit()]}
+      />,
+    );
+    // Today is selected to begin with.
+    expect(
+      screen.getByRole("button", { name: /^Quick check-in for / }),
+    ).toBeInTheDocument();
+
+    // A check-in always logs today, so a past day's rows only open the habit.
+    fireEvent.click(screen.getByRole("button", { name: /^October 12: / }));
+    expect(
+      screen.queryByRole("button", { name: /^Quick check-in for / }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leads today's rows with a circle that checks in", () => {
+    const onQuickComplete = vi.fn();
+    const onHabitPress = vi.fn();
+    render(
+      <MonthView
+        timezone={TZ}
+        onHabitPress={onHabitPress}
+        onQuickComplete={onQuickComplete}
+        habits={[makeHabit()]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Complete / }));
+    expect(onQuickComplete).toHaveBeenCalledWith("habit-1", expect.any(Object));
+    expect(onHabitPress).not.toHaveBeenCalled();
+
+    // A past day's mark only reports.
+    fireEvent.click(screen.getByRole("button", { name: /^October 12: / }));
+    expect(screen.queryByRole("button", { name: /^Complete / })).not.toBeInTheDocument();
+  });
+
+  it("logs nothing from a circle already done", () => {
+    const onQuickComplete = vi.fn();
+    render(
+      <MonthView
+        timezone={TZ}
+        onHabitPress={vi.fn()}
+        onQuickComplete={onQuickComplete}
+        habits={[
+          makeHabit({
+            completions: [
+              {
+                id: "c1",
+                completed_at: new Date(2026, 9, 14, 9).toISOString(),
+                completion_type: "quick",
+              },
+            ],
+          }),
+        ]}
+      />,
+    );
+    const circle = screen.getByRole("button", { name: / completed$/ });
+    expect(circle).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(circle);
+    expect(onQuickComplete).not.toHaveBeenCalled();
   });
 });

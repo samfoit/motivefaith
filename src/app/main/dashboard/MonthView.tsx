@@ -8,12 +8,28 @@ import { toDateKey, todayDateKey, getDayOfWeek } from "@/lib/utils/timezone";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import { habitDayState, indexHabitDays, type DayState } from "./day-state";
 import { DayMark } from "./DayMark";
+import type { HabitCircleState } from "@/components/habits/HabitCardParts";
+import { CheckInRow, todayCheckInOptions, type OnCheckIn } from "./CheckInRow";
 
 interface MonthViewProps {
   habits: HabitWithCompletions[];
   timezone: string;
   onHabitPress: (habitId: string) => void;
+  /**
+   * Swipe a habit under today left to check in, as on the Day view. Other
+   * days' rows only open the habit: a check-in always logs today.
+   */
+  onCheckIn?: OnCheckIn;
+  /** Today's circles, as on the Day view: a tap logs a quick check-in. */
+  onQuickComplete?: (habitId: string, origin?: { x: number; y: number }) => void;
 }
+
+/** Today's state, as the Day view's circle draws it. */
+const CIRCLE_STATE: Partial<Record<DayState, HabitCircleState>> = {
+  today: "open",
+  done: "done",
+  rain: "rain",
+};
 
 interface DaySummary {
   date: Date;
@@ -43,6 +59,8 @@ export const MonthView = memo(function MonthView({
   habits,
   timezone,
   onHabitPress,
+  onCheckIn,
+  onQuickComplete,
 }: MonthViewProps) {
   const todayKey = todayDateKey(timezone);
   const [selectedKey, setSelectedKey] = useState(todayKey);
@@ -142,36 +160,50 @@ export const MonthView = memo(function MonthView({
         {selectedHabits.length > 0 ? (
           <ul
             key={selected.key}
-            className="rounded-lg bg-elevated shadow-sm overflow-hidden divide-y divide-bg-primary mv-day-list"
+            className="space-y-2 mv-day-list"
           >
-            {selectedHabits.map(({ habit, state }) => (
-              <li key={habit.id}>
-                <button
-                  type="button"
-                  onClick={() => onHabitPress(habit.id)}
-                  className="w-full min-h-12 flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-hover transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
-                >
-                  <span className="text-base shrink-0" aria-hidden>
-                    {habit.emoji}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">
-                      {habit.title}
-                    </p>
-                    {(habit.streak_current ?? 0) > 0 && (
-                      <p className="flex items-center gap-0.5 text-streak text-xs font-mono font-semibold">
-                        <Flame className="w-3 h-3" aria-hidden />
-                        {habit.streak_current}
+            {selectedHabits.map(({ habit, state }) => {
+              const options =
+                selected.key === todayKey
+                  ? todayCheckInOptions(habit, state, todayKey)
+                  : null;
+              const circleState = options ? CIRCLE_STATE[state] : undefined;
+              return (
+                <li key={habit.id}>
+                  {/* Today leads with the Day view's check-in circle. Other
+                      days lead with their mark, which only reports: a
+                      check-in always logs today. */}
+                  <CheckInRow
+                    habit={habit}
+                    options={options}
+                    onCheckIn={onCheckIn}
+                    onPress={onHabitPress}
+                    circle={
+                      circleState && onQuickComplete
+                        ? { state: circleState, onComplete: onQuickComplete }
+                        : undefined
+                    }
+                    leading={<DayMark state={state} />}
+                  >
+                    <span className="text-base shrink-0" aria-hidden>
+                      {habit.emoji}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate">
+                        {habit.title}
                       </p>
-                    )}
-                  </div>
-                  <span className="sr-only">{STATE_LABELS[state]}</span>
-                  <span className="w-7 flex justify-center shrink-0" aria-hidden>
-                    <DayMark state={state} />
-                  </span>
-                </button>
-              </li>
-            ))}
+                      {(habit.streak_current ?? 0) > 0 && (
+                        <p className="flex items-center gap-0.5 text-streak text-xs font-mono font-semibold">
+                          <Flame className="w-3 h-3" aria-hidden />
+                          {habit.streak_current}
+                        </p>
+                      )}
+                    </div>
+                    <span className="sr-only">{STATE_LABELS[state]}</span>
+                  </CheckInRow>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="text-sm text-text-secondary text-center py-6">

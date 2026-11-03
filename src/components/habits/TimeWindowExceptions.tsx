@@ -104,7 +104,7 @@ export function TimeWindowExceptions({
                 className="px-4 pt-3 pb-1"
               />
               {exception.days.length === 0 && (
-                <p className="px-4 pt-1 text-xs text-[var(--color-miss)]">
+                <p className="px-4 pt-1 text-xs text-miss-ink">
                   Choose at least one day.
                 </p>
               )}

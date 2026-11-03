@@ -14,20 +14,42 @@ describe("Pill (Badge)", () => {
     expect(el).toHaveAttribute("aria-live", "polite");
   });
 
-  // Variant classes
-  it("applies default variant classes", () => {
+  // Tones: Lamplight tokens only, never raw Tailwind palette colors
+  it("defaults to the neutral tone", () => {
     render(<Pill>Default</Pill>);
-    expect(screen.getByRole("status").className).toContain("bg-gray-100");
+    const className = screen.getByRole("status").className;
+    expect(className).toContain("bg-surface-hover");
+    expect(className).toContain("text-text-secondary");
   });
 
-  it("applies health variant classes", () => {
-    render(<Pill variant="health">Health</Pill>);
-    expect(screen.getByRole("status").className).toContain("bg-emerald-100");
+  it("applies the brand tone", () => {
+    render(<Pill tone="brand">Pending</Pill>);
+    const className = screen.getByRole("status").className;
+    expect(className).toContain("bg-brand-light");
+    expect(className).toContain("text-brand-ink");
   });
 
-  it("applies learning variant classes", () => {
-    render(<Pill variant="learning">Learning</Pill>);
-    expect(screen.getByRole("status").className).toContain("bg-amber-100");
+  it("keeps meaning-hue text in the hour's ink", () => {
+    render(<Pill tone="miss">Actioned</Pill>);
+    const className = screen.getByRole("status").className;
+    expect(className).toContain("bg-miss/15");
+    expect(className).toContain("text-text-primary");
+  });
+
+  it("uses no raw Tailwind palette colors in any tone", () => {
+    for (const tone of ["neutral", "brand", "rain", "encourage", "miss"] as const) {
+      for (const outline of [false, true]) {
+        const { container, unmount } = render(
+          <Pill tone={tone} outline={outline} count={2} showStatusDot status="positive">
+            x
+          </Pill>,
+        );
+        expect(container.innerHTML).not.toMatch(
+          /\b(?:bg|text|ring|border)-(?:gray|emerald|indigo|amber|pink|sky|rose|white)\b/,
+        );
+        unmount();
+      }
+    }
   });
 
   // Outline mode
@@ -40,11 +62,11 @@ describe("Pill (Badge)", () => {
 
   it("applies outline variant-specific classes", () => {
     render(
-      <Pill outline variant="health">
-        Outline Health
+      <Pill outline tone="rain">
+        Outline Rain
       </Pill>,
     );
-    expect(screen.getByRole("status").className).toContain("ring-emerald-100");
+    expect(screen.getByRole("status").className).toContain("ring-rain/40");
   });
 
   // Status dot
@@ -54,13 +76,13 @@ describe("Pill (Badge)", () => {
         Good
       </Pill>,
     );
-    const dot = container.querySelector(".bg-emerald-500");
+    const dot = container.querySelector(".bg-success");
     expect(dot).toBeInTheDocument();
   });
 
   it("does not show status dot when showStatusDot=false", () => {
     const { container } = render(<Pill status="positive">No dot</Pill>);
-    const dot = container.querySelector(".bg-emerald-500");
+    const dot = container.querySelector(".bg-success");
     expect(dot).toBeNull();
   });
 
@@ -70,14 +92,14 @@ describe("Pill (Badge)", () => {
         Neg
       </Pill>,
     );
-    expect(c1.querySelector(".bg-rose-500")).toBeInTheDocument();
+    expect(c1.querySelector(".bg-miss")).toBeInTheDocument();
 
     const { container: c2 } = render(
       <Pill showStatusDot status="warning">
         Warn
       </Pill>,
     );
-    expect(c2.querySelector(".bg-amber-500")).toBeInTheDocument();
+    expect(c2.querySelector(".bg-streak")).toBeInTheDocument();
   });
 
   // Count badge

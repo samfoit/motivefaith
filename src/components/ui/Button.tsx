@@ -17,6 +17,10 @@ export const buttonVariants = cva(
           "bg-transparent text-brand-ink border border-brand-ink/30 hover:bg-brand-light focus-visible:ring-brand-ink/50",
         ghost:
           "bg-transparent text-brand-ink hover:bg-surface-hover border-transparent",
+        // Can't be taken back: delete, remove, leave. Missed Red with the
+        // lamp's dark label (4.9:1), and an opaque lighter hover (5.7:1).
+        danger:
+          "bg-miss text-on-brand border-transparent hover:bg-miss-hover focus-visible:ring-miss-ink",
       },
       size: {
         sm: "px-3 py-1.5 text-sm rounded-md",

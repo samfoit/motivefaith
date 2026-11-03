@@ -15,6 +15,7 @@ const DEFAULT_AVATARS = ["😊", "😎", "🚀", "🌟", "🎯", "🔥", "💎",
 
 import { MAX_AVATAR_SOURCE_BYTES } from "@/lib/constants/limits";
 import { destinationAfterAuth } from "@/lib/constants/pending-invite";
+import { AuthWordmark } from "../AuthWordmark";
 
 const ALLOWED_AVATAR_TYPES = [
   "image/jpeg",
@@ -133,9 +134,10 @@ export default function OnboardingPage() {
       className="w-full max-w-md"
     >
       <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-        <h2 className="font-display text-xl font-medium text-center mb-2">
+        <AuthWordmark />
+        <h1 className="font-display text-lg font-medium text-center mb-1">
           Choose your avatar
-        </h2>
+        </h1>
         <p className="text-sm text-center mb-6 text-text-secondary">
           Pick an emoji or upload a photo
         </p>

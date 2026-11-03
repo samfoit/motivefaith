@@ -372,7 +372,7 @@ export function SettingsClient({
             variant="ghost"
             size="md"
             onClick={() => setDeleteOpen(true)}
-            className="w-full justify-start text-miss"
+            className="w-full justify-start text-miss-ink"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete group</span>
@@ -416,7 +416,7 @@ export function SettingsClient({
                 setConfirmRemove(optionsFor);
                 setOptionsFor(null);
               }}
-              className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-miss hover:bg-surface-hover transition-colors"
+              className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-miss-ink hover:bg-surface-hover transition-colors"
             >
               <UserMinus className="w-5 h-5" />
               Remove from group

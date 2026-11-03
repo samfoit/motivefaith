@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { validatePassword } from "@/lib/utils/validate-password";
 import { isPasswordBreached } from "@/lib/utils/check-breached-password";
+import { AuthWordmark } from "../AuthWordmark";
 
 type ResetLink =
   | { status: "ready"; tokenHash: string | null }
@@ -168,7 +169,8 @@ export default function ResetPasswordPage() {
   return (
     <div className="w-full max-w-sm auth-card-enter">
       <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-        <h1 className="font-display text-2xl font-medium text-center mb-2">
+        <AuthWordmark />
+        <h1 className="font-display text-lg font-medium text-center mb-1">
           New password
         </h1>
         <p

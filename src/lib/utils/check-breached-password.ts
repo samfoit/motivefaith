@@ -6,8 +6,12 @@
  * so the full password is never transmitted.
  *
  * Returns `true` if the password is breached, `false` if clean.
- * Returns `false` on network errors to avoid blocking sign-up.
+ * Returns `false` on network errors to avoid blocking sign-up, and gives up
+ * after a few seconds for the same reason: on a slow connection the button
+ * would otherwise spin with no end while the account waits on a courtesy check.
  */
+const TIMEOUT_MS = 5000;
+
 export async function isPasswordBreached(password: string): Promise<boolean> {
   try {
     const encoder = new TextEncoder();
@@ -21,6 +25,10 @@ export async function isPasswordBreached(password: string): Promise<boolean> {
 
     const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
       headers: { "Add-Padding": "true" },
+      signal:
+        typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+          ? AbortSignal.timeout(TIMEOUT_MS)
+          : undefined,
     });
 
     if (!response.ok) return false;
@@ -37,7 +45,7 @@ export async function isPasswordBreached(password: string): Promise<boolean> {
 
     return false;
   } catch (err) {
-    // Network failure — don't block the user
+    // Network failure or timeout — don't block the user
     console.warn("Breached-password check failed (network):", err);
     return false;
   }

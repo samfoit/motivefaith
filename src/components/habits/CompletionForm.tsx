@@ -531,7 +531,7 @@ export function CompletionForm({
                   className={cn(
                     "text-xs font-mono",
                     message.length >= MAX_MESSAGE_LENGTH
-                      ? "text-miss"
+                      ? "text-miss-ink"
                       : "text-text-tertiary",
                   )}
                 >
@@ -764,7 +764,7 @@ export function CompletionForm({
                   className={cn(
                     "text-xs font-mono",
                     message.length >= MAX_MESSAGE_LENGTH
-                      ? "text-miss"
+                      ? "text-miss-ink"
                       : "text-text-tertiary",
                   )}
                 >

@@ -112,7 +112,7 @@ export default async function WeeklyReviewPage({ params, searchParams }: Props) 
             : `${week.done} of ${week.due} due ${week.due === 1 ? "day" : "days"} done`}
         </p>
         {delta !== null && delta !== 0 && (
-          <p className="text-sm" style={{ color: delta > 0 ? "var(--color-success)" : "var(--color-miss)" }}>
+          <p className="text-sm" style={{ color: delta > 0 ? "var(--color-success)" : "var(--color-miss-ink)" }}>
             {delta > 0 ? "↑" : "↓"} {Math.abs(delta)} {delta > 0 ? "more" : "fewer"} check-ins than the week before
           </p>
         )}

@@ -19,7 +19,7 @@
 export const COLOR_KEYS = [
   // Surfaces and text
   "ground", "header", "card", "border", "track", "tile", "nav",
-  "ink", "sub", "ring", "navText", "accentText", "flame",
+  "ink", "sub", "ring", "navText", "accentText", "missText", "flame",
   // The sky behind the screen
   "sun", "skyGlow", "hillFar", "hillNear", "water", "line", "cloud", "cloudLine", "star",
 ] as const;
@@ -29,14 +29,14 @@ export type Stop = Record<ColorKey, string> & { glow: number };
 
 const SUNRISE: Stop = {
   ground: "#F3F3F1", header: "#F8EBD3", card: "#FFFFFF", border: "#E8E3D8", track: "#E7E4DC", tile: "#F4F1EA", nav: "#FFFFFF",
-  ink: "#1C2030", sub: "#575C6B", ring: "#696559", navText: "#646052", accentText: "#875C0C", flame: "#A87410",
+  ink: "#1C2030", sub: "#575C6B", ring: "#696559", navText: "#646052", accentText: "#875C0C", missText: "#B91C1C", flame: "#A87410",
   sun: "#E9A94C", skyGlow: "#F7D9A6", hillFar: "#E3DED1", hillNear: "#D6D0BF", water: "#ECE8DE", line: "#BFB49A", cloud: "#FBF6EC", cloudLine: "#DCCFB4", star: "#FFFFFF",
   glow: 0.12,
 };
 // Midday is clear sky, not blank white: a blue header the gold sits warm against.
 const DAY: Stop = {
   ground: "#ECF2F7", header: "#D3E5F3", card: "#FFFFFF", border: "#D9E3EC", track: "#D8E2EB", tile: "#EAF1F7", nav: "#FFFFFF",
-  ink: "#1C2030", sub: "#4D5A69", ring: "#5E6A7A", navText: "#56677B", accentText: "#875C0C", flame: "#A87410",
+  ink: "#1C2030", sub: "#4D5A69", ring: "#5E6A7A", navText: "#56677B", accentText: "#875C0C", missText: "#B91C1C", flame: "#A87410",
   sun: "#F0C75E", skyGlow: "#E3EEF7", hillFar: "#D5E1D7", hillNear: "#C4D5C8", water: "#DCE7EF", line: "#A9BCCD", cloud: "#FFFFFF", cloudLine: "#C6D5E2", star: "#FFFFFF",
   glow: 0.06,
 };
@@ -45,19 +45,19 @@ const DAY: Stop = {
 // before nightfall.
 const DUSK: Stop = {
   ground: "#E5E8F2", header: "#CBD2EC", card: "#F9FAFD", border: "#D8DDEA", track: "#D5DAE8", tile: "#EBEEF6", nav: "#F9FAFD",
-  ink: "#1E2233", sub: "#4F586E", ring: "#5C6580", navText: "#56607A", accentText: "#875C0C", flame: "#A87410",
+  ink: "#1E2233", sub: "#4F586E", ring: "#5C6580", navText: "#56607A", accentText: "#875C0C", missText: "#B91C1C", flame: "#A87410",
   sun: "#E08A5B", skyGlow: "#EEC7B4", hillFar: "#CACDDF", hillNear: "#B6BBD3", water: "#D6DAEA", line: "#9FA6C2", cloud: "#F2E4E2", cloudLine: "#CDBCC6", star: "#FFFFFF",
   glow: 0.3,
 };
 const NIGHT: Stop = {
   ground: "#12151F", header: "#12151F", card: "#1B1F2D", border: "#232838", track: "#232838", tile: "#232838", nav: "#12151F",
-  ink: "#EDE6D6", sub: "#A9A190", ring: "#8A8FA4", navText: "#8F897A", accentText: "#E9B44C", flame: "#E9B44C",
+  ink: "#EDE6D6", sub: "#A9A190", ring: "#8A8FA4", navText: "#8F897A", accentText: "#E9B44C", missText: "#FF8A80", flame: "#E9B44C",
   sun: "#EDE6D6", skyGlow: "#1E2333", hillFar: "#0D1018", hillNear: "#080A10", water: "#171B28", line: "#2E3449", cloud: "#1B1F2D", cloudLine: "#2A3045", star: "#EDE6D6",
   glow: 0.55,
 };
 const PREDAWN: Stop = {
   ground: "#1A2033", header: "#27304D", card: "#222A40", border: "#2E3754", track: "#2E3754", tile: "#2E3754", nav: "#1A2033",
-  ink: "#E9E7F0", sub: "#A8ADC1", ring: "#9097B2", navText: "#9198B0", accentText: "#E9B44C", flame: "#E9B44C",
+  ink: "#E9E7F0", sub: "#A8ADC1", ring: "#9097B2", navText: "#9198B0", accentText: "#E9B44C", missText: "#FF8A80", flame: "#E9B44C",
   sun: "#F2B872", skyGlow: "#4A4568", hillFar: "#141A2B", hillNear: "#0E121D", water: "#1F2639", line: "#3A4363", cloud: "#222A40", cloudLine: "#2E3754", star: "#E9E7F0",
   glow: 0.42,
 };
@@ -87,6 +87,7 @@ export const CSS_VAR: Record<ColorKey, string> = {
   navText: "--color-nav-text",
   border: "--color-border",
   accentText: "--color-brand-ink",
+  missText: "--color-miss-ink",
   flame: "--color-streak",
   sun: "--sky-sun",
   skyGlow: "--sky-glow",

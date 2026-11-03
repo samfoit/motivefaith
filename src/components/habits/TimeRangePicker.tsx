@@ -260,7 +260,7 @@ export function TimeRangePicker({
         id={errorId}
         aria-live="polite"
         className={cn(
-          "col-span-2 row-start-2 text-xs text-[var(--color-miss)] text-pretty",
+          "col-span-2 row-start-2 text-xs text-miss-ink text-pretty",
           outOfOrder && "pt-2",
         )}
       >

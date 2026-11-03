@@ -10,7 +10,7 @@ export function ErrorBanner({ message, className }: ErrorBannerProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-lg bg-miss/10 px-3 py-2 text-sm text-miss",
+        "flex items-center gap-2 rounded-lg bg-miss/10 px-3 py-2 text-sm text-miss-ink",
         className,
       )}
     >

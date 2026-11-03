@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
@@ -10,18 +10,29 @@ import { Turnstile } from "@/components/ui/Turnstile";
 import { checkRateLimitWithToast } from "@/lib/utils/rate-limit-client";
 import { useCaptcha } from "@/lib/hooks/useCaptcha";
 import { FORGOT_PASSWORD_RATE_LIMIT, RATE_LIMIT_WINDOW_MS } from "@/lib/constants/limits";
+import { AuthWordmark } from "../AuthWordmark";
+import { FormAlert } from "../FormAlert";
+
+/** The query string doesn't change while the page is open. */
+const subscribeToNothing = () => () => {};
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const { show: showToast, ToastElements } = useToast();
-  const { captchaToken, handleToken: handleCaptchaToken, handleExpire: handleCaptchaExpire } = useCaptcha();
-  const [expired] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const params = new URLSearchParams(window.location.search);
-    return params.get("expired") === "true";
-  });
+  const captcha = useCaptcha();
+  // `?expired=true` arrives from a dead reset link. Read like sign in's
+  // notices: the server snapshot is empty, so server and first client render
+  // agree and the notice appears right after hydration. (A useState
+  // initializer reading `window` showed it on the first client render, which
+  // the server hadn't drawn: a hydration error.)
+  const search = useSyncExternalStore(
+    subscribeToNothing,
+    () => window.location.search,
+    () => "",
+  );
+  const expired = new URLSearchParams(search).get("expired") === "true";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,15 +42,19 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     const supabase = createClient();
-    await supabase.auth.resetPasswordForEmail(
-      email,
-      {
+    try {
+      await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset-password`,
-        captchaToken: captchaToken ?? undefined,
-      }
-    );
-
-    setLoading(false);
+        captchaToken: captcha.captchaToken ?? undefined,
+      });
+    } catch {
+      // Reported as sent all the same; see below.
+    } finally {
+      // The token was spent on this request. "Try a different email" brings
+      // the form back, and it must not resend the used one.
+      captcha.reset();
+      setLoading(false);
+    }
 
     // Always show success regardless of error to prevent email enumeration
     setSent(true);
@@ -48,7 +63,8 @@ export default function ForgotPasswordPage() {
   return (
     <div className="w-full max-w-sm auth-card-enter">
       <div className="bg-bg-elevated rounded-lg shadow-md p-8">
-        <h1 className="font-display text-2xl font-medium text-center mb-2">
+        <AuthWordmark />
+        <h1 className="font-display text-lg font-medium text-center mb-1">
           Reset password
         </h1>
         <p
@@ -60,29 +76,18 @@ export default function ForgotPasswordPage() {
         </p>
 
         {expired && !sent && (
-          <div
-            className="rounded-lg p-3 text-sm text-center mb-4"
-            style={{
-              backgroundColor: "var(--color-miss)",
-              color: "white",
-            }}
-          >
+          // Missed Red Ink on its wash: white on the solid red was under 4.5:1.
+          <FormAlert className="mb-4">
             Your reset link has expired or was already used. Please request a new
             one.
-          </div>
+          </FormAlert>
         )}
 
         {sent ? (
           <div className="space-y-4">
-            <div
-              className="rounded-lg p-4 text-sm text-center"
-              style={{
-                backgroundColor: "var(--color-brand-light)",
-                color: "var(--color-text-primary)",
-              }}
-            >
+            <div className="rounded-lg p-4 text-sm text-center bg-brand-light text-text-primary">
               We sent a password reset link to{" "}
-              <span className="font-medium">{email}</span>. It may take a minute
+              <span className="font-medium [overflow-wrap:anywhere]">{email}</span>. It may take a minute
               to arrive.
             </div>
             <Button
@@ -108,7 +113,11 @@ export default function ForgotPasswordPage() {
               autoComplete="email"
             />
 
-            <Turnstile onToken={handleCaptchaToken} onExpire={handleCaptchaExpire} />
+            <Turnstile
+              onToken={captcha.handleToken}
+              onExpire={captcha.handleExpire}
+              resetKey={captcha.resetKey}
+            />
 
             <Button
               type="submit"

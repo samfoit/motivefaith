@@ -113,7 +113,8 @@ export function HabitTitleRow({
 export type HabitCircleState = "open" | "done" | "rain";
 
 /**
- * The round mark at the card's right edge: empty, checked, or rain-checked.
+ * The round mark on a habit card — leading on the dashboard card, trailing in
+ * the picker: empty, checked, or rain-checked.
  * Purely visual — the dashboard wraps it in its complete button, the picker
  * puts it inside a row that is already a button. Hover styling keys off a
  * `group` on whichever element is interactive.
@@ -121,17 +122,22 @@ export type HabitCircleState = "open" | "done" | "rain";
 export function HabitCircle({
   state,
   animateDone = false,
+  size = "md",
 }: {
   state: HabitCircleState;
   /** Pop the check in, for the moment a habit is completed. */
   animateDone?: boolean;
+  /** "sm" for the Month view's compact rows: the same button, smaller. */
+  size?: "md" | "sm";
 }) {
+  const small = size === "sm";
   return (
     <span
       aria-hidden
       className={cn(
-        "w-10 h-10 rounded-full flex items-center justify-center",
-        "transition-all duration-200 ease-bounce",
+        "rounded-full flex items-center justify-center",
+        small ? "w-7 h-7" : "w-10 h-10",
+        "transition-all duration-200 ease-(--ease-bounce)",
         state === "done" && "bg-brand text-on-brand shadow-[var(--lamp-glow-done)]",
         state === "rain" && "border-2",
         state === "open" &&
@@ -149,10 +155,10 @@ export function HabitCircle({
             animateDone && "animate-[landing-pop_0.3s_var(--ease-bounce)_both]",
           )}
         >
-          <Check className="w-5 h-5" strokeWidth={3} />
+          <Check className={small ? "w-4 h-4" : "w-5 h-5"} strokeWidth={3} />
         </span>
       ) : state === "rain" ? (
-        <CloudRain className="w-[18px] h-[18px]" strokeWidth={2.25} />
+        <CloudRain className={small ? "w-3.5 h-3.5" : "w-[18px] h-[18px]"} strokeWidth={2.25} />
       ) : null}
     </span>
   );

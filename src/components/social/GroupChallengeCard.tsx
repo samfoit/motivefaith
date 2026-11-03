@@ -77,7 +77,7 @@ export function GroupChallengeCard({
         {/* Action button */}
         <div className="flex-shrink-0">
           {isJoined ? (
-            <Pill variant="default" size="sm">
+            <Pill size="sm">
               <Check className="w-3 h-3 mr-1" />
               Joined
             </Pill>
@@ -98,7 +98,7 @@ export function GroupChallengeCard({
         <button
           type="button"
           onClick={() => onLeave(challenge.id)}
-          className="text-xs text-[var(--color-text-tertiary)] hover:text-miss transition-colors mt-2"
+          className="text-xs text-[var(--color-text-tertiary)] hover:text-miss-ink transition-colors mt-2"
         >
           Leave challenge
         </button>

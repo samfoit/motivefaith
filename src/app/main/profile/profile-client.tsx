@@ -383,7 +383,7 @@ export function ProfileClient({
               variant="ghost"
               size="md"
               onClick={handleSignOut}
-              className="w-full justify-start text-miss"
+              className="w-full justify-start text-miss-ink"
             >
               <LogOut className="w-4 h-4" />
               <span>Sign Out</span>
@@ -396,7 +396,7 @@ export function ProfileClient({
               variant="ghost"
               size="md"
               onClick={() => setDeleteOpen(true)}
-              className="w-full justify-start text-miss"
+              className="w-full justify-start text-miss-ink"
             >
               <Trash2 className="w-4 h-4" />
               <span>Delete Account</span>

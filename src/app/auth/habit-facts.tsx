@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 
 const HABIT_FACTS = [
   {
@@ -11,13 +11,8 @@ const HABIT_FACTS = [
   },
   {
     emoji: "🧠",
-    fact: "It takes an average of 66 days to form a new habit — spiritual disciplines are no different. Patience and persistence pay off.",
+    fact: "It takes an average of 66 days to form a new habit. Patience and persistence pay off.",
     source: "European Journal of Social Psychology",
-  },
-  {
-    emoji: "🙏",
-    fact: "'Devote yourselves to prayer, being watchful and thankful.' Consistency in prayer transforms your relationship with God.",
-    source: "Colossians 4:2 (NIV)",
   },
   {
     emoji: "🤝",
@@ -30,23 +25,13 @@ const HABIT_FACTS = [
     source: "Duolingo Research",
   },
   {
-    emoji: "✝️",
-    fact: "'Let us not become weary in doing good, for at the proper time we will reap a harvest if we do not give up.'",
-    source: "Galatians 6:9 (NIV)",
-  },
-  {
-    emoji: "🌅",
-    fact: "'Jesus answered, “It is written: ‘Man shall not live on bread alone, but on every word that comes from the mouth of God.’”",
-    source: "Matthew 4:4 (NIV)",
-  },
-  {
     emoji: "📱",
-    fact: "Simply tracking a habit makes you 40% more likely to stick with it. Even tracking your quiet time helps.",
+    fact: "Simply tracking a habit makes you 40% more likely to stick with it.",
     source: "British Journal of Health Psychology",
   },
   {
     emoji: "⚡",
-    fact: "The 2-minute rule: start any discipline with just 2 minutes. A short prayer is better than no prayer.",
+    fact: "The 2-minute rule: start any discipline with just 2 minutes then stop when the time is up. Doing this reinforces the most critical part of habit formation: showing up.",
     source: "James Clear, Atomic Habits",
   },
   {
@@ -90,28 +75,57 @@ function useCyclingFact(intervalMs: number) {
   return HABIT_FACTS[index];
 }
 
-function FactCard({
-  emoji,
-  fact,
-  source,
-}: {
-  emoji: string;
-  fact: string;
-  source: string;
-}) {
+type Fact = (typeof HABIT_FACTS)[number];
+
+/**
+ * One fact and where it comes from, on the same solid card surface as the
+ * auth form beside it, so it takes the hour's colors with the rest of the
+ * page: Page White by day, Night Card by night. (It used to be a translucent
+ * glass card on desktop and an Amber Wash banner on phones, which at night
+ * read as a muddy brown box under a blue-black card, and the phone banner
+ * dropped the source.)
+ *
+ * Facts swap with a short rise; under reduced motion they only crossfade.
+ */
+function FactCard({ fact, size }: { fact: Fact; size: "sm" | "lg" }) {
+  const reduceMotion = useReducedMotion();
+  const rise = reduceMotion ? 0 : size === "lg" ? 16 : 8;
+  const lg = size === "lg";
+
   return (
-    <motion.div
-      key={fact}
-      initial={{ opacity: 0, y: 20 }}
+    <motion.figure
+      key={fact.fact}
+      initial={{ opacity: 0, y: rise }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="bg-bg-elevated/60 backdrop-blur-sm rounded-lg p-5 border border-white/10"
+      exit={{ opacity: 0, y: -rise }}
+      transition={{ duration: lg ? 0.4 : 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className={
+        lg
+          ? "bg-bg-elevated border border-border rounded-lg shadow-sm p-5"
+          : "bg-bg-elevated border border-border rounded-lg shadow-sm px-4 py-3 flex items-start gap-3"
+      }
     >
-      <span className="text-2xl mb-2 block">{emoji}</span>
-      <p className="text-sm leading-relaxed mb-2 text-text-primary">{fact}</p>
-      <p className="text-xs italic text-text-tertiary">— {source}</p>
-    </motion.div>
+      <span
+        aria-hidden="true"
+        className={lg ? "text-2xl mb-2 block" : "text-lg leading-6 shrink-0"}
+      >
+        {fact.emoji}
+      </span>
+      <div className="min-w-0">
+        <blockquote
+          className={
+            lg
+              ? "text-sm leading-relaxed text-text-primary"
+              : "text-sm leading-snug text-text-primary"
+          }
+        >
+          <p>{fact.fact}</p>
+        </blockquote>
+        <figcaption className={lg ? "mt-2 text-xs text-text-tertiary" : "mt-1 text-xs text-text-tertiary"}>
+          {fact.source}
+        </figcaption>
+      </div>
+    </motion.figure>
   );
 }
 
@@ -130,36 +144,24 @@ export function DesktopFactsPanel() {
       </div>
 
       <AnimatePresence mode="wait">
-        <FactCard
-          key={currentFact.fact}
-          emoji={currentFact.emoji}
-          fact={currentFact.fact}
-          source={currentFact.source}
-        />
+        <FactCard key={currentFact.fact} fact={currentFact} size="lg" />
       </AnimatePresence>
     </div>
   );
 }
 
+/**
+ * Goes below the auth card, not above it: a fact of a different length
+ * reflows everything under it every few seconds, and above the card that
+ * would be the field being typed in.
+ */
 export function MobileFactBanner() {
   const currentFact = useCyclingFact(5000);
 
   return (
-    <div className="lg:hidden w-full max-w-sm mb-4">
+    <div className="lg:hidden w-full max-w-sm mt-4">
       <AnimatePresence mode="wait">
-        <motion.div
-          key={currentFact.fact}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="bg-brand-light rounded-lg px-4 py-3 flex items-start gap-3"
-        >
-          <span className="text-lg shrink-0 mt-0.5">{currentFact.emoji}</span>
-          <p className="text-xs leading-relaxed text-text-secondary">
-            {currentFact.fact}
-          </p>
-        </motion.div>
+        <FactCard key={currentFact.fact} fact={currentFact} size="sm" />
       </AnimatePresence>
     </div>
   );

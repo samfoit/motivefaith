@@ -8,11 +8,14 @@ import { toDateKey, todayDateKey } from "@/lib/utils/timezone";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 import { habitDayState, indexHabitDays } from "./day-state";
 import { DayMark, DayMarkLegendItem } from "./DayMark";
+import { CheckInRow, todayCheckInOptions, type OnCheckIn } from "./CheckInRow";
 
 interface WeekViewProps {
   habits: HabitWithCompletions[];
   timezone: string;
   onHabitPress: (habitId: string) => void;
+  /** Swipe a row left to check in today, as on the Day view. */
+  onCheckIn?: OnCheckIn;
 }
 
 /**
@@ -28,6 +31,7 @@ export const WeekView = memo(function WeekView({
   habits,
   timezone,
   onHabitPress,
+  onCheckIn,
 }: WeekViewProps) {
   const days = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -49,17 +53,22 @@ export const WeekView = memo(function WeekView({
 
         const due = cells.filter((c) => c !== "off" && c !== "upcoming").length;
         const done = cells.filter((c) => c === "done").length;
-        return { habit, cells, due, done };
+        const todayState = cells[days.findIndex((d) => d.key === todayKey)];
+        const options = todayState
+          ? todayCheckInOptions(habit, todayState, todayKey)
+          : null;
+        return { habit, cells, due, done, options };
       }),
     [habits, days, timezone, todayKey],
   );
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg bg-elevated shadow-sm overflow-hidden">
-        {/* Day header — said once for the whole grid. */}
+      <div>
+        {/* Day header — said once for the whole grid. Inset a pixel more
+            than the rows' content, for the cards' borders. */}
         <div
-          className="flex items-end gap-2 px-3 pt-2.5 pb-2 border-b border-bg-primary"
+          className="flex items-end gap-2 pl-[13px] pr-[5px] pb-2"
           aria-hidden
         >
           <div className="flex-1" />
@@ -70,7 +79,7 @@ export const WeekView = memo(function WeekView({
                 <div
                   key={key}
                   className={cn(
-                    "w-7 flex flex-col items-center leading-none",
+                    "w-6 flex flex-col items-center leading-none",
                     isToday ? "text-brand-ink" : "text-text-secondary",
                   )}
                 >
@@ -89,18 +98,22 @@ export const WeekView = memo(function WeekView({
               );
             })}
           </div>
+          {/* Over the rows' check-in arrows. */}
+          <div className="w-7 shrink-0" />
         </div>
 
-        <ul className="divide-y divide-bg-primary">
-          {rows.map(({ habit, cells, due, done }) => (
+        {/* A card per habit, in its color, as on the Day view. */}
+        <ul className="space-y-2">
+          {rows.map(({ habit, cells, due, done, options }) => (
             <li key={habit.id}>
-              <button
-                type="button"
-                onClick={() => onHabitPress(habit.id)}
+              <CheckInRow
+                habit={habit}
+                options={options}
+                onCheckIn={onCheckIn}
+                onPress={onHabitPress}
                 aria-label={`${habit.title}: done ${done} of ${due} ${
                   due === 1 ? "day" : "days"
                 } so far this week`}
-                className="w-full min-h-12 flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-hover transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
               >
                 <div className="flex-1 min-w-0 flex items-center gap-2">
                   <span className="text-base shrink-0" aria-hidden>
@@ -120,12 +133,12 @@ export const WeekView = memo(function WeekView({
                 </div>
                 <div className="flex shrink-0" aria-hidden>
                   {cells.map((state, i) => (
-                    <div key={days[i].key} className="w-7 h-5 flex items-center justify-center">
+                    <div key={days[i].key} className="w-6 h-5 flex items-center justify-center">
                       <DayMark state={state} />
                     </div>
                   ))}
                 </div>
-              </button>
+              </CheckInRow>
             </li>
           ))}
         </ul>

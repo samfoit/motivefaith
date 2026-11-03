@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { AlertTriangle, X } from "lucide-react";
@@ -23,11 +23,11 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
   const [phrase, setPhrase] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const {
-    captchaToken,
-    handleToken: handleCaptchaToken,
-    handleExpire: handleCaptchaExpire,
-  } = useCaptcha();
+  const captcha = useCaptcha();
+  const fieldId = useId();
+  const passwordId = `${fieldId}-password`;
+  const phraseId = `${fieldId}-phrase`;
+  const phraseTextId = `${fieldId}-phrase-text`;
 
   const phraseMatches = phrase.trim().toLowerCase() === CONFIRM_PHRASE;
   const canSubmit = password.length > 0 && phraseMatches && !loading;
@@ -48,7 +48,7 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           password,
-          captchaToken: captchaToken ?? undefined,
+          captchaToken: captcha.captchaToken ?? undefined,
         }),
       });
 
@@ -61,6 +61,9 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
           ? `${data.error ?? "Failed"} — ${data.detail}`
           : data.error ?? "Failed to delete account";
         setError(msg);
+        // The token went with the password and can't be verified again; a
+        // retry after a mistyped password needs a fresh one.
+        captcha.reset();
         setLoading(false);
         return;
       }
@@ -79,6 +82,7 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
     } catch (err) {
       console.error("Delete account failed:", err);
       setError("Network error. Please try again.");
+      captcha.reset();
       setLoading(false);
     }
   };
@@ -133,16 +137,17 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
           </div>
 
           <div className="px-5 py-4 space-y-4">
-            <div className="rounded-md border border-miss/30 bg-miss/5 px-3 py-2 text-xs text-miss">
+            <div className="rounded-md border border-miss/30 bg-miss/5 px-3 py-2 text-xs text-miss-ink">
               Any groups you created will be handed off to the oldest
               remaining admin, or deleted if you are the last member.
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-text-primary">
+              <label htmlFor={passwordId} className="block text-sm font-medium text-text-primary">
                 Password
               </label>
               <input
+                id={passwordId}
                 type="password"
                 autoComplete="current-password"
                 value={password}
@@ -155,35 +160,45 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-text-primary">
+              <label htmlFor={phraseId} className="block text-sm font-medium text-text-primary">
                 To confirm, type the phrase below
               </label>
-              <div className="rounded-md border border-miss/40 bg-miss/10 px-3 py-2 font-mono text-base font-semibold text-miss select-all text-center">
+              <div
+                id={phraseTextId}
+                className="rounded-md border border-miss/40 bg-miss/10 px-3 py-2 font-mono text-base font-semibold text-miss-ink select-all text-center"
+              >
                 {CONFIRM_PHRASE}
               </div>
               <input
+                id={phraseId}
                 type="text"
                 autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-describedby={phraseTextId}
                 value={phrase}
                 onChange={(e) => setPhrase(e.target.value)}
                 placeholder={`Type "${CONFIRM_PHRASE}" here`}
                 className={cn(
                   "w-full rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary",
                   "placeholder:text-text-tertiary",
-                  phraseMatches
-                    ? "border-green-500 focus:ring-green-500"
-                    : "border-surface-hover focus:ring-brand-ink",
+                  // A match turns the border Lamp Ink, from the hour's palette;
+                  // the raw green it used didn't follow the hour.
+                  phraseMatches ? "border-brand-ink" : "border-surface-hover",
+                  "focus:ring-brand-ink",
                   "focus:outline-none focus:ring-2",
                 )}
               />
             </div>
 
             <Turnstile
-              onToken={handleCaptchaToken}
-              onExpire={handleCaptchaExpire}
+              onToken={captcha.handleToken}
+              onExpire={captcha.handleExpire}
+              resetKey={captcha.resetKey}
             />
 
-            {error && <p className="text-xs text-miss">{error}</p>}
+            {error && <p className="text-xs text-miss-ink">{error}</p>}
           </div>
 
           <div className="px-5 py-4 border-t border-surface-hover flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
@@ -195,11 +210,14 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
             >
               Cancel
             </Button>
+            {/* The danger variant: an opaque Missed Red with the dark label.
+                The white-on-translucent-red override fell below 4.5:1, and
+                at night the dark ground showed through its hover. */}
             <Button
+              variant="danger"
               size="md"
               loading={loading}
               disabled={!canSubmit}
-              className="bg-miss hover:bg-miss/80 text-white"
               onClick={handleSubmit}
             >
               Delete my account

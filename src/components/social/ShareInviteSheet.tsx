@@ -40,8 +40,8 @@ export function ShareInviteSheet({
       : "";
 
   const shareText = displayName
-    ? `${displayName} invited you to Motive — let's keep each other accountable.`
-    : "Come keep me accountable on Motive.";
+    ? `${displayName} invited you to MotiveFaith — let's keep each other accountable.`
+    : "Come keep me accountable on MotiveFaith.";
 
   const handleCopy = useCallback(async () => {
     if (!url) return;
@@ -62,7 +62,7 @@ export function ShareInviteSheet({
   const handleShare = useCallback(async () => {
     if (!url) return;
     try {
-      await navigator.share({ title: "Motive", text: shareText, url });
+      await navigator.share({ title: "MotiveFaith", text: shareText, url });
     } catch (err) {
       // Dismissing the OS sheet rejects with AbortError. That is a choice, not
       // a failure, and must not raise a toast.

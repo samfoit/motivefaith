@@ -1453,13 +1453,16 @@ export function CameraCapture({
 
       {/* Notes input on review */}
       {stage === "review" && (
-        <div className="shrink-0 px-4">
+        // The preview above is positioned, so it paints over anything drawn
+        // outside this box: the focus ring stays inset, and the field keeps
+        // clear of the photo's edge unless the trim bar already spaces it.
+        <div className={cn("shrink-0 px-4", trimDuration === null && "pt-3")}>
           <input
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Add a caption..."
-            className="w-full rounded-lg bg-white/10 px-4 py-2.5 text-base text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-brand-ink"
+            className="w-full rounded-lg bg-white/10 px-4 py-2.5 text-base text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-inset focus:ring-brand-ink"
           />
         </div>
       )}

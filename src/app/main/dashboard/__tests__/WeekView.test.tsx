@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { WeekView } from "../WeekView";
 import type { HabitWithCompletions } from "@/components/habits/HabitCard";
 
@@ -177,5 +177,67 @@ describe("WeekView", () => {
     expect(
       screen.getByRole("button", { name: "Morning Run: done 1 of 2 days so far this week" }),
     ).toBeInTheDocument();
+  });
+
+  describe("check-in drawer", () => {
+    it("checks in today from a row, without opening the habit", () => {
+      const onCheckIn = vi.fn();
+      const onHabitPress = vi.fn();
+      render(
+        <WeekView
+          timezone={TZ}
+          onHabitPress={onHabitPress}
+          onCheckIn={onCheckIn}
+          habits={[makeHabit()]}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Quick check-in for Morning Run" }),
+      );
+      expect(onCheckIn).toHaveBeenCalledWith("habit-1", "quick", expect.any(Object));
+      expect(onHabitPress).not.toHaveBeenCalled();
+    });
+
+    it("offers a rain check only while today is still open", () => {
+      const { rerender } = render(
+        <WeekView timezone={TZ} onHabitPress={vi.fn()} onCheckIn={vi.fn()} habits={[makeHabit()]} />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Rain check for Morning Run" }),
+      ).toBeInTheDocument();
+
+      rerender(
+        <WeekView
+          timezone={TZ}
+          onHabitPress={vi.fn()}
+          onCheckIn={vi.fn()}
+          habits={[
+            makeHabit({
+              completions: [{ id: "c1", completed_at: oct(14), completion_type: "quick" }],
+            }),
+          ]}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Quick check-in for Morning Run" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Rain check for Morning Run" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("has no drawer for a paused habit", () => {
+      render(
+        <WeekView
+          timezone={TZ}
+          onHabitPress={vi.fn()}
+          onCheckIn={vi.fn()}
+          habits={[makeHabit({ is_paused: true })]}
+        />,
+      );
+      expect(
+        screen.queryByRole("button", { name: "Quick check-in for Morning Run" }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

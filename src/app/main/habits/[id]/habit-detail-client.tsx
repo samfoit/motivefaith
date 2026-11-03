@@ -1226,7 +1226,7 @@ export function HabitDetailClient({
             <div className="rounded-lg bg-elevated p-4 shadow-sm border border-red-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-miss">
+                  <p className="text-sm font-medium text-miss-ink">
                     Delete habit
                   </p>
                   <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">
@@ -1239,8 +1239,8 @@ export function HabitDetailClient({
                     size="sm"
                     onClick={() => setDeleteConfirm(true)}
                   >
-                    <Trash2 className="w-4 h-4 text-miss" />
-                    <span className="text-miss">Delete</span>
+                    <Trash2 className="w-4 h-4 text-miss-ink" />
+                    <span className="text-miss-ink">Delete</span>
                   </Button>
                 ) : (
                   <div className="flex gap-2">
