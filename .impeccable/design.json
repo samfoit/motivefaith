@@ -1,0 +1,832 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-03T03:17:15.135Z",
+  "title": "Design System: MotiveFaith",
+  "extensions": {
+    "colorMeta": {
+      "lampflame-amber": {
+        "role": "primary",
+        "displayName": "Lampflame Amber",
+        "canonical": "oklch(80.0% 0.134 81.4)",
+        "tonalRamp": [
+          "#120900",
+          "#342301",
+          "#5A4001",
+          "#845F04",
+          "#B07F00",
+          "#D1A756",
+          "#E9CD9C",
+          "#F8EDDA"
+        ]
+      },
+      "lampflame-amber-deep": {
+        "role": "primary",
+        "displayName": "Lampflame Amber Deep",
+        "canonical": "oklch(74.6% 0.133 79.6)",
+        "tonalRamp": [
+          "#120900",
+          "#352300",
+          "#5B3F03",
+          "#865E01",
+          "#B27E06",
+          "#D3A657",
+          "#EACC9D",
+          "#F9EDDA"
+        ]
+      },
+      "lamp-ink": {
+        "role": "primary",
+        "displayName": "Lamp Ink",
+        "canonical": "oklch(50.8% 0.103 75.7)",
+        "tonalRamp": [
+          "#130900",
+          "#362200",
+          "#5D3E02",
+          "#875C0D",
+          "#AD803A",
+          "#CDA770",
+          "#E6CDAA",
+          "#F7EDDF"
+        ]
+      },
+      "wick-black": {
+        "role": "primary",
+        "displayName": "Wick Black",
+        "canonical": "oklch(19.4% 0.029 89.0)",
+        "tonalRamp": [
+          "#0E0B04",
+          "#2B2618",
+          "#4B4433",
+          "#6D6653",
+          "#908976",
+          "#B4AD9D",
+          "#D5D1C6",
+          "#F0EEEA"
+        ]
+      },
+      "amber-wash": {
+        "role": "primary",
+        "displayName": "Amber Wash",
+        "canonical": "oklch(96.0% 0.030 85.6)",
+        "tonalRamp": [
+          "#0E0B04",
+          "#2C2618",
+          "#4C4433",
+          "#6E6553",
+          "#918875",
+          "#B5AD9D",
+          "#D6D0C6",
+          "#F0EEEA"
+        ]
+      },
+      "flame-bronze": {
+        "role": "primary",
+        "displayName": "Flame Bronze",
+        "canonical": "oklch(59.8% 0.121 76.3)",
+        "tonalRamp": [
+          "#130900",
+          "#362200",
+          "#5D3E01",
+          "#885C00",
+          "#B27E21",
+          "#D2A562",
+          "#E9CCA2",
+          "#F8EDDC"
+        ]
+      },
+      "clear-sky": {
+        "role": "neutral",
+        "displayName": "Clear Sky",
+        "canonical": "oklch(95.8% 0.009 242.8)",
+        "tonalRamp": [
+          "#090B0D",
+          "#23272A",
+          "#41464A",
+          "#62676B",
+          "#848A8E",
+          "#AAAFB2",
+          "#CED1D4",
+          "#EDEFF0"
+        ]
+      },
+      "clear-sky-tile": {
+        "role": "neutral",
+        "displayName": "Clear Sky Tile",
+        "canonical": "oklch(95.5% 0.011 243.7)",
+        "tonalRamp": [
+          "#090B0E",
+          "#23272B",
+          "#40464B",
+          "#61676C",
+          "#848A8F",
+          "#A9AFB3",
+          "#CED1D4",
+          "#EDEFF0"
+        ]
+      },
+      "clear-sky-header": {
+        "role": "neutral",
+        "displayName": "Clear Sky Header",
+        "canonical": "oklch(91.3% 0.027 241.2)",
+        "tonalRamp": [
+          "#060C11",
+          "#1C2831",
+          "#384752",
+          "#596875",
+          "#7B8C98",
+          "#A2B0BB",
+          "#C9D2DA",
+          "#EBEFF2"
+        ]
+      },
+      "page-white": {
+        "role": "neutral",
+        "displayName": "Page White",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#262626",
+          "#454545",
+          "#666666",
+          "#898989",
+          "#AEAEAE",
+          "#D1D1D1",
+          "#EEEEEE"
+        ]
+      },
+      "mist-track": {
+        "role": "neutral",
+        "displayName": "Mist Track",
+        "canonical": "oklch(90.8% 0.016 245.1)",
+        "tonalRamp": [
+          "#080C0F",
+          "#21272D",
+          "#3E464D",
+          "#5F676F",
+          "#818A93",
+          "#A7AFB6",
+          "#CCD2D6",
+          "#EDEFF1"
+        ]
+      },
+      "mist-hairline": {
+        "role": "neutral",
+        "displayName": "Mist Hairline",
+        "canonical": "oklch(91.1% 0.016 245.1)",
+        "tonalRamp": [
+          "#080C0F",
+          "#21272D",
+          "#3E464D",
+          "#5F676F",
+          "#818A93",
+          "#A7AFB6",
+          "#CCD2D6",
+          "#EDEFF1"
+        ]
+      },
+      "day-ink": {
+        "role": "neutral",
+        "displayName": "Day Ink",
+        "canonical": "oklch(24.7% 0.031 273.1)",
+        "tonalRamp": [
+          "#090B13",
+          "#222634",
+          "#3F4456",
+          "#606578",
+          "#83889D",
+          "#A8ADBF",
+          "#CDD0DC",
+          "#EDEEF3"
+        ]
+      },
+      "slate-sub": {
+        "role": "neutral",
+        "displayName": "Slate Sub",
+        "canonical": "oklch(46.2% 0.029 252.1)",
+        "tonalRamp": [
+          "#060C12",
+          "#1D2733",
+          "#3A4655",
+          "#5A6777",
+          "#7D8B9B",
+          "#A3AFBD",
+          "#CAD2DB",
+          "#ECEFF3"
+        ]
+      },
+      "slate-quiet": {
+        "role": "neutral",
+        "displayName": "Slate Quiet",
+        "canonical": "oklch(52.0% 0.029 255.7)",
+        "tonalRamp": [
+          "#070B12",
+          "#1E2733",
+          "#3B4655",
+          "#5B6777",
+          "#7E8A9B",
+          "#A4AFBD",
+          "#CAD2DB",
+          "#ECEFF3"
+        ]
+      },
+      "nav-slate": {
+        "role": "neutral",
+        "displayName": "Nav Slate",
+        "canonical": "oklch(50.7% 0.038 252.7)",
+        "tonalRamp": [
+          "#050C14",
+          "#1B2736",
+          "#364659",
+          "#57687C",
+          "#798BA0",
+          "#A0B0C2",
+          "#C8D2DE",
+          "#EBEFF4"
+        ]
+      },
+      "starry-night": {
+        "role": "neutral",
+        "displayName": "Starry Night",
+        "canonical": "oklch(19.8% 0.021 271.5)",
+        "tonalRamp": [
+          "#090B10",
+          "#23262F",
+          "#414550",
+          "#626672",
+          "#848996",
+          "#AAAEB9",
+          "#CED1D8",
+          "#EDEEF1"
+        ]
+      },
+      "night-card": {
+        "role": "neutral",
+        "displayName": "Night Card",
+        "canonical": "oklch(24.2% 0.028 271.9)",
+        "tonalRamp": [
+          "#090B12",
+          "#222632",
+          "#404454",
+          "#606576",
+          "#83899A",
+          "#A9ADBD",
+          "#CDD1DB",
+          "#EDEEF2"
+        ]
+      },
+      "night-tile": {
+        "role": "neutral",
+        "displayName": "Night Tile",
+        "canonical": "oklch(27.9% 0.030 270.9)",
+        "tonalRamp": [
+          "#080B12",
+          "#212634",
+          "#3F4456",
+          "#5F6578",
+          "#82899C",
+          "#A8ADBE",
+          "#CDD1DC",
+          "#EDEEF3"
+        ]
+      },
+      "candle-ink": {
+        "role": "neutral",
+        "displayName": "Candle Ink",
+        "canonical": "oklch(92.6% 0.023 87.2)",
+        "tonalRamp": [
+          "#0D0B06",
+          "#2B261B",
+          "#4A4437",
+          "#6C6658",
+          "#8F897A",
+          "#B3ADA1",
+          "#D4D1C8",
+          "#F0EEEB"
+        ]
+      },
+      "candle-sub": {
+        "role": "neutral",
+        "displayName": "Candle Sub",
+        "canonical": "oklch(71.1% 0.026 85.8)",
+        "tonalRamp": [
+          "#0E0B05",
+          "#2B261A",
+          "#4B4435",
+          "#6D6556",
+          "#908878",
+          "#B4AD9F",
+          "#D5D0C7",
+          "#F0EEEA"
+        ]
+      },
+      "night-quiet": {
+        "role": "neutral",
+        "displayName": "Night Quiet",
+        "canonical": "oklch(65.3% 0.032 274.9)",
+        "tonalRamp": [
+          "#090B13",
+          "#222534",
+          "#404456",
+          "#606579",
+          "#83889D",
+          "#A9ADBF",
+          "#CDD0DC",
+          "#EDEEF3"
+        ]
+      },
+      "night-amber-wash": {
+        "role": "primary",
+        "displayName": "Night Amber Wash",
+        "canonical": "oklch(26.3% 0.026 87.4)",
+        "tonalRamp": [
+          "#0E0B05",
+          "#2B261A",
+          "#4B4435",
+          "#6C6556",
+          "#908978",
+          "#B4AD9F",
+          "#D5D1C7",
+          "#F0EEEA"
+        ]
+      },
+      "missed-red": {
+        "role": "semantic",
+        "displayName": "Missed Red",
+        "canonical": "oklch(63.7% 0.208 25.3)",
+        "tonalRamp": [
+          "#1F0001",
+          "#4F0106",
+          "#860111",
+          "#C0031D",
+          "#ED4142",
+          "#FE857C",
+          "#FEBFB8",
+          "#FEE9E6"
+        ]
+      },
+      "missed-red-ink": {
+        "role": "semantic",
+        "displayName": "Missed Red Ink",
+        "canonical": "oklch(50.5% 0.190 27.5)",
+        "tonalRamp": [
+          "#1F0000",
+          "#4F0103",
+          "#860108",
+          "#BB1E1E",
+          "#E54D43",
+          "#FE8578",
+          "#FFBFB6",
+          "#FEE9E6"
+        ]
+      },
+      "missed-red-hover": {
+        "role": "semantic",
+        "displayName": "Missed Red Hover",
+        "canonical": "oklch(67.5% 0.182 23.3)",
+        "tonalRamp": [
+          "#1F0001",
+          "#4F0009",
+          "#850017",
+          "#B7252F",
+          "#E25052",
+          "#FF8480",
+          "#FEBFBA",
+          "#FEE9E7"
+        ]
+      },
+      "missed-red-ink-night": {
+        "role": "semantic",
+        "displayName": "Missed Red Ink Night",
+        "canonical": "oklch(75.9% 0.144 26.1)",
+        "tonalRamp": [
+          "#1F0001",
+          "#4F0105",
+          "#811316",
+          "#A93D38",
+          "#D2625A",
+          "#F08F86",
+          "#FEBFB8",
+          "#FEE9E6"
+        ]
+      },
+      "rain-blue": {
+        "role": "semantic",
+        "displayName": "Rain Blue",
+        "canonical": "oklch(62.3% 0.188 259.8)",
+        "tonalRamp": [
+          "#000925",
+          "#00225A",
+          "#013E96",
+          "#155ECF",
+          "#3D84F8",
+          "#7DAEFE",
+          "#B7D3FE",
+          "#E6EFFF"
+        ]
+      },
+      "rain-blue-night": {
+        "role": "semantic",
+        "displayName": "Rain Blue Night",
+        "canonical": "oklch(71.4% 0.143 254.6)",
+        "tonalRamp": [
+          "#000B20",
+          "#002550",
+          "#024486",
+          "#1F66B5",
+          "#468BDD",
+          "#79B1F7",
+          "#B2D4FF",
+          "#E4F0FF"
+        ]
+      },
+      "encourage-violet": {
+        "role": "semantic",
+        "displayName": "Encourage Violet",
+        "canonical": "oklch(60.6% 0.219 292.7)",
+        "tonalRamp": [
+          "#0F002A",
+          "#2E0067",
+          "#5100AB",
+          "#703BD5",
+          "#9264FF",
+          "#B19CFF",
+          "#D2C9FE",
+          "#EFECFF"
+        ]
+      },
+      "checkin-quick": {
+        "role": "tertiary",
+        "displayName": "Check-in Quick",
+        "canonical": "oklch(59.8% 0.121 76.3)",
+        "tonalRamp": [
+          "#130900",
+          "#362200",
+          "#5D3E01",
+          "#885C00",
+          "#B27E21",
+          "#D2A562",
+          "#E9CCA2",
+          "#F8EDDC"
+        ]
+      },
+      "checkin-note": {
+        "role": "tertiary",
+        "displayName": "Check-in Note",
+        "canonical": "oklch(53.1% 0.121 149.7)",
+        "tonalRamp": [
+          "#001003",
+          "#003010",
+          "#025423",
+          "#24793E",
+          "#4C9D60",
+          "#7FC08C",
+          "#B4DDBB",
+          "#E3F4E6"
+        ]
+      },
+      "checkin-photo": {
+        "role": "tertiary",
+        "displayName": "Check-in Photo",
+        "canonical": "oklch(53.4% 0.091 195.8)",
+        "tonalRamp": [
+          "#000E0F",
+          "#012D2D",
+          "#045050",
+          "#097576",
+          "#359A9B",
+          "#72BDBD",
+          "#ADDBDB",
+          "#E1F3F2"
+        ]
+      },
+      "checkin-rain": {
+        "role": "tertiary",
+        "displayName": "Check-in Rain",
+        "canonical": "oklch(53.0% 0.151 255.1)",
+        "tonalRamp": [
+          "#000B20",
+          "#002550",
+          "#004387",
+          "#1B65BA",
+          "#438AE2",
+          "#77B1FB",
+          "#B3D4FF",
+          "#E4F0FF"
+        ]
+      },
+      "checkin-voice": {
+        "role": "tertiary",
+        "displayName": "Check-in Voice",
+        "canonical": "oklch(56.0% 0.169 297.8)",
+        "tonalRamp": [
+          "#110028",
+          "#320162",
+          "#532291",
+          "#7449B8",
+          "#976EE1",
+          "#B999FB",
+          "#D7C7FE",
+          "#F0EBFE"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing hero headline only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Landing section titles and long-form page titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "The top bar's title and greeting; scales with the viewport and truncates."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text and input values."
+      },
+      "body-strong": {
+        "displayName": "Body Strong",
+        "purpose": "Habit names on cards."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, form labels, secondary lines."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Metadata, timestamps, helper and error text."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Streak numbers and stats; the only use of mono."
+      }
+    },
+    "shadows": [
+      {
+        "name": "hairline-lift",
+        "value": "0 1px 2px rgba(0, 0, 0, 0.04)",
+        "purpose": "Cards, habit cards, drawer icons. The default."
+      },
+      {
+        "name": "soft-rise",
+        "value": "0 2px 8px rgba(0, 0, 0, 0.06)",
+        "purpose": "A card's hover lift, where hover exists."
+      },
+      {
+        "name": "sheet",
+        "value": "0 8px 24px rgba(0, 0, 0, 0.08)",
+        "purpose": "Bottom sheets and dialogs over a 40% black scrim with 2px blur."
+      },
+      {
+        "name": "lamp-glow-bar",
+        "value": "0 0 10px 1px rgba(233, 180, 76, 0.06) by day → 0.55 at night",
+        "purpose": "Gold progress bars; written per hour by palette()."
+      },
+      {
+        "name": "lamp-glow-done",
+        "value": "0 0 18px rgba(233, 180, 76, 0.05) by day → 0.47 at night",
+        "purpose": "The done check."
+      },
+      {
+        "name": "lamp-glow-fab",
+        "value": "0 2px 6px rgba(28, 32, 48, 0.18) at full day → 0 0 22px rgba(233, 180, 76, 0.36) at night",
+        "purpose": "The capture button; a neutral drop shadow when the glow is off."
+      },
+      {
+        "name": "lamp-halo",
+        "value": "radial-gradient(circle, rgba(233, 180, 76, 0.17) 0%, transparent 70%) → 0.39 at night",
+        "purpose": "Halo behind celebration moments."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Entrances, list stagger, progress fill."
+      },
+      {
+        "name": "ease-bounce",
+        "value": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "purpose": "Tactile press and hover lift on buttons, the done-check pop."
+      },
+      {
+        "name": "ease-drawer",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Habit card slide and check-in icon scale."
+      },
+      {
+        "name": "ease-sheet",
+        "value": "cubic-bezier(.22, .9, .35, 1.2)",
+        "purpose": "Bottom sheet rise, 420ms."
+      },
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "Color and press feedback."
+      },
+      {
+        "name": "duration-normal",
+        "value": "250ms",
+        "purpose": "Most transitions and list entrances."
+      },
+      {
+        "name": "duration-slow",
+        "value": "400ms",
+        "purpose": "Larger surfaces."
+      },
+      {
+        "name": "theme-shift",
+        "value": "background-color 0.45s ease",
+        "purpose": "The crossfade when the hour changes the palette; dropped under reduced motion."
+      },
+      {
+        "name": "stagger-step",
+        "value": "50ms",
+        "purpose": "Per-item delay on the dashboard list; check-in icons step 40ms."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      },
+      {
+        "name": "app-column",
+        "value": "672px"
+      },
+      {
+        "name": "nav-column",
+        "value": "512px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The lamp as an action: one per view, for the step that matters.",
+      "html": "<button class=\"ds-btn-primary\">Check in</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-sans);font-weight:500;font-size:0.875rem;line-height:1.25rem;padding:8px 16px;border-radius:10px;cursor:pointer;transition:transform 200ms cubic-bezier(.34,1.56,.64,1), background-color 150ms ease;background:var(--color-brand);color:var(--color-on-brand);border:1px solid transparent;}.ds-btn-primary:hover{background:var(--color-brand-hover);transform:translateY(-2px) scale(1.05);}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 2px var(--color-bg-primary),0 0 0 4px var(--color-brand-ink);}.ds-btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none;}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Lamp Ink outline for the second choice beside a primary.",
+      "html": "<button class=\"ds-btn-secondary\">See how it works</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-sans);font-weight:500;font-size:0.875rem;line-height:1.25rem;padding:8px 16px;border-radius:10px;cursor:pointer;transition:transform 200ms cubic-bezier(.34,1.56,.64,1), background-color 150ms ease;background:transparent;color:var(--color-brand-ink);border:1px solid color-mix(in srgb, var(--color-brand-ink) 30%, transparent);}.ds-btn-secondary:hover{background:var(--color-brand-light);transform:translateY(-2px) scale(1.05);}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 2px var(--color-bg-primary),0 0 0 4px color-mix(in srgb, var(--color-brand-ink) 50%, transparent);}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Text-only action in Lamp Ink for low-stakes choices.",
+      "html": "<button class=\"ds-btn-ghost\">Not now</button>",
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-sans);font-weight:500;font-size:0.875rem;line-height:1.25rem;padding:8px 16px;border-radius:10px;cursor:pointer;transition:transform 200ms cubic-bezier(.34,1.56,.64,1), background-color 150ms ease;background:transparent;color:var(--color-brand-ink);border:1px solid transparent;}.ds-btn-ghost:hover{background:var(--color-surface-hover);transform:translateY(-2px) scale(1.05);}.ds-btn-ghost:focus-visible{outline:none;box-shadow:0 0 0 2px var(--color-brand-ink);}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "For what can't be taken back; opaque lighter hover keeps the dark label legible at night.",
+      "html": "<button class=\"ds-btn-danger\">Delete content</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-sans);font-weight:500;font-size:0.875rem;line-height:1.25rem;padding:8px 16px;border-radius:10px;cursor:pointer;transition:transform 200ms cubic-bezier(.34,1.56,.64,1), background-color 150ms ease;background:var(--color-miss);color:var(--color-on-brand);border:1px solid transparent;}.ds-btn-danger:hover{background:var(--color-miss-hover);transform:translateY(-2px) scale(1.05);}.ds-btn-danger:focus-visible{outline:none;box-shadow:0 0 0 2px var(--color-bg-primary),0 0 0 4px var(--color-miss-ink);}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Card-colored field with a label above; 16px text so iOS never zooms.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Habit name</span><input class=\"ds-input\" placeholder=\"Morning prayer\" /></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:4px;font-family:var(--font-sans);}.ds-field-label{font-size:.875rem;font-weight:500;color:var(--color-text-primary);}.ds-input{width:100%;font:inherit;font-size:1rem;padding:8px 12px;border-radius:10px;border:1px solid var(--color-surface-hover);background:var(--color-bg-elevated);color:var(--color-text-primary);transition:border-color 150ms ease, box-shadow 150ms ease;}.ds-input::placeholder{color:var(--color-text-tertiary);}.ds-input:focus{outline:none;border-color:var(--color-brand-ink);box-shadow:0 0 0 2px var(--color-brand-ink);}"
+    },
+    {
+      "name": "Habit Card",
+      "kind": "card",
+      "refersTo": "habit-card",
+      "description": "Signature: a habit tinted by its color, with streak pill, meta row and the round check.",
+      "html": "<div class=\"ds-habit\" style=\"--habit-color:#14B8A6\"><span class=\"ds-habit-handle\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg></span><div class=\"ds-habit-body\"><div class=\"ds-habit-title\"><span>🙏</span><strong>Morning prayer</strong><span class=\"ds-streak\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z\"/></svg>12</span></div><div class=\"ds-habit-meta\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>6:00 – 8:00 AM <span class=\"ds-pill\">Shared</span></div></div><span class=\"ds-check ds-check-done\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg></span></div>",
+      "css": ".ds-habit{display:flex;align-items:center;gap:8px;padding:12px 16px 12px 8px;border-radius:14px;border:1px solid var(--habit-color, var(--color-surface-hover));background:color-mix(in oklab, var(--habit-color, var(--color-bg-elevated)) 5%, var(--color-bg-elevated));box-shadow:0 1px 2px rgba(0,0,0,.04);font-family:var(--font-sans);color:var(--color-text-primary);max-width:420px;}.ds-habit-handle{width:28px;display:flex;justify-content:center;color:var(--color-text-tertiary);}.ds-habit-body{flex:1;min-width:0;}.ds-habit-title{display:flex;align-items:center;gap:8px;font-size:1rem;}.ds-habit-title strong{font-weight:600;}.ds-streak{display:inline-flex;align-items:center;gap:2px;height:20px;padding:0 6px;border-radius:9999px;font-size:11px;font-weight:500;color:var(--color-streak);background:color-mix(in srgb, var(--color-streak) 14%, transparent);}.ds-habit-meta{display:flex;align-items:center;gap:6px;margin-top:2px;font-size:.75rem;color:var(--color-text-secondary);}.ds-pill{font-size:10px;font-weight:500;padding:2px 6px;border-radius:9999px;background:var(--color-brand-light);color:var(--color-brand-ink);}.ds-check{width:40px;height:40px;border-radius:9999px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 200ms var(--ease-bounce);}.ds-check-done{background:var(--color-brand);color:var(--color-on-brand);box-shadow:var(--lamp-glow-done);}"
+    },
+    {
+      "name": "Check-in Drawer",
+      "kind": "custom",
+      "refersTo": "checkin-option",
+      "description": "Signature: the row of fixed-hue check-in actions revealed when a habit card slides away.",
+      "html": "<div class=\"ds-drawer\" style=\"--habit-color:#14B8A6\"><button class=\"ds-opt\" style=\"background:var(--color-checkin-quick)\" aria-label=\"Quick check-in\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg></button><button class=\"ds-opt\" style=\"background:var(--color-checkin-photo)\" aria-label=\"Photo or video\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z\"/><circle cx=\"12\" cy=\"13\" r=\"3\"/></svg></button><button class=\"ds-opt\" style=\"background:var(--color-checkin-voice)\" aria-label=\"Voice\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><line x1=\"12\" x2=\"12\" y1=\"19\" y2=\"22\"/></svg></button><button class=\"ds-opt\" style=\"background:var(--color-checkin-note)\" aria-label=\"Note\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z\"/></svg></button><button class=\"ds-opt\" style=\"background:var(--color-checkin-rain)\" aria-label=\"Rain check\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2\"/><path d=\"M16 14v6\"/><path d=\"M8 14v6\"/><path d=\"M12 16v6\"/></svg></button></div>",
+      "css": ".ds-drawer{display:flex;gap:10px;padding:12px 14px;border-radius:14px;background:color-mix(in oklab, var(--habit-color, var(--color-text-tertiary)) 10%, var(--color-surface-hover));box-shadow:inset 0 0 0 1px color-mix(in oklab, var(--habit-color, var(--color-text-tertiary)) 45%, var(--color-surface-hover));width:max-content;}.ds-opt{width:44px;height:44px;border-radius:9999px;border:none;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.04);cursor:pointer;transition:transform 220ms cubic-bezier(.22,1,.36,1);}.ds-opt:active{transform:scale(.9);}.ds-opt:focus-visible{outline:none;box-shadow:0 0 0 2px var(--color-bg-primary),0 0 0 4px var(--color-brand-ink);}"
+    },
+    {
+      "name": "Bottom Navigation",
+      "kind": "nav",
+      "refersTo": "bottom-nav",
+      "description": "Four destinations around the raised amber Capture button.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-active\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg><span>Home</span></a><a class=\"ds-nav-item\"><span class=\"ds-nav-ic\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/></svg><i class=\"ds-dot\"></i></span><span>Feed</span></a><button class=\"ds-capture\" aria-label=\"Capture\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z\"/><circle cx=\"12\" cy=\"13\" r=\"3\"/></svg></button><a class=\"ds-nav-item\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg><span>Friends</span></a><a class=\"ds-nav-item\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/></svg><span>Profile</span></a></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;justify-content:space-around;height:64px;max-width:512px;background:var(--color-nav);border-top:1px solid var(--color-border);font-family:var(--font-sans);}.ds-nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:64px;color:var(--color-nav-text);font-size:10px;font-weight:500;text-decoration:none;cursor:pointer;transition:color 150ms ease;}.ds-nav-item:hover{color:var(--color-text-primary);}.ds-nav-active{color:var(--color-brand-ink);}.ds-nav-ic{position:relative;display:flex;}.ds-dot{position:absolute;top:-2px;right:-4px;width:8px;height:8px;border-radius:9999px;background:var(--color-brand);}.ds-capture{width:48px;height:48px;margin-top:-16px;border-radius:9999px;border:none;background:var(--color-brand);color:var(--color-on-brand);display:flex;align-items:center;justify-content:center;box-shadow:var(--lamp-glow-fab);cursor:pointer;transition:transform 200ms cubic-bezier(.34,1.56,.64,1);}.ds-capture:hover{transform:scale(1.1);}.ds-capture:active{transform:scale(.95);}.ds-capture:focus-visible{outline:2px solid var(--color-brand-ink);outline-offset:2px;}"
+    },
+    {
+      "name": "Top Bar",
+      "kind": "nav",
+      "refersTo": "top-bar",
+      "description": "Sky-colored bar with the serif greeting and round icon buttons.",
+      "html": "<header class=\"ds-topbar\"><span class=\"ds-topbar-title\">Good afternoon, Alice</span><button class=\"ds-topbar-btn\" aria-label=\"Inbox\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9\"/><path d=\"M10.3 21a1.94 1.94 0 0 0 3.4 0\"/></svg></button></header>",
+      "css": ".ds-topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;height:56px;padding:0 16px;background:var(--color-header);border-bottom:1px solid var(--color-border);max-width:420px;}.ds-topbar-title{font-family:var(--font-display);font-weight:500;font-size:clamp(1.125rem, 3vw + 0.5rem, 1.5rem);letter-spacing:-0.025em;line-height:1.25;color:var(--color-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.ds-topbar-btn{width:40px;height:40px;border-radius:9999px;border:none;background:transparent;color:var(--color-text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color 150ms ease,color 150ms ease;}.ds-topbar-btn:hover{background:var(--color-surface-hover);color:var(--color-text-primary);}.ds-topbar-btn:focus-visible{outline:2px solid var(--color-brand);outline-offset:2px;}"
+    },
+    {
+      "name": "Status Pills",
+      "kind": "chip",
+      "refersTo": "pill-status",
+      "description": "Small round pills: amber wash for status, each meaning hue over its own faint wash.",
+      "html": "<div class=\"ds-pills\"><span class=\"ds-chip\">Shared</span><span class=\"ds-chip ds-chip-rain\"><svg width=\"10\" height=\"10\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2\"/><path d=\"M16 14v6\"/><path d=\"M8 14v6\"/><path d=\"M12 16v6\"/></svg>Rain check</span><span class=\"ds-chip ds-chip-streak\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z\"/></svg>12</span></div>",
+      "css": ".ds-pills{display:flex;gap:6px;align-items:center;font-family:var(--font-sans);}.ds-chip{display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:500;padding:2px 6px;border-radius:9999px;background:var(--color-brand-light);color:var(--color-brand-ink);}.ds-chip-rain{color:var(--color-rain);background:color-mix(in srgb, var(--color-rain) 14%, transparent);}.ds-chip-streak{font-size:11px;color:var(--color-streak);background:color-mix(in srgb, var(--color-streak) 14%, transparent);}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Book of Hours",
+    "overview": "MotiveFaith is drawn like a book of hours: every hour of the day has its own light, and the whole interface turns to it. The Lamplight palette moves through five hours (before dawn, sunrise, a clear midday, the blue hour at dusk, and a lamplit night), blending surfaces, text and a drawn sky so the app always looks like the time the user is in. Within the light family and within the dark family, color drifts continuously; the two meet only at sunrise and nightfall, where the screen crossfades once.\n\nThe mood is **calm, warm, unhurried**. Surfaces are quiet, cool and nearly flat; the one warm note is the lamp: Lampflame Amber on the primary action, the done check, and the capture button. By day that gold sits warm against a clear blue sky. By night it glows. Headings and greetings are set in a book serif with an optical-size axis; the working UI is a friendly, rounded sans. Density is phone-first and comfortable: one column, thumb-sized targets, 12–16px gaps between items.\n\nBrand art (link previews, hero art) stays minimal and flat: flat color fields, strong type, the lamp mark, small gold flames. Gradient \"night sky\" mood art, a day-to-night melting gradient, and dark inset boxes on light cards have all been tried and rejected.",
+    "keyCharacteristics": [
+      "The palette follows the hour; colors are tokens the theme rewrites, never fixed values.",
+      "One gold lamp. Everything else stays cool and quiet so it reads.",
+      "Light is the depth: hairlines and faint shadows by day, a gold glow by night.",
+      "Serif for the voice (greetings, titles, verses); sans for the work.",
+      "Soft and tactile: rounded shapes, a small springy response to touch.",
+      "A drawn sky (stars, sun arc, hills, still water) lives behind every app screen, never behind text."
+    ],
+    "rules": [
+      {
+        "name": "The One Lamp Rule",
+        "body": "Lampflame Amber is a fill, never text or an outline on a light ground: it fails contrast there. Gold text, icons and rings use Lamp Ink.",
+        "section": "colors"
+      },
+      {
+        "name": "The Hour Owns the Color Rule",
+        "body": "Surface, text, border and sky colors come from the tokens `palette(hour)` writes (`--color-bg-*`, `--color-text-*`, `--color-header`, `--sky-*`), never from a hardcoded value. A new hour-dependent color is added to `src/lib/lamplight/palette.ts` and walked by its contrast test: text at 4.5:1, controls at 3:1, at every 15-minute step.",
+        "section": "colors"
+      },
+      {
+        "name": "The Red Means Missed Rule",
+        "body": "Red is reserved for missed, danger and hearts. No action, category or decoration may borrow it. That is why the check-in hues leave the red-to-magenta arc empty. Red text is always Missed Red Ink; Missed Red is for fills, icons and borders.",
+        "section": "colors"
+      },
+      {
+        "name": "The Serif Speaks Rule",
+        "body": "Newsreader carries voice: greetings, titles, verses, empty-state headlines. Controls, labels and lists stay in Figtree. Never set a button or form label in the serif.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono Counts Rule",
+        "body": "JetBrains Mono is for numbers that are being counted (streaks, stats) and nothing else.",
+        "section": "typography"
+      },
+      {
+        "name": "The Solid Ground Rule",
+        "body": "The sky is fixed behind the screen, and content scrolls over it only on solid surfaces. Text never sits directly on the sky drawing. Chat screens keep only the stars, because their composer covers the horizon band.",
+        "section": "layout"
+      },
+      {
+        "name": "The Thumb Rule",
+        "body": "Every tap target reaches 44–48px, by stretching an invisible hit area where the visual element is smaller (40px bar buttons, the 28px card handle).",
+        "section": "layout"
+      },
+      {
+        "name": "The Lamp Is the Lift Rule",
+        "body": "Only gold glows. Nothing else gets a colored shadow, and nothing gets a glow by day that it wouldn't get by night.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do take every surface, text, border and sky color from the Lamplight tokens, and check new work at a sunrise, midday, dusk, night and pre-dawn hour, not just light and dark.",
+      "Do add any new hour-dependent color to `src/lib/lamplight/palette.ts` with a contrast test, not as an inline tint.",
+      "Do keep Lampflame Amber to fills and use Lamp Ink for gold text, icons and focus rings.",
+      "Do give each check-in action its own fixed hue everywhere it appears, from its `--color-checkin-*` token.",
+      "Do make tap targets 44–48px, stretching a hidden hit area when the visual is smaller.",
+      "Do honor `prefers-reduced-motion`: drop the bounces, shimmer and slides, keep state changes instant.",
+      "Do keep brand art flat: flat color fields, the lamp mark, strong type, small gold flames; a night field is a flat full-bleed Starry Night with a clean edge."
+    ],
+    "donts": [
+      "Don't use Lampflame Amber as text or an outline on a light ground.",
+      "Don't use red for anything but missed, danger and hearts, don't set text in Missed Red (use Missed Red Ink), and don't style a rain check as an error.",
+      "Don't put text directly on the sky drawing; it scrolls over on solid cards.",
+      "Don't add colored shadows or glows to anything but gold, or a heavy drop shadow to a card.",
+      "Don't set controls or form labels in Newsreader, or use JetBrains Mono for anything but counted numbers.",
+      "Don't reach for raw Tailwind palette colors (`gray-*`, `emerald-*`, `indigo-*`, `rose-*`); they don't follow the hour. Card, Pill, Input and TextArea take only Lamplight tokens, and the Pill test fails if one comes back.",
+      "Don't make brand visuals out of gradient night skies, a day-to-night melting gradient, or a dark inset box on a light card."
+    ]
+  }
+}
