@@ -161,7 +161,7 @@ export function InviteClient({ state, username }: InviteClientProps) {
         return (
           <Card
             icon={<Sparkles className="w-8 h-8 text-brand-ink" />}
-            title={`@${username} invited you to Motive`}
+            title={`@${username} invited you to MotiveFaith`}
             body="Track the habits that matter, with people who keep you honest. Make an account and we'll send them a friend request."
           >
             <Button className="w-full" size="lg" onClick={() => goToSignup("/auth/signup")}>
