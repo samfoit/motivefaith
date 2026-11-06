@@ -1,11 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import {
-  Check,
-  CloudRain,
-  CornerDownRight,
-} from "lucide-react";
+import { CloudRain, CornerDownRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
@@ -16,7 +12,6 @@ import { compressImage } from "@/lib/utils/compress-image";
 import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MIME_TO_EXT } from "@/lib/utils/media-types";
 import { checkVideo, isUploadTooLarge } from "@/lib/utils/check-video";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
-import { ModeHeader } from "@/components/ui/ModeHeader";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 
@@ -115,6 +110,17 @@ function moveOptions(dayKeys: string[]) {
     };
   });
 }
+
+/** A rain-check option: a tile, toggle half or day, centered. */
+const RAIN_OPTION = cn(
+  "flex items-center justify-center border text-center transition-colors",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-ink",
+);
+/** Picked: Rain Blue wash and border, the label in the hour's ink. */
+const RAIN_PICKED =
+  "font-medium text-text-primary border-[var(--color-rain)] bg-[color-mix(in_srgb,var(--color-rain)_12%,transparent)]";
+const RAIN_UNPICKED =
+  "border-[var(--color-surface-hover)] text-text-secondary hover:bg-surface-hover";
 
 function isCameraSupported(): boolean {
   return (
@@ -430,13 +436,19 @@ export function CompletionForm({
 
   // --- Render ---
 
+  // The steps after the picker name themselves in the sheet's own title row,
+  // beside a back arrow, rather than in a second header under it.
   const sheetTitle =
     mode === "select" ? (
       <span className="flex items-center gap-2">
         <span>{habitEmoji}</span>
         <span>Log completion</span>
       </span>
-    ) : undefined;
+    ) : mode === "message" ? (
+      "Reflection"
+    ) : (
+      "Rain check"
+    );
 
   return (
     <>
@@ -465,6 +477,7 @@ export function CompletionForm({
         size={mode === "rain_check" ? "lg" : "md"}
         title={sheetTitle}
         description={mode === "select" ? habitTitle : undefined}
+        onBack={mode === "select" ? undefined : () => setMode("select")}
       >
         {/* Error banner */}
         {error && <ErrorBanner message={error} className="mb-3" />}
@@ -513,8 +526,6 @@ export function CompletionForm({
           {/* --- Message mode --- */}
           {mode === "message" && (
             <div className="cf-slide-in space-y-4">
-
-              <ModeHeader label="Reflection" onBack={() => setMode("select")} />
               <TextArea
                 ref={textareaRef}
                 placeholder="How did it go?"
@@ -555,156 +566,107 @@ export function CompletionForm({
             </div>
           )}
 
-          {/* --- Rain check mode --- */}
+          {/* --- Rain check mode ---
+              Everything on one screen of a small phone, button included:
+              skip-or-move is one toggle, the reasons one row of tiles, and
+              the note two lines. Picked options keep their words in the
+              hour's ink; the blue lives in the wash and the border, since
+              Rain Blue as small text is under 4.5:1. */}
           {mode === "rain_check" && (
-            <div className="cf-slide-in space-y-4">
-
-              <ModeHeader label="Rain check" onBack={() => setMode("select")} />
-
+            <div className="cf-slide-in space-y-3">
               <p className="text-sm text-text-secondary">
                 {rainCheckMovedTo === null
-                  ? "Skip today without losing your streak. Your partners will see it, so they know you haven’t dropped off."
+                  ? "Skip today without losing your streak. Your partners will see it, so they know you haven\u2019t dropped off."
                   : `Your streak holds, and ${habitTitle} moves to ${weekdayName(rainCheckMovedTo)}. Miss it then and the streak breaks.`}
               </p>
 
               {/* Skip or move. Moving is a promise, not just a nicer word for
-                  skipping: if the chosen day passes undone, the streak breaks.
-                  It leads because it is the choice that changes what happens;
-                  the reason below is optional context. Same full-width row
-                  treatment as the reason list. */}
+                  skipping: if the chosen day passes undone, the streak breaks. */}
               {canMove && (
-              <div>
-                <p
-                  id="rain-check-plan-label"
-                  className="text-xs font-medium text-text-secondary mb-2"
-                >
-                  What happens to it?
-                </p>
                 <div
                   role="radiogroup"
-                  aria-labelledby="rain-check-plan-label"
-                  className="space-y-1.5"
+                  aria-label="What happens to it?"
+                  className="grid grid-cols-2 gap-1 rounded-lg bg-bg-secondary p-1"
                 >
                   {[
-                    { moved: false, label: "Just skip today" },
-                    { moved: true, label: "Move it to another day" },
-                  ].map((option) => {
-                    const selected = option.moved === (rainCheckMovedTo !== null);
+                    { moved: false, label: "Skip today", Icon: CloudRain },
+                    { moved: true, label: "Move it", Icon: CornerDownRight },
+                  ].map(({ moved, label, Icon }) => {
+                    const selected = moved === (rainCheckMovedTo !== null);
                     return (
                       <button
-                        key={option.label}
+                        key={label}
                         type="button"
                         role="radio"
                         aria-checked={selected}
                         onClick={() =>
-                          setRainCheckMovedTo(
-                            option.moved ? moveChoices[0].key : null,
-                          )
+                          setRainCheckMovedTo(moved ? moveChoices[0].key : null)
                         }
                         className={cn(
-                          "w-full min-h-12 flex items-center gap-3 rounded-lg px-3 py-3",
-                          "border text-left text-sm transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-ink",
-                          selected
-                            ? "font-medium"
-                            : "border-[var(--color-surface-hover)] text-text-secondary hover:bg-surface-hover",
+                          RAIN_OPTION,
+                          "min-h-11 gap-2 rounded-md text-sm",
+                          selected ? RAIN_PICKED : "border-transparent",
                         )}
-                        style={
-                          selected
-                            ? {
-                              color: "var(--color-rain)",
-                              borderColor: "var(--color-rain)",
-                              backgroundColor:
-                                "color-mix(in srgb, var(--color-rain) 12%, transparent)",
-                            }
-                            : undefined
-                        }
                       >
-                        {option.moved ? (
-                          <CornerDownRight className="w-5 h-5 shrink-0" />
-                        ) : (
-                          <CloudRain className="w-5 h-5 shrink-0" />
-                        )}
-                        <span className="flex-1 min-w-0 truncate">
-                          {option.label}
-                        </span>
-                        {selected && (
-                          <Check className="w-4 h-4 shrink-0" strokeWidth={3} />
-                        )}
+                        <Icon
+                          className="w-4 h-4 shrink-0"
+                          style={selected ? { color: "var(--color-rain)" } : undefined}
+                          aria-hidden
+                        />
+                        {label}
                       </button>
                     );
                   })}
                 </div>
-              </div>
               )}
 
-              {/* Day picker, only once "move" is chosen. Scrolls rather than
-                  wraps so the row height stays fixed as the sheet grows. */}
+              {/* The day, once "Move it" is picked. The days share the row
+                  while each keeps a 44px target; a full week on the narrowest
+                  phones scrolls sideways rather than shrinking them. */}
               {rainCheckMovedTo !== null && (
-                <div>
-                  <p
-                    id="rain-check-day-label"
-                    className="text-xs font-medium text-text-secondary mb-2"
-                  >
-                    Which day?
-                  </p>
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="rain-check-day-label"
-                    className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4"
-                  >
-                    {moveChoices.map((choice) => {
-                      const selected = rainCheckMovedTo === choice.key;
-                      return (
-                        <button
-                          key={choice.key}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          aria-label={weekdayName(choice.key)}
-                          onClick={() => setRainCheckMovedTo(choice.key)}
-                          className={cn(
-                            "shrink-0 w-12 min-h-12 flex flex-col items-center justify-center",
-                            "rounded-lg border text-xs transition-colors",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-ink",
-                            selected
-                              ? "font-semibold"
-                              : "border-[var(--color-surface-hover)] text-text-secondary hover:bg-surface-hover",
-                          )}
-                          style={
-                            selected
-                              ? {
-                                color: "var(--color-rain)",
-                                borderColor: "var(--color-rain)",
-                                backgroundColor:
-                                  "color-mix(in srgb, var(--color-rain) 12%, transparent)",
-                              }
-                              : undefined
-                          }
-                        >
-                          <span>{choice.weekday}</span>
-                          <span className="font-mono">{choice.dayOfMonth}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div
+                  role="radiogroup"
+                  aria-label="Which day?"
+                  className="grid grid-flow-col auto-cols-[minmax(2.75rem,1fr)] gap-1.5 overflow-x-auto"
+                >
+                  {moveChoices.map((choice) => {
+                    const selected = rainCheckMovedTo === choice.key;
+                    return (
+                      <button
+                        key={choice.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={weekdayName(choice.key)}
+                        onClick={() => setRainCheckMovedTo(choice.key)}
+                        className={cn(
+                          RAIN_OPTION,
+                          "min-h-12 flex-col rounded-lg text-xs",
+                          selected ? RAIN_PICKED : RAIN_UNPICKED,
+                        )}
+                      >
+                        <span>{choice.weekday}</span>
+                        <span className="font-mono">{choice.dayOfMonth}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
-              {/* Single-select list rather than wrapped chips: full-width rows
-                  give a 48px tap target, stay legible at any width, and read
-                  the way a picker does on both iOS and Android. */}
+              {/* One row of tiles, each a 44px-plus target: the five reasons
+                  took five full-width rows, most of the sheet, for an
+                  optional answer. */}
               <div>
                 <p
                   id="rain-check-reason-label"
-                  className="text-xs font-medium text-text-secondary mb-2"
+                  className="text-xs font-medium text-text-secondary mb-1.5"
                 >
                   Why? (optional)
                 </p>
                 <div
                   role="group"
                   aria-labelledby="rain-check-reason-label"
-                  className="space-y-1.5"
+                  className="grid grid-cols-5 gap-1.5"
                 >
                   {RAIN_CHECK_REASONS.map((reason) => {
                     const selected = rainCheckReason === reason.code;
@@ -717,59 +679,47 @@ export function CompletionForm({
                           setRainCheckReason(selected ? null : reason.code)
                         }
                         className={cn(
-                          "w-full min-h-12 flex items-center gap-3 rounded-lg px-3 py-3",
-                          "border text-left text-sm transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-ink",
-                          selected
-                            ? "font-medium"
-                            : "border-[var(--color-surface-hover)] text-text-secondary hover:bg-surface-hover",
+                          RAIN_OPTION,
+                          "min-h-14 flex-col gap-1 rounded-lg px-0.5 text-xs leading-tight",
+                          selected ? RAIN_PICKED : RAIN_UNPICKED,
                         )}
-                        style={
-                          selected
-                            ? {
-                              color: "var(--color-rain)",
-                              borderColor: "var(--color-rain)",
-                              backgroundColor:
-                                "color-mix(in srgb, var(--color-rain) 12%, transparent)",
-                            }
-                            : undefined
-                        }
                       >
-                        <reason.icon className="w-5 h-5 shrink-0" />
-                        <span className="flex-1 min-w-0 truncate">
-                          {reason.label}
-                        </span>
-                        {selected && (
-                          <Check className="w-4 h-4 shrink-0" strokeWidth={3} />
-                        )}
+                        <reason.icon
+                          className="w-5 h-5 shrink-0"
+                          style={selected ? { color: "var(--color-rain)" } : undefined}
+                          aria-hidden
+                        />
+                        <span className="max-w-full truncate">{reason.label}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              <TextArea
-                placeholder="Add a note (optional)"
-                value={message}
-                onChange={(e) => {
-                  if (e.target.value.length <= MAX_MESSAGE_LENGTH) {
-                    setMessage(e.target.value);
-                  }
-                }}
-                rows={3}
-              />
-
-              <div className="flex justify-end">
-                <span
-                  className={cn(
-                    "text-xs font-mono",
-                    message.length >= MAX_MESSAGE_LENGTH
-                      ? "text-miss-ink"
-                      : "text-text-tertiary",
-                  )}
-                >
-                  {message.length}/{MAX_MESSAGE_LENGTH}
-                </span>
+              <div>
+                <TextArea
+                  placeholder="Add a note (optional)"
+                  value={message}
+                  onChange={(e) => {
+                    if (e.target.value.length <= MAX_MESSAGE_LENGTH) {
+                      setMessage(e.target.value);
+                    }
+                  }}
+                  rows={2}
+                />
+                {/* Only near the limit: the count is noise until it matters. */}
+                {message.length >= MAX_MESSAGE_LENGTH - 50 && (
+                  <p
+                    className={cn(
+                      "mt-1 text-right text-xs font-mono",
+                      message.length >= MAX_MESSAGE_LENGTH
+                        ? "text-miss-ink"
+                        : "text-text-tertiary",
+                    )}
+                  >
+                    {message.length}/{MAX_MESSAGE_LENGTH}
+                  </p>
+                )}
               </div>
 
               {/* Full-width and last in the flow: the thumb-reachable position

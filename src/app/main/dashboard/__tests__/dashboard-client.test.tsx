@@ -418,7 +418,7 @@ describe("DashboardClient moved rain check", () => {
     // opens; until then the body's modal "none" blocks the click.
     await vi.advanceTimersByTimeAsync(0);
     await user.click(
-      screen.getByRole("radio", { name: "Move it to another day" }),
+      screen.getByRole("radio", { name: "Move it" }),
     );
     await user.click(screen.getByRole("radio", { name: "Saturday" }));
     await user.click(screen.getByRole("button", { name: "Move to Saturday" }));
@@ -451,7 +451,7 @@ describe("DashboardClient moved rain check", () => {
     // opens; until then the body's modal "none" blocks the click.
     await vi.advanceTimersByTimeAsync(0);
     await user.click(
-      screen.getByRole("radio", { name: "Move it to another day" }),
+      screen.getByRole("radio", { name: "Move it" }),
     );
 
     // Friday and Monday already have their own occurrence, so moving onto
@@ -487,7 +487,7 @@ describe("DashboardClient moved rain check", () => {
       screen.getByRole("button", { name: "Take rain check" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("radio", { name: "Move it to another day" }),
+      screen.queryByRole("radio", { name: "Move it" }),
     ).not.toBeInTheDocument();
   });
 

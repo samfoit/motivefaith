@@ -15,6 +15,9 @@ import type { FriendFeedRow } from "@/lib/types/feed";
 import type { GroupFeedRow } from "@/lib/types/groups";
 import { TopBarActions } from "@/components/layout/TopBarSlots";
 import { TOP_BAR_PRIMARY_ACTION_CLASS } from "@/components/layout/topBarStyles";
+import { SearchInput } from "@/components/ui/SearchInput";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { matchesSearch, searchTerms } from "@/lib/utils/search-match";
 
 // ---------------------------------------------------------------------------
 // Animation helpers
@@ -48,6 +51,16 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
   const readAt = useReadFeedsStore((s) => s.readAt);
   const lastRefresh = useRef(0);
   const [filter, setFilter] = useState<FilterTab>("all");
+  const [query, setQuery] = useState("");
+  // Rows fade in one after another on arrival. Once someone has searched,
+  // rows coming back as the search narrows or clears appear at once instead
+  // of trickling in over a second and a half.
+  const [searched, setSearched] = useState(false);
+
+  function changeQuery(next: string) {
+    setQuery(next);
+    if (next) setSearched(true);
+  }
 
   // Optimistically clear hasNewActivity for feeds the user has already visited
   // this session. If latestActivity is after the read timestamp, it's genuinely new.
@@ -75,6 +88,37 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
         return g;
       }),
     [groups, readAt],
+  );
+
+  // Search narrows the list in place: a friend by name, username or a habit
+  // you share; a group by name. Everything is already on the page, so it's
+  // instant and works offline.
+  const terms = useMemo(() => searchTerms(query), [query]);
+  const searching = terms.length > 0;
+
+  const shownFriends = useMemo(
+    () =>
+      searching
+        ? effectiveFriends.filter((f) =>
+            matchesSearch(
+              [
+                f.friend.display_name,
+                f.friend.username,
+                ...f.sharedHabits.map((h) => h.title),
+              ],
+              terms,
+            ),
+          )
+        : effectiveFriends,
+    [effectiveFriends, terms, searching],
+  );
+
+  const shownGroups = useMemo(
+    () =>
+      searching
+        ? effectiveGroups.filter((g) => matchesSearch([g.group.name], terms))
+        : effectiveGroups,
+    [effectiveGroups, terms, searching],
   );
 
   const refresh = useCallback(() => {
@@ -203,7 +247,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
   const allItems = useMemo(() => {
     const items: { type: "friend" | "group"; key: string; latestActivity: string | null; data: FriendFeedRow | GroupFeedRow }[] = [];
 
-    for (const f of effectiveFriends) {
+    for (const f of shownFriends) {
       items.push({
         type: "friend",
         key: `f-${f.friend.id}`,
@@ -212,7 +256,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
       });
     }
 
-    for (const g of effectiveGroups) {
+    for (const g of shownGroups) {
       items.push({
         type: "group",
         key: `g-${g.group.id}`,
@@ -229,7 +273,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
     });
 
     return items;
-  }, [effectiveFriends, effectiveGroups]);
+  }, [shownFriends, shownGroups]);
 
   const hasGroups = effectiveGroups.length > 0;
   const isEmpty = effectiveFriends.length === 0 && effectiveGroups.length === 0;
@@ -238,8 +282,17 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
     filter === "all"
       ? allItems.length
       : filter === "friends"
-        ? effectiveFriends.length
-        : effectiveGroups.length;
+        ? shownFriends.length
+        : shownGroups.length;
+
+  const rowAnimation = searched
+    ? undefined
+    : "animate-[landing-fade-up-sm_0.3s_var(--ease-out)_both]";
+  const rowDelay = (i: number) =>
+    searched ? undefined : { animationDelay: staggerDelay(i, visibleCount) };
+
+  const noMatchLabel =
+    filter === "friends" ? "No friends match" : filter === "groups" ? "No groups match" : "No friends or groups match";
 
   return (
     <div>
@@ -255,6 +308,15 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
           </Link>
         </TopBarActions>
 
+        {!isEmpty && (
+          <SearchInput
+            value={query}
+            onChange={changeQuery}
+            placeholder={hasGroups ? "Search friends, groups, habits\u2026" : "Search friends and habits\u2026"}
+            label="Search your feed"
+          />
+        )}
+
         {/* Filter tabs (only show if user has both friends and groups) */}
         {hasGroups && effectiveFriends.length > 0 && (
           <div className="flex gap-1 p-1 rounded-lg bg-elevated shadow-sm">
@@ -262,6 +324,7 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
               <button
                 key={tab}
                 type="button"
+                aria-pressed={filter === tab}
                 onClick={() => setFilter(tab)}
                 className={cn(
                   "flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize",
@@ -277,14 +340,26 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
         )}
 
         {/* Content */}
-        {!isEmpty ? (
+        {/* Read out how many rows a search leaves, as it changes. */}
+        <p className="sr-only" aria-live="polite">
+          {searching
+            ? visibleCount === 1
+              ? "1 result"
+              : `${visibleCount} results`
+            : ""}
+        </p>
+
+        {!isEmpty && searching && visibleCount === 0 ? (
+          // The field's clear button sits just above; no second one here.
+          <EmptyState message={`${noMatchLabel} \u201C${query.trim()}\u201D`} />
+        ) : !isEmpty ? (
           <div key={filter} className="space-y-2">
             {filter === "all" &&
               allItems.map((item, i) => (
                 <div
                   key={item.key}
-                  className="animate-[landing-fade-up-sm_0.3s_var(--ease-out)_both]"
-                  style={{ animationDelay: staggerDelay(i, visibleCount) }}
+                  className={rowAnimation}
+                  style={rowDelay(i)}
                 >
                   {item.type === "friend" ? (
                     <FriendRow row={item.data as FriendFeedRow} />
@@ -295,22 +370,22 @@ export function FeedClient({ userId, friends, groups = [] }: FeedClientProps) {
               ))}
 
             {filter === "friends" &&
-              effectiveFriends.map((row, i) => (
+              shownFriends.map((row, i) => (
                 <div
                   key={row.friend.id}
-                  className="animate-[landing-fade-up-sm_0.3s_var(--ease-out)_both]"
-                  style={{ animationDelay: staggerDelay(i, visibleCount) }}
+                  className={rowAnimation}
+                  style={rowDelay(i)}
                 >
                   <FriendRow row={row} />
                 </div>
               ))}
 
             {filter === "groups" &&
-              effectiveGroups.map((row, i) => (
+              shownGroups.map((row, i) => (
                 <div
                   key={row.group.id}
-                  className="animate-[landing-fade-up-sm_0.3s_var(--ease-out)_both]"
-                  style={{ animationDelay: staggerDelay(i, visibleCount) }}
+                  className={rowAnimation}
+                  style={rowDelay(i)}
                 >
                   <GroupRow row={row} />
                 </div>

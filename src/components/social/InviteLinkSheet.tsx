@@ -55,32 +55,31 @@ export function InviteLinkSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} size="sm" showHandle>
+    // The Sheet's own title and description, not a second heading in the
+    // body under its empty title row. "md" only caps the height (60vh); the
+    // sheet still fits its content, which a 40vh cap cut off on phones.
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      size="md"
+      title="Invite link"
+      description="Anyone with this link can join the group."
+    >
       {ToastElements}
-      <div className="px-4 py-2 space-y-4">
-        <h2
-          className="font-display font-medium text-[var(--color-text-primary)]"
-          style={{ fontSize: "var(--text-lg)" }}
-        >
-          Invite Link
-        </h2>
-
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Share this link with friends to invite them to the group.
-        </p>
-
+      <div className="space-y-3">
         {inviteCode ? (
           <>
             {/* Link display */}
             <div className="flex items-center gap-2">
-              <div className="flex-1 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2.5 text-sm font-mono text-[var(--color-text-primary)] truncate">
+              <div className="flex-1 min-w-0 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2.5 text-sm font-mono text-[var(--color-text-primary)] truncate">
                 {inviteUrl}
               </div>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleCopy}
-                className="flex-shrink-0"
+                aria-label={copied ? "Copied" : "Copy invite link"}
+                className="flex-shrink-0 min-h-11 min-w-11"
               >
                 {copied ? (
                   <Check className="w-4 h-4 text-success" />
