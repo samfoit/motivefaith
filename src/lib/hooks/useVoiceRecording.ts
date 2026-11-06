@@ -67,6 +67,7 @@ export function useVoiceRecording({
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     analyserRef.current = null;
+    if (audioCtxRef.current) audioCtxRef.current.onstatechange = null;
     void audioCtxRef.current?.close().catch(() => {});
     audioCtxRef.current = null;
   }, []);
@@ -113,7 +114,24 @@ export function useVoiceRecording({
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.6;
       ctx.createMediaStreamSource(stream).connect(analyser);
+      // WebKit only runs the nodes something downstream pulls on, so an
+      // analyser left dangling reads silence on iPhone. A muted gain carries
+      // it to the speakers without playing the mic back.
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      analyser.connect(mute).connect(ctx.destination);
+      // Made after the mic prompt, the context is outside the tap and iOS
+      // starts it suspended; a live mic lets it resume. A call or Siri can
+      // suspend it again mid-take ("interrupted"), so it is woken then too.
+      const wake = () => {
+        if (ctx.state !== "running" && ctx.state !== "closed") {
+          void ctx.resume().catch(() => {});
+        }
+      };
+      ctx.onstatechange = wake;
+      wake();
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
     } catch {
