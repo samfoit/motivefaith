@@ -74,22 +74,18 @@ export function ShareInviteSheet({
   const canShare = typeof navigator !== "undefined" && !!navigator.share;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} size="sm" showHandle>
+    // The Sheet's own title and description, not a second heading in the
+    // body under its empty title row. "md" only caps the height (60vh); the
+    // sheet still fits its content, which a 40vh cap cut off on phones.
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      size="md"
+      title="Invite a friend"
+      description="It walks them through signing up and sends you a friend request. No username to type."
+    >
       {ToastElements}
       <div className="space-y-3">
-        <h2
-          className="font-display font-medium text-[var(--color-text-primary)]"
-          style={{ fontSize: "var(--text-lg)" }}
-        >
-          Invite a friend
-        </h2>
-
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Send this link to someone. It walks them through making an account and
-          sends you a friend request at the end — no username to type, nothing
-          to search for.
-        </p>
-
         {url ? (
           <>
             <div className="flex items-center gap-2">
@@ -100,8 +96,8 @@ export function ShareInviteSheet({
                 variant="secondary"
                 size="sm"
                 onClick={handleCopy}
-                aria-label="Copy invite link"
-                className="flex-shrink-0"
+                aria-label={copied ? "Copied" : "Copy invite link"}
+                className="flex-shrink-0 min-h-11 min-w-11"
               >
                 {copied ? (
                   <Check className="w-4 h-4 text-success" />

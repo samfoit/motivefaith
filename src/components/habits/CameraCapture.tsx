@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { useCamera } from "@/lib/hooks/useCamera";
 import { useCameraGestures } from "@/lib/hooks/useCameraGestures";
 import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
-import { VoiceMeter } from "@/components/habits/VoiceMeter";
+import { VoiceMeter, VoiceHalo } from "@/components/habits/VoiceMeter";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { VideoTrimBar } from "@/components/habits/VideoTrimBar";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
@@ -1329,19 +1329,24 @@ export function CameraCapture({
               </>
             ) : (
               <>
-                <div
-                  className={cn(
-                    "w-24 h-24 rounded-full flex items-center justify-center transition-colors",
-                    view === "recording" ? "bg-red-500/20" : "bg-white/10",
-                  )}
+                <VoiceHalo
+                  analyserRef={voice.analyserRef}
+                  active={voice.status === "recording"}
                 >
-                  <Mic
+                  <div
                     className={cn(
-                      "w-10 h-10",
-                      view === "recording" && !paused ? "text-red-500" : "text-white/60",
+                      "w-24 h-24 rounded-full flex items-center justify-center transition-colors",
+                      view === "recording" ? "bg-red-500/20" : "bg-white/10",
                     )}
-                  />
-                </div>
+                  >
+                    <Mic
+                      className={cn(
+                        "w-10 h-10",
+                        view === "recording" && !paused ? "text-red-500" : "text-white/60",
+                      )}
+                    />
+                  </div>
+                </VoiceHalo>
                 {/* The shutter's ring already shows how much of the take is
                     left, so a running take needs only the meter. */}
                 {view === "recording" ? (
@@ -1456,14 +1461,29 @@ export function CameraCapture({
         // The preview above is positioned, so it paints over anything drawn
         // outside this box: the focus ring stays inset, and the field keeps
         // clear of the photo's edge unless the trim bar already spaces it.
-        <div className={cn("shrink-0 px-4", trimDuration === null && "pt-3")}>
+        // The share switch rides beside the caption rather than on a row of
+        // its own above the buttons, to give the preview that height.
+        <div
+          className={cn(
+            "shrink-0 px-4 flex items-stretch gap-2",
+            trimDuration === null && "pt-3",
+          )}
+        >
           <input
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Add a caption..."
-            className="w-full rounded-lg bg-white/10 px-4 py-2.5 text-base text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-inset focus:ring-brand-ink"
+            className="flex-1 min-w-0 rounded-lg bg-white/10 px-4 py-2.5 text-base text-white placeholder-white/40 outline-none focus:ring-2 focus:ring-inset focus:ring-brand-ink"
           />
+          {privacy && (
+            <PrivateToggle
+              tone="dark"
+              isPrivate={privacy.isPrivate}
+              onChange={privacy.onChange}
+              className="shrink-0 rounded-lg"
+            />
+          )}
         </div>
       )}
 
@@ -1564,14 +1584,6 @@ export function CameraCapture({
             </>
           )}
 
-          {stage === "review" && privacy && (
-            <PrivateToggle
-              tone="dark"
-              isPrivate={privacy.isPrivate}
-              onChange={privacy.onChange}
-              className="mb-4"
-            />
-          )}
           {stage === "review" && (
             <div className="flex gap-4 w-full max-w-xs">
               <Button

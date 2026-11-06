@@ -18,7 +18,10 @@ export interface RainCheckReasonOption {
 /** Ordered as they appear in the reason sheet, commonest first. */
 export const RAIN_CHECK_REASONS: readonly RainCheckReasonOption[] = [
   { code: "sick", label: "Sick", icon: Thermometer },
-  { code: "travel", label: "Traveling", icon: Plane },
+  // "Travel", not "Traveling": the sheet sets the five in one row, and the
+  // longer word didn't fit a tile on a 320px phone. Partners still read
+  // "Traveling" (RAIN_CHECK_REASON_LABELS).
+  { code: "travel", label: "Travel", icon: Plane },
   { code: "rest", label: "Rest day", icon: Moon },
   { code: "busy", label: "Busy", icon: Clock },
   { code: "other", label: "Other", icon: MoreHorizontal },

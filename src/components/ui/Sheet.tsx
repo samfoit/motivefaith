@@ -14,6 +14,12 @@ export interface SheetProps {
   showHandle?: boolean;
   closeLabel?: string;
   className?: string;
+  /**
+   * A back arrow before the title, for a sheet with steps. It shares the
+   * title's row rather than adding a header of its own inside the sheet.
+   */
+  onBack?: () => void;
+  backLabel?: string;
 }
 
 const SIZE_CLASSES: Record<Size, string> = {
@@ -32,6 +38,8 @@ export const Sheet: React.FC<SheetProps> = ({
   showHandle = true,
   closeLabel = "Close",
   className,
+  onBack,
+  backLabel = "Go back",
 }) => {
   const contentRef = React.useRef<HTMLDivElement | null>(null);
   const startYRef = React.useRef<number | null>(null);
@@ -169,7 +177,33 @@ export const Sheet: React.FC<SheetProps> = ({
               </div>
             )}
 
-            <div className="flex items-center justify-between mb-3">
+            {/* Top-aligned, with the buttons pulled up to center on the
+                title's line: centered, they slid down between the title and
+                a description under it. */}
+            <div className="flex items-start justify-between mb-3">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  aria-label={backLabel}
+                  className="-ml-2 -mt-1.5 mr-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="m12 19-7-7 7-7" />
+                    <path d="M19 12H5" />
+                  </svg>
+                </button>
+              )}
               <div className="flex-1 min-w-0">
                 <RadixDialog.Title
                   className={cn(
@@ -189,7 +223,7 @@ export const Sheet: React.FC<SheetProps> = ({
               <RadixDialog.Close asChild>
                 <button
                   aria-label={closeLabel}
-                  className="ml-3 inline-flex items-center justify-center rounded-md p-2 text-text-secondary hover:bg-surface-hover transition-colors"
+                  className="ml-3 -mt-1 inline-flex shrink-0 items-center justify-center rounded-md p-2 text-text-secondary hover:bg-surface-hover transition-colors"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
