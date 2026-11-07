@@ -76,13 +76,17 @@ function renderWithHabits(
   // Someone who has already said their check-ins may be shared, unless a
   // test says otherwise. The one-time question has its own tests at the end.
   sharing: CheckinSharing = { confirmed: true, audience: [] },
+  /** How long ago that answer was fetched. */
+  sharingAgeMs = 0,
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
   const data: DashboardData = { habits, timezone: "UTC", firstName: "Alice" };
   queryClient.setQueryData(dashboardKey(TEST_USER), data);
-  queryClient.setQueryData(checkinSharingKey(TEST_USER), sharing);
+  queryClient.setQueryData(checkinSharingKey(TEST_USER), sharing, {
+    updatedAt: Date.now() - sharingAgeMs,
+  });
 
   render(
     <QueryClientProvider client={queryClient}>
@@ -196,6 +200,40 @@ describe("DashboardClient quick check-in", () => {
         screen.getByRole("button", { name: "Morning Run completed" }),
       ).toHaveAttribute("aria-disabled", "true");
       expect(screen.getByLabelText("5-day streak")).toBeInTheDocument();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("catches up after an undo on the refetch the check-in cut short", async () => {
+    // The habit was renamed on another device. The refetch that brings it is
+    // still in flight when the check-in cancels it.
+    const renamed = { ...habit, title: "Evening Run" };
+    let calls = 0;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      calls += 1;
+      if (calls === 1) return new Promise<Response>(() => {});
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ habits: [renamed], timezone: "UTC", firstName: "Alice" }),
+          { headers: { "content-type": "application/json" } },
+        ),
+      );
+    });
+    try {
+      const user = userEvent.setup({
+        advanceTimers: vi.advanceTimersByTime,
+        pointerEventsCheck: 0,
+      });
+      const complete = await renderDashboard();
+      void queryClient.refetchQueries({ type: "active" });
+
+      await user.click(complete);
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+
+      expect(
+        await screen.findByRole("button", { name: "Complete Evening Run" }),
+      ).toBeInTheDocument();
     } finally {
       fetchSpy.mockRestore();
     }
@@ -712,6 +750,147 @@ describe("DashboardClient sharing the first check-in", () => {
     expect(
       screen.getByRole("button", { name: "Morning Run completed" }),
     ).toHaveAttribute("aria-disabled", "true");
+  });
+});
+
+/**
+ * The sharing answer is over 30 seconds old, so a check-in asks the server
+ * again before it is sent. When the old answer said nobody would see it, the
+ * tap doesn't wait for the new one: the check-in shows at once, and only the
+ * write waits. That round trip used to come before anything showed.
+ */
+describe("DashboardClient checking in on an old sharing answer", () => {
+  const PAT: AudienceMember = {
+    habit_id: "habit-1",
+    kind: "partner",
+    id: "pat",
+    name: "Pat",
+    avatar_url: null,
+  };
+  /** Never asked, because Morning Run reached nobody. */
+  const NOBODY: CheckinSharing = { confirmed: false, audience: [] };
+
+  /** Answers the server's latest `get_checkin_audience`, which waits for it. */
+  let answer: (sharing: CheckinSharing) => Promise<void>;
+
+  beforeEach(() => {
+    mutateAsync.mockClear();
+    useCheckinSharingStore.setState({ question: null, waiting: [] });
+    rpc.mockReset().mockImplementation((name: string) => {
+      if (name !== "get_checkin_audience") {
+        return Promise.resolve({ data: null, error: null });
+      }
+      return new Promise((resolve) => {
+        answer = (data) => act(async () => resolve({ data, error: null }));
+      });
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    rpc.mockReset().mockResolvedValue({ data: null, error: null });
+    vi.useRealTimers();
+  });
+
+  /** Opened a while ago: the look taken on opening is now out of date. */
+  async function openAndBrowse(sharing: CheckinSharing) {
+    renderWithHabits([habit], sharing, 60_000);
+    const complete = await screen.findByRole("button", {
+      name: "Complete Morning Run",
+    });
+    await answer(sharing);
+    await advance(31_000);
+    rpc.mockClear();
+    return complete;
+  }
+
+  it("shows the check-in before the server answers, and sends it after", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const complete = await openAndBrowse(NOBODY);
+
+    await user.click(complete);
+
+    // Done on screen while the server is still being asked.
+    expect(rpc).toHaveBeenCalledWith("get_checkin_audience");
+    expect(
+      screen.getByRole("button", { name: "Morning Run completed" }),
+    ).toHaveAttribute("aria-disabled", "true");
+
+    await answer(NOBODY);
+    await advance(6000);
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("asks when the server now names a partner, and takes it back on \"Not now\"", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const complete = await openAndBrowse(NOBODY);
+
+    await user.click(complete);
+    await answer({ confirmed: false, audience: [PAT] });
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Your partners will see this",
+    });
+    expect(dialog).toHaveTextContent("Pat");
+    await user.click(within(dialog).getByRole("button", { name: "Not now" }));
+
+    expect(
+      screen.getByRole("button", { name: "Complete Morning Run" }),
+    ).toHaveAttribute("aria-disabled", "false");
+    expect(screen.getByLabelText("4-day streak")).toBeInTheDocument();
+    expect(screen.queryByText("Checked in", { exact: false })).not.toBeInTheDocument();
+    await advance(6000);
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing until the answer, even once the undo window has closed", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const complete = await openAndBrowse(NOBODY);
+
+    await user.click(complete);
+    await answer({ confirmed: false, audience: [PAT] });
+    const dialog = await screen.findByRole("alertdialog");
+
+    await advance(7000);
+    expect(mutateAsync).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+  });
+
+  it("still asks before showing it when the last look named someone", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const complete = await openAndBrowse({ confirmed: false, audience: [PAT] });
+
+    await user.click(complete);
+    expect(
+      screen.getByRole("button", { name: "Complete Morning Run" }),
+    ).toHaveAttribute("aria-disabled", "false");
+
+    await answer({ confirmed: false, audience: [PAT] });
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(
+      screen.getByRole("button", { name: "Morning Run completed" }),
+    ).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("brings the answer up to date when a drawer opens, so a note doesn't wait on it", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await openAndBrowse(NOBODY);
+
+    await user.click(
+      screen.getByRole("button", { name: "Show check-in options for Morning Run" }),
+    );
+    expect(rpc).toHaveBeenCalledTimes(1);
+    await answer(NOBODY);
+
+    await user.click(
+      screen.getByRole("button", { name: "Written note for Morning Run" }),
+    );
+    expect(await screen.findByRole("textbox")).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });
 

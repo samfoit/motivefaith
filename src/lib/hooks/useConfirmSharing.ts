@@ -74,3 +74,48 @@ export function useConfirmSharing() {
     [queryClient, userId],
   );
 }
+
+/**
+ * What the last answer says, without asking anyone: true when a check-in on
+ * these habits reaches nobody the user hasn't said yes to. They have said
+ * yes, or the last look found nobody on these habits.
+ *
+ * That look may be out of date (a partner may have accepted since), so this
+ * never decides whether a check-in is sent; `confirmSharing` does. It lets a
+ * check-in whose write waits on that answer anyway show before the answer is
+ * in, rather than leaving the tap doing nothing for a round trip.
+ */
+export function useSharingLooksClear() {
+  const queryClient = useQueryClient();
+  const userId = useAuthUserId();
+
+  return useCallback(
+    (habitIds: readonly string[]): boolean => {
+      const sharing = queryClient.getQueryData<CheckinSharing>(
+        checkinSharingKey(userId),
+      );
+      if (!sharing) return false;
+      return sharing.confirmed || audienceFor(sharing, habitIds).length === 0;
+    },
+    [queryClient, userId],
+  );
+}
+
+/**
+ * Bring the answer up to date ahead of a check-in that looks about to be
+ * asked for, so `confirmSharing` finds it fresh. Nothing is fetched once the
+ * server has the yes.
+ */
+export function usePrefetchSharing() {
+  const queryClient = useQueryClient();
+  const userId = useAuthUserId();
+
+  return useCallback(() => {
+    if (!userId) return;
+    void queryClient.prefetchQuery({
+      queryKey: checkinSharingKey(userId),
+      queryFn: () => fetchCheckinSharing(queryClient, userId),
+      staleTime: (query) => checkinSharingStaleTime(query.state.data),
+    });
+  }, [queryClient, userId]);
+}
