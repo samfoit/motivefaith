@@ -9,6 +9,7 @@ import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
 import { SkyScene, SkyClearance } from "@/components/layout/SkyScene";
+import { PullToRefresh } from "@/components/layout/PullToRefresh";
 
 /**
  * Validates auth and profile completeness before any of `/main/*` renders.
@@ -85,6 +86,9 @@ export default function MainLayout({
           The sky's own room at the end of a list is SkyClearance, which
           knows which screens draw the hills. */}
       <main className="pb-[calc(5rem+env(safe-area-inset-bottom))]">
+        {/* The installed app's way to refresh a screen. It listens over this
+            <main>, so the bar, sheets and the camera are never pulled. */}
+        <PullToRefresh />
         <Suspense fallback={null}>
           <AuthGate>{children}</AuthGate>
         </Suspense>
