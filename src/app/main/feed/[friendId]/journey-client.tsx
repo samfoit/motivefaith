@@ -18,12 +18,14 @@ import { useToast } from "@/components/ui/Toast";
 import { SharedHabits, type SharedHabitChip } from "@/components/social/SharedHabits";
 import { FriendProfileSheet } from "@/components/social/FriendProfileSheet";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
+import { EncouragementPrompt } from "@/components/social/EncouragementPrompt";
 import { createClient } from "@/lib/supabase/client";
 import { sendOrQueue } from "@/lib/offline-write";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
+import { LATE_HABITS_KEY } from "@/lib/hooks/useLateHabits";
 import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +65,19 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
     const unconfirmed = pendingEntries.filter((e) => !serverIds.has(e.id));
     return [...data.encouragements, ...unconfirmed];
   }, [data.encouragements, pendingEntries]);
+
+  // When you last wrote to them, a message still sending included: the card
+  // drops whatever had gone late by then at once. A heart on a check-in
+  // isn't writing to them.
+  const lastSentAt = useMemo(() => {
+    let latest: number | null = null;
+    for (const e of mergedEncouragements) {
+      if (!e.isMe || e.completion_id) continue;
+      const at = Date.parse(e.created_at);
+      if (latest === null || at > latest) latest = at;
+    }
+    return latest;
+  }, [mergedEncouragements]);
 
   // Debounced refresh — avoids hammering the server on rapid realtime events
   const lastRefresh = useRef(0);
@@ -247,7 +262,10 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
 
     // Refresh server data for eventual consistency
     debouncedRefresh();
-  }, [message, isSending, userId, friend.id, showToast, debouncedRefresh, scrollToLatest]);
+    // Writing to them answers what had gone late: the inbox and its badge
+    // drop it too.
+    queryClient.invalidateQueries({ queryKey: LATE_HABITS_KEY });
+  }, [message, isSending, userId, friend.id, showToast, debouncedRefresh, scrollToLatest, queryClient]);
 
   const handleHeartCompletion = useCallback(async (completionId: string, isHearted: boolean) => {
     const supabase = createClient();
@@ -429,6 +447,10 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
             onHeartCompletion={handleHeartCompletion}
           />
         </section>
+
+        {/* What they could use a word about, for you alone, at the end of
+            the conversation where you'd answer. */}
+        <EncouragementPrompt habits={data.lateHabits} lastSentAt={lastSentAt} />
       </div>
 
       {/* Bottom message input */}

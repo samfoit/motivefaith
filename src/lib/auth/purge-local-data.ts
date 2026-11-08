@@ -17,6 +17,7 @@
  */
 
 import { del } from "idb-keyval";
+import { forgetLateHabitDismissals } from "@/lib/stores/late-habit-dismissals";
 
 /** Must match the key in `src/lib/query-persister.ts`. */
 const QUERY_CACHE_KEY = "motive-query-cache";
@@ -24,7 +25,11 @@ const QUERY_CACHE_KEY = "motive-query-cache";
 /** Must match DB_NAME in `src/lib/offline-queue.ts`. */
 const OFFLINE_DB = "motive-offline";
 
-/** sessionStorage prefixes that hold per-user state. */
+/**
+ * sessionStorage prefixes that hold per-user state. "dismissed-inbox-" is
+ * no longer written (late habits are dismissed in late-habit-dismissals), but
+ * a session from before can still hold one.
+ */
 const SESSION_PREFIXES = ["dismissed-inbox-", "motive-rl:"];
 
 function deleteDatabase(name: string): Promise<void> {
@@ -66,6 +71,7 @@ function clearSessionKeys() {
  */
 export async function purgeLocalUserData(): Promise<void> {
   clearSessionKeys();
+  forgetLateHabitDismissals();
   await Promise.allSettled([
     del(QUERY_CACHE_KEY),
     deleteDatabase(OFFLINE_DB),

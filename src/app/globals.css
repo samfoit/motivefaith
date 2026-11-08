@@ -96,6 +96,13 @@ body {
   animation: dv-fade-in 0.3s ease 0.3s both;
 }
 
+/* Late habits, in a chat's private card (EncouragementPrompt) and in the
+   inbox. Both are drawn once the device's dismissals are known, just after
+   the page, so they settle in rather than popping into place. */
+.late-card-enter {
+  animation: dv-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .dv-streak-btn {
   transition: transform 0.15s ease;
 }
@@ -697,6 +704,7 @@ html.theme-shift *::after {
   .dv-stagger-container > *,
   .dv-progress-bar,
   .dv-all-done,
+  .late-card-enter,
   .mv-day-list,
   .auth-card-enter,
   .fr-stagger-container > *,

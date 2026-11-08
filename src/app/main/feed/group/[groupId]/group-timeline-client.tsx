@@ -51,6 +51,7 @@ import { GroupInfoSheet } from "@/components/social/GroupInfoSheet";
 import { ChallengeEvent } from "@/components/social/ChallengeEvent";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CompletionBubble } from "@/components/social/CompletionBubble";
+import { EncouragementPrompt } from "@/components/social/EncouragementPrompt";
 import {
   ChatRow,
   MessageBubble,
@@ -126,6 +127,18 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       return { ...m, reactions: merged };
     });
   }, [data.messages, pendingMessages, optimisticReactions]);
+
+  // When you last wrote in the group, a message still sending included: the
+  // card drops whatever had gone late by then at once.
+  const lastSentAt = useMemo(() => {
+    let latest: number | null = null;
+    for (const m of mergedMessages) {
+      if (!m.isMe) continue;
+      const at = Date.parse(m.created_at);
+      if (latest === null || at > latest) latest = at;
+    }
+    return latest;
+  }, [mergedMessages]);
 
   // Optimistic completion reactions: map of completionId → added reactions
   const [optimisticCompletionReactions, setOptimisticCompletionReactions] = useState<
@@ -910,6 +923,14 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
             </div>
           )}
         </section>
+
+        {/* What the others could use a word about, for you alone, at the end
+            of the conversation where you'd answer. */}
+        <EncouragementPrompt
+          habits={data.lateHabits}
+          showOwners
+          lastSentAt={lastSentAt}
+        />
       </div>
 
       {/* Bottom message input */}

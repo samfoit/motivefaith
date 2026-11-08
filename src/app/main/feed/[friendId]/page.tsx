@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
+import { fetchLateHabits } from "@/lib/data/late-habits";
 import { JourneyClient } from "./journey-client";
 
 export const revalidate = 30;
@@ -89,8 +90,9 @@ export default async function JourneyPage({ params }: Props) {
 
   if (!friendship) notFound();
 
-  // 2. Profiles + journey + their profile habits, in parallel
-  const [{ data: friendProfile }, { data: myProfile }, { data: journeyRows }] =
+  // 2. Profiles, the journey, and what the chat could suggest encouraging, in
+  // parallel
+  const [{ data: friendProfile }, { data: myProfile }, { data: journeyRows }, lateHabits] =
     await Promise.all([
     supabase
       .from("profiles")
@@ -106,6 +108,7 @@ export default async function JourneyPage({ params }: Props) {
       p_user_id: user.id,
       p_friend_id: friendId,
     }),
+    fetchLateHabits(supabase, { friendId }),
   ]);
 
   if (!friendProfile) notFound();
@@ -175,6 +178,7 @@ export default async function JourneyPage({ params }: Props) {
     habits,
     completions,
     encouragements,
+    lateHabits,
   };
 
   return <JourneyClient data={journeyData} userId={user.id} />;

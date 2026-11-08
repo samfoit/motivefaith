@@ -1,48 +1,44 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bell, X, UserPlus, Mail } from "lucide-react";
+import { Bell, HandHeart, X, UserPlus, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { todayDateKey, getBrowserTimezone } from "@/lib/utils/timezone";
+import { PersonLateHabits, byPerson } from "@/components/social/LateHabitRow";
 import { usePartnerInbox } from "@/lib/hooks/usePartnerInbox";
+import { useLateHabits } from "@/lib/hooks/useLateHabits";
 import { useRespondToPartner } from "@/lib/hooks/usePartnerActions";
+import {
+  dismissLateHabits,
+  useDismissedLateHabits,
+} from "@/lib/stores/late-habit-dismissals";
+import { lateHabitKey, type LateHabit } from "@/lib/types/late-habits";
 import type { PartnerInboxItem } from "@/lib/types/partners";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type MissedHabitNotification = {
-  habitId: string;
-  title: string;
-  emoji: string;
-  color: string;
-  friendId: string;
-  friendName: string;
-  friendAvatar: string | null;
-  timeWindow: { start?: string; end?: string } | null;
-};
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * Habits a friend's card previews before "and N more": the rest are on the
+ * card in their chat, a tap away.
+ */
+const INBOX_PREVIEW = 3;
+
 export function InboxClient({
-  missedHabits,
+  lateHabits,
   partnerItems = [],
   userId = null,
 }: {
-  missedHabits: MissedHabitNotification[];
+  /** Friends' habits waiting on a word, as the server found them. */
+  lateHabits: LateHabit[];
   partnerItems?: PartnerInboxItem[];
   userId?: string | null;
 }) {
-  const queryClient = useQueryClient();
   const router = useRouter();
   const { show: showToast, ToastElements } = useToast();
   const respond = useRespondToPartner();
@@ -79,39 +75,25 @@ export function InboxClient({
     }
     setRespondingId(null);
   };
-  const storageKey = `dismissed-inbox-${todayDateKey(getBrowserTimezone())}`;
 
-  const [dismissed, setDismissed] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      const stored = sessionStorage.getItem(storageKey);
-      if (!stored) return new Set();
-      const parsed: unknown = JSON.parse(stored);
-      if (!Array.isArray(parsed)) return new Set();
-      return new Set(parsed.filter((v): v is string => typeof v === "string"));
-    } catch {
-      return new Set();
-    }
-  });
-
-  const dismiss = useCallback((habitId: string) => {
-    setDismissed((prev) => {
-      const next = new Set(prev).add(habitId);
-      try { sessionStorage.setItem(storageKey, JSON.stringify([...next])); } catch {}
-      return next;
-    });
-    // Force the TopBar badge to re-read sessionStorage and update immediately
-    queryClient.refetchQueries({ queryKey: ["missed-habits-count"] });
-  }, [storageKey, queryClient]);
-
-  const visible = missedHabits.filter((n) => !dismissed.has(n.habitId));
+  // The same query as the bell's count, so the two can't disagree, and the
+  // same dismissals as each chat's card.
+  const { data: late = [] } = useLateHabits(userId, { initialData: lateHabits });
+  const dismissed = useDismissedLateHabits();
+  // One moment for every row's "today" and "yesterday".
+  const [now] = useState(() => new Date());
+  // Unknown until mounted: dismissals live on the device.
+  const visibleLate =
+    dismissed === null ? null : late.filter((h) => !dismissed.has(lateHabitKey(h)));
+  // Known on the server when there are none at all; otherwise once mounted.
+  const noneLate = late.length === 0 || visibleLate?.length === 0;
 
   return (
     <div>
       <div className="max-w-2xl mx-auto px-3 pt-4 space-y-4">
         {/* Partnership decisions come first — they are the only thing here
-            that is waiting on the user, and they do not expire at midnight
-            the way a missed-habit nudge does. */}
+            that is waiting on the user's answer, and they do not expire the
+            way a late habit does. */}
         {invites.length > 0 && (
           <PartnerSection
             title="Invitations"
@@ -152,67 +134,60 @@ export function InboxClient({
           />
         )}
 
-        {/* Missed habits list */}
-        {visible.length > 0 && (
-          <div className="space-y-3">
-            {visible.map((item) => (
-              <div
-                key={item.habitId}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-lg shadow-sm",
-                  "bg-elevated border-l-[3px] border-l-miss",
-                )}
-              >
-                <Link
-                  href={`/main/feed/${item.friendId}`}
-                  className={cn(
-                    "flex items-center gap-3 flex-1 min-w-0",
-                    "hover:opacity-80 transition-opacity",
-                  )}
-                >
-                  <Avatar
-                    src={item.friendAvatar}
-                    name={item.friendName}
-                    size="sm"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
-                      {item.friendName}
-                    </p>
-                    {/* Same defect as the partnership rows had: the habit's
-                        name sits at the end, so a single truncated line cut
-                        exactly the word that identifies which habit was
-                        missed. These actions are small, so two lines is
-                        enough without restructuring the row. */}
-                    <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">
-                      Hasn&apos;t completed{" "}
-                      <span className="font-medium">
-                        {item.emoji} {item.title}
-                      </span>{" "}
-                      today
-                    </p>
-                  </div>
-                  <div className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle
-                      className="w-3.5 h-3.5 text-miss"
-                    />
-                  </div>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => dismiss(item.habitId)}
-                  className="p-1.5 -mr-1 rounded-md hover:bg-[var(--color-surface-hover)] transition-colors flex-shrink-0"
-                  aria-label={`Dismiss notification for ${item.title}`}
-                >
-                  <X className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-                </button>
-              </div>
-            ))}
-          </div>
+        {/* Friends' habits waiting on a word: each row opens their chat,
+            where the same one is on its card. */}
+        {visibleLate && visibleLate.length > 0 && (
+          <section className="late-card-enter space-y-2">
+            <div className="flex items-center gap-1.5">
+              <HandHeart className="w-3.5 h-3.5 text-encourage" />
+              <h2 className="text-sm font-medium text-[var(--color-text-secondary)]">
+                Could use a word
+              </h2>
+            </div>
+            <p className="text-xs text-[var(--color-text-tertiary)] -mt-1">
+              Friends&apos; habits not logged yet, or missed
+            </p>
+
+            <ul className="space-y-2">
+              {byPerson(visibleLate).map((person) => {
+                const [first] = person;
+                const shown = person.slice(0, INBOX_PREVIEW);
+                return (
+                  <li key={first.ownerId} className="relative rounded-lg bg-elevated shadow-sm">
+                    <Link
+                      href={`/main/feed/${first.ownerId}`}
+                      className={cn(
+                        "block rounded-lg p-3 pr-12 transition-opacity hover:opacity-80",
+                        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-ink",
+                      )}
+                    >
+                      <PersonLateHabits
+                        habits={shown}
+                        more={person.length - shown.length}
+                        now={now}
+                      />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => dismissLateHabits(person.map(lateHabitKey))}
+                      className={cn(
+                        "absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-full",
+                        "text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-surface-hover)]",
+                        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-ink",
+                      )}
+                      aria-label={`Dismiss ${first.ownerName}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
 
         {/* Empty state */}
-        {visible.length === 0 && partners.length === 0 && (
+        {noneLate && partners.length === 0 && (
           <div className="text-center py-12">
             <div className="w-14 h-14 rounded-full bg-elevated shadow-sm flex items-center justify-center mx-auto mb-4">
               <Bell className="w-6 h-6 text-[var(--color-text-tertiary)]" />
@@ -224,8 +199,8 @@ export function InboxClient({
               All caught up
             </h2>
             <p className="text-sm text-[var(--color-text-secondary)] max-w-xs mx-auto">
-              When a friend misses a habit, it&apos;ll show up here so you can
-              send encouragement.
+              When a friend&apos;s habit goes unlogged or missed, it&apos;ll
+              show up here so you can remind or encourage them.
             </p>
           </div>
         )}

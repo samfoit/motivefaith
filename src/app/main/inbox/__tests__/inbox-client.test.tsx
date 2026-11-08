@@ -1,9 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InboxClient } from "../inbox-client";
 import { ToastProvider } from "@/components/ui/Toast";
+import { forgetLateHabitDismissals } from "@/lib/stores/late-habit-dismissals";
+import type { LateHabit } from "@/lib/types/late-habits";
 import type { PartnerInboxItem } from "@/lib/types/partners";
 
 const respond = vi.fn();
@@ -11,6 +13,27 @@ const respond = vi.fn();
 vi.mock("@/lib/hooks/usePartnerActions", () => ({
   useRespondToPartner: () => ({ mutateAsync: respond }),
 }));
+
+// The list arrives from the server; nothing here should go fetch it again.
+vi.mock("@/lib/data/late-habits", () => ({
+  fetchLateHabits: vi.fn(async () => []),
+}));
+
+function makeLate(overrides: Partial<LateHabit> = {}): LateHabit {
+  return {
+    habitId: "habit-run",
+    title: "Morning Run",
+    emoji: "🏃",
+    color: "#EF4444",
+    ownerId: "friend-1",
+    ownerName: "Alice Johnson",
+    ownerAvatar: null,
+    kind: "encourage",
+    day: "2026-11-01",
+    closedAt: "2026-11-01T15:00:00Z",
+    ...overrides,
+  };
+}
 
 function makeItem(overrides: Partial<PartnerInboxItem> = {}): PartnerInboxItem {
   return {
@@ -32,7 +55,7 @@ function makeItem(overrides: Partial<PartnerInboxItem> = {}): PartnerInboxItem {
   };
 }
 
-function renderInbox(items: PartnerInboxItem[]) {
+function renderInbox(items: PartnerInboxItem[], lateHabits: LateHabit[] = []) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -41,7 +64,7 @@ function renderInbox(items: PartnerInboxItem[]) {
   return render(
     <ToastProvider>
       <QueryClientProvider client={client}>
-        <InboxClient missedHabits={[]} partnerItems={items} userId="me" />
+        <InboxClient lateHabits={lateHabits} partnerItems={items} userId="me" />
       </QueryClientProvider>
     </ToastProvider>,
   );
@@ -104,5 +127,51 @@ describe("InboxClient partnership sections", () => {
   it("is caught up when there is nothing at all", () => {
     renderInbox([]);
     expect(screen.getByText("All caught up")).toBeInTheDocument();
+  });
+});
+
+describe("InboxClient late habits", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    forgetLateHabitDismissals();
+  });
+
+  it("lists friends' habits that could use a word, each opening their chat", () => {
+    renderInbox([], [makeLate()]);
+
+    expect(screen.getByRole("heading", { name: "Could use a word" })).toBeInTheDocument();
+    const row = screen.getByRole("link", { name: /Alice Johnson/ });
+    expect(row).toHaveAttribute("href", "/main/feed/friend-1");
+    expect(row).toHaveTextContent("🏃 Morning Run");
+    expect(row).toHaveTextContent(/Missed/);
+    expect(screen.queryByText("All caught up")).not.toBeInTheDocument();
+  });
+
+  it("dismisses one for good, and is caught up once none is left", () => {
+    const { unmount } = renderInbox([], [makeLate()]);
+
+    act(() => screen.getByRole("button", { name: "Dismiss Alice Johnson" }).click());
+    expect(screen.queryByRole("link", { name: /Alice Johnson/ })).not.toBeInTheDocument();
+    expect(screen.getByText("All caught up")).toBeInTheDocument();
+    unmount();
+
+    // Back to the inbox later: still dismissed, here and in Alice's chat.
+    renderInbox([], [makeLate()]);
+    expect(screen.queryByRole("link", { name: /Alice Johnson/ })).not.toBeInTheDocument();
+  });
+
+  it("gives each friend one card, previewing three of theirs", () => {
+    renderInbox(
+      [],
+      ["Run", "Read", "Pray", "Stretch", "Journal"].map((title) =>
+        makeLate({ habitId: title, title, kind: "remind" }),
+      ),
+    );
+
+    const card = screen.getByRole("link", { name: /Alice Johnson/ });
+    expect(screen.getAllByRole("link", { name: /Alice Johnson/ })).toHaveLength(1);
+    expect(card).toHaveTextContent("Pray");
+    expect(card).not.toHaveTextContent("Stretch");
+    expect(card).toHaveTextContent("and 2 more");
   });
 });
