@@ -192,7 +192,7 @@ export function NotificationPreferences({
 
       <ToggleRow
         label="Missed Habits"
-        description="When someone you partner with misses a day"
+        description="When someone you partner with hasn't logged a habit in time"
         checked={prefs.miss_alerts}
         onCheckedChange={(v) => update({ miss_alerts: v })}
       />
