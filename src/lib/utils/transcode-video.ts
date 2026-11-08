@@ -1,22 +1,24 @@
 import { getTranscodeMimeType } from "@/lib/utils/media-recorder";
-import { MAX_VIDEO_SIZE_MB } from "@/lib/constants/limits";
+import {
+  AUDIO_BITS_PER_SECOND,
+  MAX_VIDEO_SIZE_MB,
+  VIDEO_BITS_PER_SECOND,
+} from "@/lib/constants/limits";
 
 /**
  * Trims and shrinks a video picked from the camera roll on the phone, before
  * it is uploaded: the part chosen, redrawn at 720p and recorded at a fixed
- * bitrate, so it comes out at about 5 MB whatever the phone shot it at.
+ * bitrate, so a full minute comes out at about 20 MB whatever the phone shot
+ * it at.
  *
  * It is the camera's own pipeline (see CameraCapture): the video plays into a
  * canvas, and the canvas, with the video's sound taken through Web Audio, is
- * recorded with MediaRecorder. So it runs in real time, a 15 s piece taking
- * 15 s, but it needs nothing the camera doesn't already.
+ * recorded with MediaRecorder. So it runs in real time, a minute's piece
+ * taking a minute, but it needs nothing the camera doesn't already.
  */
 
 /** The output's long side: 720p, plenty for a chat bubble or a phone screen. */
 const MAX_LONG_SIDE = 1280;
-/** With the sound, about 4.9 MB for 15 seconds. */
-const VIDEO_BITS_PER_SECOND = 2_500_000;
-const AUDIO_BITS_PER_SECOND = 128_000;
 const FRAME_RATE = 30;
 /** Playback that hasn't moved for this long has stalled for good. */
 const STALL_MS = 5000;

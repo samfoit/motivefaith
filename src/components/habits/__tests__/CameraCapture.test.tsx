@@ -40,6 +40,7 @@ class FakeMediaRecorder {
 
   state: "inactive" | "recording" | "paused" = "inactive";
   stream: FakeMediaStream;
+  options: MediaRecorderOptions | undefined;
   ondataavailable: ((e: { data: Blob }) => void) | null = null;
   onstop: (() => void) | null = null;
 
@@ -58,8 +59,9 @@ class FakeMediaRecorder {
     this.state = "recording";
   });
 
-  constructor(stream: FakeMediaStream) {
+  constructor(stream: FakeMediaStream, options?: MediaRecorderOptions) {
     this.stream = stream;
+    this.options = options;
     FakeMediaRecorder.instances.push(this);
   }
 
@@ -291,13 +293,25 @@ describe("CameraCapture video takes", () => {
     expect(screen.getByRole("button", { name: /use video/i })).toBeInTheDocument();
   });
 
-  it("stops itself once the take reaches the limit", async () => {
+  it("stops itself once the take reaches the limit, a minute in", async () => {
     await renderCamera();
     await startVideo();
 
-    await act(async () => void vi.advanceTimersByTime(15_000));
+    await act(async () => void vi.advanceTimersByTime(59_000));
+    expect(FakeMediaRecorder.latest.stop).not.toHaveBeenCalled();
 
+    await act(async () => void vi.advanceTimersByTime(1000));
     expect(FakeMediaRecorder.latest.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("records at a set bitrate, so a full take is the same size on any phone", async () => {
+    await renderCamera();
+    await startVideo();
+
+    expect(FakeMediaRecorder.latest.options).toMatchObject({
+      videoBitsPerSecond: 2_500_000,
+      audioBitsPerSecond: 128_000,
+    });
   });
 
   it("opens on Photo, where a tap takes a picture rather than a video", async () => {
@@ -869,10 +883,10 @@ describe("CameraCapture voice mode", () => {
     await switchToVoice();
     await tapVoiceShutter();
 
-    await act(async () => void vi.advanceTimersByTime(15_000));
+    await act(async () => void vi.advanceTimersByTime(60_000));
     expect(FakeMediaRecorder.latest.stop).not.toHaveBeenCalled();
 
-    await act(async () => void vi.advanceTimersByTime(105_000));
+    await act(async () => void vi.advanceTimersByTime(60_000));
     expect(FakeMediaRecorder.latest.stop).toHaveBeenCalledTimes(1);
   });
 
@@ -1041,7 +1055,7 @@ describe("CameraCapture first-opens tip and mode swipes", () => {
  * turned away with the reason.
  */
 describe("CameraCapture gallery pick, where a video can't be prepared", () => {
-  const TOO_LONG = "Videos can be up to 15 seconds. This one is 42.";
+  const TOO_LONG = "Videos can be up to 60 seconds. This one is 100.";
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -1142,7 +1156,7 @@ describe("CameraCapture picked video, trimmed and shrunk", () => {
     installCamera();
     transcoding.supported = true;
     checkVideo.mockReset().mockResolvedValue(null);
-    readVideoDuration.mockReset().mockResolvedValue(42);
+    readVideoDuration.mockReset().mockResolvedValue(100);
     transcodeVideo.mockReset();
     // jsdom plays no media; the preview is only told to play and pause.
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
@@ -1195,7 +1209,7 @@ describe("CameraCapture picked video, trimmed and shrunk", () => {
     await pick(container, movie());
 
     expect(checkVideo).not.toHaveBeenCalled();
-    expect(slider()).toHaveAttribute("aria-valuetext", "0:00 to 0:15");
+    expect(slider()).toHaveAttribute("aria-valuetext", "0:00 to 1:00");
     expect(screen.getByRole("button", { name: "Use Video" })).toBeInTheDocument();
   });
 
@@ -1223,7 +1237,7 @@ describe("CameraCapture picked video, trimmed and shrunk", () => {
     // Called inside the click, with nothing awaited first.
     expect(transcodeVideo).toHaveBeenCalledWith(
       video,
-      expect.objectContaining({ start: 27, length: 15 }),
+      expect.objectContaining({ start: 40, length: 60 }),
     );
 
     await act(async () => run.options().onProgress?.(0.4));
@@ -1283,7 +1297,7 @@ describe("CameraCapture picked video, trimmed and shrunk", () => {
     await act(async () => {});
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "This video couldn't be prepared here. Try another, or trim it to 15 seconds first.",
+      "This video couldn't be prepared here. Try another, or trim it to 60 seconds first.",
     );
     expect(checkVideo).not.toHaveBeenCalled();
     expect(onCapture).not.toHaveBeenCalled();
@@ -1294,12 +1308,12 @@ describe("CameraCapture picked video, trimmed and shrunk", () => {
     await pick(container, movie());
     fireEvent.keyDown(slider(), { key: "End" });
     const preview = container.querySelector("video")!;
-    expect(preview.currentTime).toBe(27);
+    expect(preview.currentTime).toBe(40);
 
-    preview.currentTime = 42.2;
+    preview.currentTime = 100.2;
     fireEvent.timeUpdate(preview);
 
-    expect(preview.currentTime).toBe(27);
+    expect(preview.currentTime).toBe(40);
   });
 
   it("doesn't prepare again a take reopened from the send screen", async () => {

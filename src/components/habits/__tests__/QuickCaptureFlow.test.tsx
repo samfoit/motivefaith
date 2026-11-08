@@ -483,7 +483,7 @@ describe("QuickCaptureFlow file picker", () => {
   });
 
   it("turns away a video that can't be sent, saying why, before any upload", async () => {
-    const reason = "Videos can be up to 15 seconds. This one is 42.";
+    const reason = "Videos can be up to 60 seconds. This one is 100.";
     checkVideo.mockResolvedValue(reason);
     const { container } = renderFlow();
     const video = new File(["mov"], "IMG_0001.MOV", { type: "video/quicktime" });
