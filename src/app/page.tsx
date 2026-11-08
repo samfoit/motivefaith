@@ -6,7 +6,9 @@ import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import { HeroSky } from "@/components/sky/HeroSky";
 
-export const dynamic = "force-static";
+// Rendered per request, like every page, and never `force-static`: a page
+// built ahead of time has no CSP nonce on its inline scripts, so the browser
+// refuses them all and nothing on it runs (see the root layout).
 
 /* ── Data ─────────────────────────────────────────────────── */
 
