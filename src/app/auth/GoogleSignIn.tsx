@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { destinationAfterAuth } from "@/lib/constants/pending-invite";
 import { Button } from "@/components/ui/Button";
+import { makeNonce, startGoogleRedirect } from "./google-redirect";
 
 interface GoogleCredentialResponse {
   credential: string;
@@ -58,25 +59,9 @@ function loadScript(): Promise<void> {
 }
 
 /**
- * A random nonce and its SHA-256. Google puts the hash in the ID token and
- * Supabase checks the raw value against it, so a token lifted from elsewhere
- * cannot be replayed here.
- */
-async function makeNonce(): Promise<{ raw: string; hashed: string }> {
-  const raw = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) =>
-    b.toString(16).padStart(2, "0"),
-  ).join("");
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
-  const hashed = Array.from(new Uint8Array(digest), (b) =>
-    b.toString(16).padStart(2, "0"),
-  ).join("");
-  return { raw, hashed };
-}
-
-/**
  * Installed to the home screen. Google's button signs in through a popup,
  * and a standalone app opens popups in a separate browser sheet that cannot
- * hand the result back, so there the redirect flow is the one that works.
+ * hand the result back, so there a redirect is the one that works.
  */
 function isStandalone(): boolean {
   return (
@@ -107,19 +92,27 @@ export async function destinationAfterGoogle(): Promise<string> {
 }
 
 /**
- * Where Google's button can't be used, the redirect flow: through Google
- * and back by /auth/callback, which sends a new account on to finish its
- * profile the same way.
+ * Where Google's button can't be used, a redirect: through Google and back.
+ *
+ * With a client ID it is this site's own (google-redirect.ts): Google is sent
+ * this site's callback, so its account chooser names this site. Without one,
+ * Supabase's, which comes back by /auth/callback but whose callback is on
+ * Supabase's domain, so Google names that instead. Either way a new account is
+ * sent on to finish its profile.
  *
  * `prompt=select_account` makes Google ask which account every time. Left
  * to itself, Google goes straight back with whichever account the browser is
  * already signed in to and has used here before, so in the installed app
  * there was no way to sign in with a different Gmail. Google's own button
- * always asks, even with a single account, which is why only this flow
- * needs it.
+ * always asks, even with a single account, which is why only the redirects
+ * need it.
  */
-function GoogleRedirectButton() {
+function GoogleRedirectButton({ clientId }: { clientId?: string }) {
   async function handleClick() {
+    if (clientId) {
+      await startGoogleRedirect(clientId);
+      return;
+    }
     await createClient().auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -171,13 +164,14 @@ interface GoogleSignInProps {
 /**
  * Google's own sign-in button, exchanging its ID token with Supabase.
  *
- * The redirect flow (`signInWithOAuth`) sends the user to Google with
+ * Supabase's redirect flow (`signInWithOAuth`) sends the user to Google with
  * Supabase's callback URL, so Google's consent screen names the Supabase
  * project's domain. Here the token comes back to this page, so Google names
  * this site instead — and once its branding is verified, MotiveFaith.
  *
- * Without a client ID, with the script blocked, or in the installed app, it
- * falls back to the redirect flow's own button.
+ * With the script blocked, or in the installed app, it falls back to a
+ * redirect that comes back to this site too. Only without a client ID does it
+ * use Supabase's.
  */
 export function GoogleSignIn({ onSignedIn, onError }: GoogleSignInProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -251,7 +245,7 @@ export function GoogleSignIn({ onSignedIn, onError }: GoogleSignInProps) {
     };
   }, [clientId]);
 
-  if (!clientId || status === "unavailable") return <GoogleRedirectButton />;
+  if (!clientId || status === "unavailable") return <GoogleRedirectButton clientId={clientId} />;
 
   return (
     <div

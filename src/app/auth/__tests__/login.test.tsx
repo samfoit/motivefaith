@@ -67,6 +67,14 @@ vi.mock("next/navigation", async (importOriginal) => {
   };
 });
 
+// The installed app's redirect leaves for Google; what matters here is
+// which redirect the button starts.
+const mockStartGoogleRedirect = vi.fn();
+vi.mock("../google-redirect", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../google-redirect")>()),
+  startGoogleRedirect: (clientId: string) => mockStartGoogleRedirect(clientId),
+}));
+
 import LoginPage from "../login/page";
 
 const INVALID = {
@@ -274,5 +282,28 @@ describe("LoginPage notices from the query string", () => {
     renderAt("");
     expect(screen.queryByText("Your account has been deleted.")).not.toBeInTheDocument();
     expect(screen.queryByText(/no longer available/)).not.toBeInTheDocument();
+  });
+});
+
+describe("LoginPage with Google in the installed app", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_CLIENT_ID", "client-123.apps.googleusercontent.com");
+    Object.defineProperty(window.navigator, "standalone", { value: true, configurable: true });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    Reflect.deleteProperty(window.navigator, "standalone");
+  });
+
+  it("signs in through Google by a redirect back to this site, so Google names it rather than Supabase", async () => {
+    render(<LoginPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /continue with google/i }));
+
+    await waitFor(() =>
+      expect(mockStartGoogleRedirect).toHaveBeenCalledWith("client-123.apps.googleusercontent.com"),
+    );
+    expect(mockSignInWithOAuth).not.toHaveBeenCalled();
   });
 });
