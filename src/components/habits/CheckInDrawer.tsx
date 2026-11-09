@@ -51,6 +51,51 @@ function openTransform(revealPx: number): string {
   return `translate3d(max(-${revealPx}px, calc(${MIN_SURFACE_VISIBLE}px - 100%)), 0, 0)`;
 }
 
+/**
+ * How far a peek slides the surface on its own: enough to uncover the first
+ * option and the edge of the next, so it reads as a row of choices rather
+ * than a single button.
+ */
+export const PEEK_PX = 72;
+export const PEEK_DURATION_MS = 1700;
+
+/**
+ * The drawer showing itself: the surface slides aside, the icons come out
+ * from under it the way they do when it opens for real, and everything
+ * settles back. The dashboard plays it once per device; the landing page's
+ * demo plays it in place of an instruction. Returns the animations, so a
+ * touch can cancel them and hand the card straight to the user.
+ */
+export function peekDrawer(surface: HTMLElement, drawer: HTMLElement): Animation[] {
+  if (typeof surface.animate !== "function") return [];
+  const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
+  const timing: KeyframeAnimationOptions = { duration: PEEK_DURATION_MS };
+  const slide = surface.animate(
+    [
+      { transform: "translate3d(0, 0, 0)", easing: ease },
+      { transform: `translate3d(-${PEEK_PX}px, 0, 0)`, offset: 0.25 },
+      { transform: `translate3d(-${PEEK_PX}px, 0, 0)`, offset: 0.7, easing: ease },
+      { transform: "translate3d(0, 0, 0)" },
+    ],
+    timing,
+  );
+  // The icons are invisible while the drawer is shut; show them for the
+  // length of the peek, one after another as the surface clears them.
+  const icons = [...drawer.querySelectorAll<HTMLElement>(".hc-option")].map((icon, i) =>
+    icon.animate(
+      [
+        { opacity: 0, transform: "scale(0.6)" },
+        { opacity: 1, transform: "scale(1)", offset: 0.25 + i * 0.03 },
+        { opacity: 1, transform: "scale(1)", offset: 0.7 },
+        { opacity: 0, transform: "scale(0.6)", offset: 0.85 },
+        { opacity: 0, transform: "scale(0.6)" },
+      ],
+      timing,
+    ),
+  );
+  return [slide, ...icons];
+}
+
 /** The class that animates the surface's settle; the drag itself is unanimated. */
 export const DRAWER_SURFACE_CLASS =
   "hc-surface transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]";
@@ -100,7 +145,10 @@ export function useCheckInDrawer({
     pointerId: -1,
     startX: 0,
     startY: 0,
+    /** Where the drag starts from: shut, open, or wherever a peek held it. */
     base: 0,
+    /** Whether the drag began with the drawer shut, so a pull means "open". */
+    opening: true,
     reveal: 0,
   });
   const suppressClickRef = useRef(false);
@@ -163,6 +211,7 @@ export function useCheckInDrawer({
         startX: e.clientX,
         startY: e.clientY,
         base: isOpen ? reveal : 0,
+        opening: !isOpen,
         reveal,
       };
     },
@@ -212,9 +261,9 @@ export function useCheckInDrawer({
       );
       // Opening asks for a deliberate pull; closing only needs a nudge back.
       const shouldOpen =
-        drag.base > 0
-          ? offset > drag.reveal * (1 - OPEN_RATIO)
-          : offset > drag.reveal * OPEN_RATIO;
+        drag.opening
+          ? offset > drag.reveal * OPEN_RATIO
+          : offset > drag.reveal * (1 - OPEN_RATIO);
 
       const node = surfaceRef.current;
       if (node) {

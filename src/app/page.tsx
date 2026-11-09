@@ -116,6 +116,7 @@ export default function LandingPage() {
 
           <div className="space-y-20 lg:space-y-28">
             <DemoRow
+              top
               title="Proof your partners can see"
               line="Check in with a tap, a photo, a voice note or a few words. Your partners see it and cheer."
             >
@@ -207,15 +208,19 @@ function DemoRow({
   title,
   line,
   flip = false,
+  top = false,
   children,
 }: {
   title: string;
   line: string;
   flip?: boolean;
+  /** For a demo that grows as it plays: its text stays put at the top
+      instead of sliding down to stay centred beside it. */
+  top?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-2 lg:gap-16 items-center">
+    <div className={cn("grid gap-8 lg:grid-cols-2 lg:gap-16", top ? "items-start" : "items-center")}>
       <div
         className={cn(
           "max-w-md mx-auto text-center lg:text-left lg:mx-0",

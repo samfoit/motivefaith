@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
-import { ArrowLeft, ArrowUp, Check, Clock, CloudRain, CornerDownRight, Flame, Heart, Play, RotateCcw } from "lucide-react";
+import { Check, Clock, CloudRain, CornerDownRight, Flame, Heart, Play, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
@@ -12,6 +12,7 @@ import {
   DrawerHandle,
   DRAWER_SURFACE_CLASS,
   DRAWER_SURFACE_STYLE,
+  peekDrawer,
   useCheckInDrawer,
 } from "@/components/habits/CheckInDrawer";
 import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
@@ -46,6 +47,19 @@ function useSeen(ref: React.RefObject<HTMLElement | null>, threshold = 0.4) {
     return () => io.disconnect();
   }, [ref, seen, threshold]);
   return seen;
+}
+
+/** Whether the element is on screen now. Unlike useSeen, it goes false again. */
+function useOnScreen(ref: React.RefObject<HTMLElement | null>, threshold = 0.4) {
+  const [onScreen, setOnScreen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setOnScreen(entry.isIntersecting), { threshold });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref, threshold]);
+  return onScreen;
 }
 
 /** A habit card at rest: the dashboard card's look, without its gestures. */
@@ -121,50 +135,172 @@ const RUN = { emoji: "\u{1F3C3}", title: "Morning run", color: "#14B8A6", streak
 /** The drawer store's key for this card; nothing else on the page has one. */
 const DEMO_HABIT_ID = "landing-demo-run";
 const DRAWER_ID = "landing-demo-drawer";
-/** The dashboard's one-time peek: enough to show a row of choices. */
-const PEEK_PX = 72;
+/** How many times the card shows its gesture before it leaves it to you. */
+const PEEKS = 3;
+/** From the start of one showing to the next: the peek, then a breath. */
+const PEEK_EVERY_MS = 4500;
 
 /** A voice note's waveform, fixed so the server and the client agree. */
 const WAVE = [6, 10, 16, 9, 20, 14, 24, 12, 18, 8, 22, 15, 10, 19, 13, 7, 16, 11, 6, 9];
 
 export function ProofDemo() {
   const stageRef = useRef<HTMLDivElement>(null);
-  const seen = useSeen(stageRef, 0.6);
+  const onScreen = useOnScreen(stageRef, 0.6);
   const [sent, setSent] = useState<CheckInAction | null>(null);
   /** 1: the check-in lands, 2: Alex hearts it, 3: Alex writes back. */
   const [step, setStep] = useState(0);
 
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const peekRef = useRef<Animation[]>([]);
+  /** Showings played so far, and whether the visitor has taken over. */
+  const lesson = useRef({ peeks: 0, done: false });
+  /** A touch that caught the card mid-peek, and the icon under it if any. */
+  const hold = useRef<{ held: boolean; under: CheckInAction | null }>({ held: false, under: null });
+
   // The dashboard card's own drawer: swipe or drag it, tap the handle, and
   // Escape or a tap elsewhere puts it back.
-  const { isOpen, toggle, close, trackRef, surfaceRef, consumeDragClick, trackHandlers } =
+  const { isOpen, toggle, close, trackRef, surfaceRef, dragRef, consumeDragClick, trackHandlers } =
     useCheckInDrawer({ habitId: DEMO_HABIT_ID, enabled: sent === null, optionCount: CHECK_IN_OPTIONS.length });
 
-  // On first sight, show what is behind the card. With a mouse, open it:
-  // nothing will close it by accident. On a touchscreen the next touch is
-  // most likely a scroll, which would snap an open drawer shut, so peek the
-  // way the dashboard does and let the swipe be theirs.
-  useEffect(() => {
-    if (!seen) return;
-    const fine = window.matchMedia("(pointer: fine)").matches;
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let back: ReturnType<typeof setTimeout> | undefined;
-    const start = setTimeout(() => {
-      if (fine) {
-        useHabitDrawerStore.getState().open(DEMO_HABIT_ID);
-        return;
+  const icons = useCallback(
+    () => [...(drawerRef.current?.querySelectorAll<HTMLElement>(".hc-option") ?? [])],
+    [],
+  );
+
+  /**
+   * The visitor takes over, and the showings stop. A card caught mid-peek
+   * stays exactly where the touch found it, its icons with it, instead of
+   * snapping back from under the finger: a swipe carries on from there, a
+   * tap on the arrow opens the drawer from there, and a tap on an icon it
+   * uncovered checks in with it. Returns how far aside the card is held and
+   * which uncovered icon, if any, is under the touch.
+   */
+  const takeOver = useCallback(
+    (x?: number, y?: number) => {
+      lesson.current.done = true;
+      const running = peekRef.current;
+      peekRef.current = [];
+      const surface = surfaceRef.current;
+      if (!surface || running[0]?.playState !== "running") {
+        for (const a of running) a.cancel();
+        return { held: 0, under: null };
       }
-      const node = surfaceRef.current;
-      if (!node || still || useHabitDrawerStore.getState().openHabitId === DEMO_HABIT_ID) return;
-      node.style.transform = `translate3d(-${PEEK_PX}px, 0, 0)`;
-      back = setTimeout(() => {
-        if (useHabitDrawerStore.getState().openHabitId !== DEMO_HABIT_ID) node.style.transform = "";
-      }, 1100);
-    }, 450);
-    return () => {
-      clearTimeout(start);
-      clearTimeout(back);
+      surface.style.transition = "none";
+      for (const icon of icons()) icon.style.transitionProperty = "none";
+      for (const a of running) {
+        try {
+          a.commitStyles();
+        } catch {
+          // Its element is gone: nothing to hold.
+        }
+        a.cancel();
+      }
+      const transform = getComputedStyle(surface).transform;
+      const held = transform && transform !== "none" ? Math.max(0, -new DOMMatrixReadOnly(transform).m41) : 0;
+      let under: CheckInAction | null = null;
+      if (x !== undefined && y !== undefined) {
+        const edge = surface.getBoundingClientRect().right;
+        icons().forEach((icon, i) => {
+          const r = icon.getBoundingClientRect();
+          const uncovered = r.left >= edge - 8 && Number(getComputedStyle(icon).opacity) > 0.5;
+          if (uncovered && x >= r.left - 4 && x <= r.right + 4 && y >= r.top - 4 && y <= r.bottom + 4) {
+            under = CHECK_IN_OPTIONS[i].action;
+          }
+        });
+      }
+      return { held, under };
+    },
+    [surfaceRef, icons],
+  );
+
+  /** Hands a held card and its icons back to the drawer's own state. */
+  const letGo = useCallback(() => {
+    const open = useHabitDrawerStore.getState().openHabitId === DEMO_HABIT_ID;
+    for (const icon of icons()) {
+      icon.style.transitionProperty = "";
+      icon.style.removeProperty("transform");
+      icon.style.opacity = open ? "1" : "0";
+    }
+    const surface = surfaceRef.current;
+    if (surface && !open && !dragRef.current.active) {
+      surface.style.transition = "";
+      surface.style.transform = "";
+    }
+  }, [icons, surfaceRef, dragRef]);
+
+  const pick = (action: CheckInAction) => {
+    takeOver();
+    close();
+    setSent(action);
+    setStep(1);
+  };
+
+  /** Lets the drag, click or pick that ends a held touch land, then lets go. */
+  const release = (e: React.PointerEvent<HTMLDivElement>, end: (e: React.PointerEvent) => void) => {
+    const dragged = dragRef.current.locked;
+    end(e);
+    const { held, under } = hold.current;
+    hold.current = { held: false, under: null };
+    if (!held) return;
+    if (under && !dragged && e.type === "pointerup") pick(under);
+    setTimeout(letGo, 120);
+  };
+
+  const handlers = {
+    onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+      const { held, under } = takeOver(e.clientX, e.clientY);
+      trackHandlers.onPointerDown(e);
+      hold.current = { held: held > 0, under };
+      // A swipe picks the card up from where the peek held it.
+      if (held > 0 && dragRef.current.active) dragRef.current.base = held;
+    },
+    onPointerMove: trackHandlers.onPointerMove,
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => release(e, trackHandlers.onPointerUp),
+    onPointerCancel: (e: React.PointerEvent<HTMLDivElement>) => release(e, trackHandlers.onPointerCancel),
+  };
+
+  // The card shows what to do rather than a line of text saying it. On a
+  // touchscreen it slides aside on its own, the ways to check in come out
+  // from under it, and it settles back: the dashboard's first-run peek, a
+  // few times while the demo is on screen and untouched. An open drawer
+  // there would snap shut at the next touch, most likely a scroll. With a
+  // mouse nothing closes it by accident, so it simply opens; without motion
+  // it opens too, at once, rather than slide anything.
+  useEffect(() => {
+    if (!onScreen || sent !== null) return;
+    const lessonNow = lesson.current;
+    if (lessonNow.done || lessonNow.peeks >= PEEKS) return;
+    const drawers = useHabitDrawerStore.getState();
+
+    if (
+      window.matchMedia("(pointer: fine)").matches ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      const open = setTimeout(() => {
+        lessonNow.done = true;
+        drawers.open(DEMO_HABIT_ID);
+      }, 450);
+      return () => clearTimeout(open);
+    }
+
+    let next: ReturnType<typeof setTimeout>;
+    const show = () => {
+      if (lessonNow.done || lessonNow.peeks >= PEEKS) return;
+      const surface = surfaceRef.current;
+      const drawer = drawerRef.current;
+      const busy =
+        document.visibilityState !== "visible" ||
+        dragRef.current.active ||
+        useHabitDrawerStore.getState().openHabitId === DEMO_HABIT_ID;
+      if (surface && drawer && !busy) {
+        lessonNow.peeks += 1;
+        peekRef.current = peekDrawer(surface, drawer);
+      }
+      next = setTimeout(show, PEEK_EVERY_MS);
     };
-  }, [seen, surfaceRef]);
+    next = setTimeout(show, lessonNow.peeks === 0 ? 450 : 1200);
+    return () => clearTimeout(next);
+  }, [onScreen, sent, surfaceRef, dragRef]);
 
   useEffect(() => {
     if (!sent) return;
@@ -191,20 +327,19 @@ export function ProofDemo() {
         {/* The card, its drawer behind it */}
         <div
           ref={trackRef}
-          {...trackHandlers}
+          {...handlers}
           className="hc-drawer relative overflow-hidden rounded-lg"
           style={{ ["--habit-color" as string]: RUN.color, touchAction: "pan-y" } as React.CSSProperties}
         >
           <CheckInDrawerOptions
+            ref={drawerRef}
             id={DRAWER_ID}
             habitTitle={RUN.title}
             options={CHECK_IN_OPTIONS}
             isOpen={isOpen && sent === null}
             onPick={(action) => {
               if (consumeDragClick()) return;
-              close();
-              setSent(action);
-              setStep(1);
+              pick(action);
             }}
           />
           <div
@@ -237,7 +372,10 @@ export function ProofDemo() {
                 drawerId={DRAWER_ID}
                 habitTitle={RUN.title}
                 onToggle={() => {
-                  if (!consumeDragClick()) toggle();
+                  if (consumeDragClick()) return;
+                  // From the keyboard too: no showing runs over an opening drawer.
+                  takeOver();
+                  toggle();
                 }}
                 className="-my-1"
               />
@@ -247,14 +385,20 @@ export function ProofDemo() {
           </div>
         </div>
 
-        {/* Alex's side of it */}
+        {/* Alex's side of it: a name until there is a conversation to rule off */}
         <div className="mt-6">
-          <div className="flex items-center gap-2 pb-3 border-b" style={{ borderColor: "var(--color-border)" }}>
+          <div
+            className={cn("flex items-center gap-2", sent && "pb-3 border-b")}
+            style={{ borderColor: "var(--color-border)" }}
+          >
             <Avatar name="Alex Rivera" size="sm" />
             <span className="text-sm font-medium">Alex</span>
           </div>
 
-          <div className="min-h-56 sm:min-h-64 pt-4 flex flex-col gap-3" aria-live="polite">
+          {/* Empty until you check in, so it costs no room before then.
+              It makes all its room at the tap, Alex's reply and the reset
+              included, so nothing on the page moves again as they arrive. */}
+          <div className={cn("flex flex-col gap-3", sent && "pt-4")} aria-live="polite">
             {sent && (
               <div className="self-end relative landing-demo-in">
                 <SentCheckIn action={sent} />
@@ -271,34 +415,27 @@ export function ProofDemo() {
               </div>
             )}
 
-            {step >= 3 && (
-              <div className={cn("chat-bubble self-start max-w-[80%] px-3.5 py-2 text-sm mt-2 landing-demo-in", bubbleCorners(false, true))}>
+            {sent && (
+              <div
+                className={cn(
+                  "chat-bubble self-start max-w-[80%] px-3.5 py-2 text-sm mt-2",
+                  bubbleCorners(false, true),
+                  step >= 3 ? "landing-demo-in" : "invisible",
+                )}
+              >
                 {rain ? "Rest up. Tomorrow\u2019s a new day \u{1F64F}" : "So proud of you! \u{1F64C}"}
               </div>
             )}
-
-            {sent === null && (
-              <p className="m-auto flex flex-col items-center gap-2 text-sm text-text-secondary text-center max-w-[26ch]">
-                {isOpen ? (
-                  <>
-                    <ArrowUp className="w-5 h-5 text-brand-ink" aria-hidden />
-                    Pick a check-in. Alex sees it here.
-                  </>
-                ) : (
-                  <>
-                    <ArrowLeft className="w-5 h-5 text-brand-ink" aria-hidden />
-                    Slide the card left to check in.
-                  </>
-                )}
-              </p>
-            )}
           </div>
 
-          {step >= 3 && (
+          {sent && (
             <button
               type="button"
               onClick={reset}
-              className="mt-2 inline-flex items-center gap-1.5 min-h-11 text-sm font-medium text-brand-ink rounded-md focus-visible:outline-2 focus-visible:outline-brand-ink"
+              className={cn(
+                "mt-2 inline-flex items-center gap-1.5 min-h-11 text-sm font-medium text-brand-ink rounded-md focus-visible:outline-2 focus-visible:outline-brand-ink",
+                step >= 3 ? "landing-demo-in" : "invisible",
+              )}
             >
               <RotateCcw className="w-4 h-4" aria-hidden />
               Try another
