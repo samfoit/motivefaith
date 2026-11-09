@@ -360,6 +360,8 @@ A Page White sheet rising from the bottom edge, 14px top corners, 16px padding, 
 ### Sky Scene (signature)
 A drawing fixed behind every app screen: a star field tiled at native size from the top down to the nav, and a 390 × 220 horizon band (sun or moon arc, far and near hills, still water, clouds) pinned just above the nav. Its colors come from the `--sky-*` tokens for the hour, and it fades in after hydration. On the landing page, the same drawings illustrate the five hours, each card wearing its own hour's palette.
 
+The sun meets the far ridge, not the horizon hidden behind it, at the hours the palette names: half up at the 6:30 sunrise, half down by 7:15 PM, gone by nightfall. Nothing in the sky sits on anything else (the sun and moon pass the clouds, birds, stars and the olive tree by), and stars come out only on the dark sky, where they can be seen. `sky.test.ts` walks the day to hold both.
+
 ## Do's and Don'ts
 
 ### Do:

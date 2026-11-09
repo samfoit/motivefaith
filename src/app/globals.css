@@ -652,7 +652,10 @@ body {
    for 600ms only — a standing color transition on every element would tax
    every repaint for a moment that comes twice a day. `!important` because
    for that moment it must win over each element's own transition. The
-   reduced-motion block below drops it; the store also never adds it then. */
+   reduced-motion block below drops it; the store also never adds it then.
+   `stop-color` carries the sky's horizon glow: without it the glow jumped
+   to its new color at once and flashed a dark smudge over the light screen
+   at nightfall, and a bright band over the dark one at sunrise. */
 html.theme-shift,
 html.theme-shift *,
 html.theme-shift *::before,
@@ -663,6 +666,7 @@ html.theme-shift *::after {
     border-color 0.45s ease,
     fill 0.45s ease,
     stroke 0.45s ease,
+    stop-color 0.45s ease,
     box-shadow 0.45s ease !important;
 }
 
