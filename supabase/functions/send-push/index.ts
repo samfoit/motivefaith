@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { forbidden, isInternalCaller } from "../_shared/internal-caller.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -395,32 +396,13 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Only allow calls from service_role (internal triggers / edge functions).
-  // Gateway verify_jwt is disabled so we check auth ourselves.
-  // The SUPABASE_SERVICE_ROLE_KEY env var uses the new sb_ format, but
-  // pg_net/vault may send the original JWT-format key. Accept either by
-  // also verifying the decoded JWT payload contains role: "service_role".
-  const authHeader = req.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "") ?? "";
+  // Only this project's own machinery calls this: the database's notify
+  // triggers and the other functions. The gateway checks nothing (verify_jwt
+  // is off), so the caller's key is checked here. See
+  // _shared/internal-caller.ts.
+  if (!(await isInternalCaller(req, Deno.env))) return forbidden();
+
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
-  let authorized = false;
-  if (token === serviceKey) {
-    authorized = true;
-  } else if (token) {
-    try {
-      const payloadB64 = token.split(".")[1];
-      const payload = JSON.parse(atob(payloadB64));
-      authorized = payload.role === "service_role";
-    } catch { /* invalid token */ }
-  }
-
-  if (!authorized) {
-    return new Response(
-      JSON.stringify({ error: "Forbidden" }),
-      { status: 403, headers: { "Content-Type": "application/json" } },
-    );
-  }
 
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
   const vapidPublicKey = Deno.env.get("NEXT_PUBLIC_VAPID_PUBLIC_KEY");
