@@ -32,6 +32,11 @@ CREATE OR REPLACE FUNCTION net.http_post(
 ) RETURNS BIGINT
 LANGUAGE sql AS $fn$ SELECT 1::bigint $fn$;
 
+-- Save everyone else's last week first, so the counts below are this
+-- file's people's alone and not whoever else the database holds. Nothing
+-- runs the hourly save on a local stack, so the seed accounts' weeks pile up.
+SELECT public.save_weekly_reviews();
+
 -- Last week's Sunday, and a day of it at noon.
 CREATE FUNCTION public._w() RETURNS DATE
 LANGUAGE sql AS $fn$

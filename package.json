@@ -21,6 +21,7 @@
     "test:capture-share": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/capture-share.test.sql",
     "test:push-subscriptions": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/push-subscriptions.test.sql",
     "test:checkin-sharing": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/checkin-sharing.test.sql",
+    "test:private-checkins": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/private-checkins.test.sql",
     "test:profile-privileges": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/profile-privileges.test.sql",
     "test:function-privileges": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/function-privileges.test.sql",
     "test:repeat-checkins": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/repeat-checkins.test.sql",
@@ -32,7 +33,7 @@
     "test:weekly-reviews": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/weekly-reviews.test.sql",
     "test:no-weekly-habits": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/no-weekly-habits.test.sql",
     "test:chat-encouragement-prompts": "psql \"postgresql://postgres:postgres@localhost:54322/postgres\" -f tests/chat-encouragement-prompts.test.sql",
-    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share && npm run test:push-subscriptions && npm run test:checkin-sharing && npm run test:profile-privileges && npm run test:function-privileges && npm run test:repeat-checkins && npm run test:day-time-windows && npm run test:habit-pauses && npm run test:missed-alert-timing && npm run test:schedule-changes && npm run test:habit-rate && npm run test:weekly-reviews && npm run test:no-weekly-habits && npm run test:chat-encouragement-prompts",
+    "test:sql": "npm run test:rls && npm run test:rain-check && npm run test:habit-visibility && npm run test:partner-notifications && npm run test:feed-preview && npm run test:group-feed-preview && npm run test:capture-share && npm run test:push-subscriptions && npm run test:checkin-sharing && npm run test:private-checkins && npm run test:profile-privileges && npm run test:function-privileges && npm run test:repeat-checkins && npm run test:day-time-windows && npm run test:habit-pauses && npm run test:missed-alert-timing && npm run test:schedule-changes && npm run test:habit-rate && npm run test:weekly-reviews && npm run test:no-weekly-habits && npm run test:chat-encouragement-prompts",
     "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
