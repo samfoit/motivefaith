@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { FeedProfile } from "./feed";
+import type { LateHabit } from "./late-habits";
 import type { Database } from "@/lib/supabase/types";
 import type { CompletionType } from "@/lib/constants/completion";
 
@@ -183,4 +184,6 @@ export type GroupTimelineData = {
     myParticipation: GroupChallengeParticipant | null;
   })[];
   myRole: "admin" | "member";
+  /** Other members' habits gone late today that you haven't written about since. */
+  lateHabits: LateHabit[];
 };

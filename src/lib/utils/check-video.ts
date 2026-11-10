@@ -122,8 +122,8 @@ export async function checkVideo(file: File): Promise<string | null> {
   }
 
   const duration = await readVideoDuration(file);
-  // Compared as shown, so a 15.4 s clip passes and the message never says
-  // "15" about a video it refused for being longer than 15.
+  // Compared as shown, to the nearest second, so a clip 0.4 s over the limit
+  // passes, and the message never gives a refused video the limit's own length.
   const seconds = duration === null ? null : Math.round(duration);
   if (seconds !== null && seconds > MAX_VIDEO_DURATION_S) {
     return `Videos can be up to ${MAX_VIDEO_DURATION_S} seconds. This one is ${seconds}.`;

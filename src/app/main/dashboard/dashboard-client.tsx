@@ -30,7 +30,12 @@ import {
 } from "@/lib/constants/completion";
 import type { RainCheckReason } from "@/lib/constants/rain-check";
 import { useCompleteHabit, PrivateOfflineError } from "@/lib/hooks/useCompleteHabit";
-import { useConfirmSharing } from "@/lib/hooks/useConfirmSharing";
+import {
+  useConfirmSharing,
+  usePrefetchSharing,
+  useSharingLooksClear,
+} from "@/lib/hooks/useConfirmSharing";
+import { useHabitDrawerStore } from "@/lib/stores/habit-drawer-store";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton, SkeletonScreen } from "@/components/ui/Skeleton";
 import { DashboardContentSkeleton } from "./DashboardSkeleton";
@@ -286,10 +291,16 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
   /** Render the real views only once there is something real to render. */
   const showData = !isPending && !(isError && !data);
 
-  /** Roll the cache back to a captured snapshot after a failed write. */
+  /**
+   * Roll the cache back to a captured snapshot after a failed write, then
+   * catch up with the server: the check-in cancelled any refetch that was in
+   * flight (one a change on another device had started, say), and the
+   * snapshot predates whatever it would have brought.
+   */
   const restore = useCallback(
     (snapshot: DashboardData | undefined) => {
       if (snapshot) queryClient.setQueryData(queryKey, snapshot);
+      void queryClient.invalidateQueries({ queryKey });
     },
     [queryClient, queryKey],
   );
@@ -314,6 +325,8 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
 
   const completeHabit = useCompleteHabit();
   const confirmSharing = useConfirmSharing();
+  const sharingLooksClear = useSharingLooksClear();
+  const prefetchSharing = usePrefetchSharing();
   const { show: showToast, remove: removeToast, ToastElements } = useToast();
 
   /**
@@ -579,11 +592,17 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
   }, []);
 
   /**
-   * Log a quick check-in in place, held for its undo window. Only ever called
-   * once `confirmSharing` has let it through.
+   * Log a quick check-in in place, held for its undo window. Nothing is sent
+   * until `allowed`, the sharing answer, says yes: a check-in shown before
+   * that answer was in (see `startQuickCheckIn`) is taken back on a "Not now",
+   * with nothing ever having gone out.
    */
   const quickComplete = useCallback(
-    (habitId: string, origin?: { x: number; y: number }) => {
+    (
+      habitId: string,
+      origin: { x: number; y: number } | undefined,
+      allowed: Promise<boolean>,
+    ) => {
       // One held at a time per habit. Two taps landing before the sharing
       // check answers both act on the render they were made in, and a second
       // quick check-in inside the undo window is far likelier a double tap
@@ -610,14 +629,21 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         applyCompletion(old, { habitId, tempId, type: "quick" }),
       );
 
-      const undo = () => {
-        const pending = settle(habitId);
-        if (!pending) return; // Window already closed — the check-in is sent.
-        removeToast(pending.toastId);
+      /** Off the screen again, with nothing sent. */
+      const takeBack = () => {
         queryClient.setQueryData<DashboardData>(queryKey, (old) =>
           removeCompletion(old, { habitId, tempId, streak: prevStreak }),
         );
+        // Checking in cancelled any refetch in flight; catch up on it.
+        void queryClient.invalidateQueries({ queryKey });
         endWrite();
+      };
+
+      const undo = () => {
+        const pending = settle(habitId);
+        if (!pending) return; // Window already closed: commit has it now.
+        removeToast(pending.toastId);
+        takeBack();
       };
 
       const commit = async () => {
@@ -626,6 +652,12 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         // Take the toast down with the window, so an "Undo" that would no
         // longer undo anything is never left on screen.
         removeToast(pending.toastId);
+        // Answered long before now, as a rule. If the question is still up
+        // as the window closes, the write waits for the answer.
+        if (!(await allowed)) {
+          takeBack();
+          return;
+        }
         try {
           const result = await completeHabit.mutateAsync({ habitId, type: "quick" });
           if (counts) {
@@ -665,6 +697,11 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         commit,
         timer: setTimeout(commit, UNDO_WINDOW_MS),
       });
+
+      // "Not now" inside the window takes it back then and there.
+      void allowed.then((yes) => {
+        if (!yes) undo();
+      });
     },
     [
       habits,
@@ -684,18 +721,38 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     ],
   );
 
+  /**
+   * A quick check-in, from the circle or the drawer.
+   *
+   * The first check-in that would reach a partner or a group waits for the
+   * user to say that's fine. When the last look found nobody it would reach,
+   * it shows at once and only its write, held for the undo window anyway,
+   * waits on a fresh look. That look used to come first, so for anyone whose
+   * check-ins reach nobody, a tap more than 30 seconds after the last look
+   * did nothing until the round trip landed: most taps on the Month view,
+   * which gets browsed before anything is checked in.
+   *
+   * When someone may see it, the question still comes before it shows.
+   */
+  const startQuickCheckIn = useCallback(
+    async (habitId: string, origin?: { x: number; y: number }) => {
+      const showNow = sharingLooksClear([habitId]);
+      // Anything but a yes sends nothing.
+      const allowed = confirmSharing([habitId]).catch(() => false);
+      if (!showNow && !(await allowed)) return;
+      quickComplete(habitId, origin, allowed);
+    },
+    [sharingLooksClear, confirmSharing, quickComplete],
+  );
+
   // The circle: the day's first check-in. Doing the habit again goes through
   // the drawer, so a stray tap on a done habit logs nothing.
-  //
-  // The first check-in that would reach a partner or a group waits for the
-  // user to say that's fine; every other one goes straight through.
   const handleQuickComplete = useCallback(
     async (habitId: string, origin?: { x: number; y: number }) => {
       if (completionMap.get(habitId)) return;
-      if (!(await confirmSharing([habitId]))) return;
-      quickComplete(habitId, origin);
+      await startQuickCheckIn(habitId, origin);
     },
-    [completionMap, confirmSharing, quickComplete],
+    [completionMap, startQuickCheckIn],
   );
 
   useEffect(() => {
@@ -749,18 +806,31 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       origin?: { x: number; y: number },
     ) => {
       if (action === "rain_check" && !canRainCheck(habitId)) return;
+      // A quick check-in needs nothing else from the user — log it in place.
+      if (action === "quick") {
+        await startQuickCheckIn(habitId, origin);
+        return;
+      }
       // Asked before the camera, recorder or note opens rather than when it
       // is sent, so saying "not now" never throws away a take or a note.
       if (!(await confirmSharing([habitId]))) return;
-      // A quick check-in needs nothing else from the user — log it in place.
-      if (action === "quick") {
-        quickComplete(habitId, origin);
-        return;
-      }
       setCompletionAction(action);
       setCompletionHabitId(habitId);
     },
-    [canRainCheck, confirmSharing, quickComplete],
+    [canRainCheck, confirmSharing, startQuickCheckIn],
+  );
+
+  // The drawer's photo, voice and note sheets do wait on the sharing answer,
+  // so bring it up to date as the drawer opens: by the time one is picked it
+  // is fresh, and nothing waits.
+  useEffect(
+    () =>
+      useHabitDrawerStore.subscribe((state, prev) => {
+        if (state.openHabitId && state.openHabitId !== prev.openHabitId) {
+          prefetchSharing();
+        }
+      }),
+    [prefetchSharing],
   );
 
   const handleCreateHabit = useCallback(() => {

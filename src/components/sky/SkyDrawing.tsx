@@ -1,5 +1,17 @@
 import type React from "react";
-import { sky, BAND_W, BAND_H, HORIZON } from "@/lib/lamplight/sky";
+import {
+  sky,
+  BAND_W,
+  BAND_H,
+  HORIZON,
+  BIRD_ROWS,
+  CLOUD_ROWS,
+  EVENING_STAR_AT,
+  MORNING_STAR_AT,
+  OLIVE_TREE_AT,
+  ORION,
+  PLEIADES,
+} from "@/lib/lamplight/sky";
 
 /**
  * The Lamplight sky as plain drawings: the horizon band (sun, moon, stars,
@@ -36,7 +48,7 @@ const BAND_STARS: [number, number, number, number, string?][] = [
   [8, 101.3, 0.77, 0.48, "sky-twinkle"], [353, 28.7, 0.64, 0.66], [280.7, 73.8, 0.59, 0.51],
   [305.2, 100.6, 0.63, 0.84], [372.8, 82, 1.21, 0.89, "sky-twinkle"],
   [246.2, 112.2, 0.57, 0.89, "sky-twinkle sky-twinkle-slow"], [78.4, 132, 0.97, 0.76],
-  [27.6, 44.4, 1.08, 0.78], [338.3, 43.3, 1.29, 0.92, "sky-twinkle"],
+  [12, 60, 1.08, 0.78], [338.3, 43.3, 1.29, 0.92, "sky-twinkle"],
   [164.5, 126.2, 0.84, 0.47, "sky-twinkle sky-twinkle-slow"],
 ];
 
@@ -48,7 +60,7 @@ const BIRD = "M0 0Q4 -4 8 0Q12 -4 16 0";
 // at -1200 and 1600, which left bare edges on anything wider than about
 // 2,800px: an ultrawide, a 4K monitor at 100%, a zoomed-out window. Past that
 // hand-drawn stretch they roll on gently, joined without a kink.
-const FAR_HILLS =
+export const FAR_HILLS =
   "M-10000 174V146C-8800 140-7600 150-6400 145C-5200 140-4200 149-3200 144C-2200 139-1500 160-1200 150C-900 140-600 136-400 142C-200 148-60 136 0 148C60 136 110 132 170 142C230 152 280 128 340 132C365 134 380 138 390 140C500 150 700 130 900 138C1100 146 1400 136 1600 142C1800 148 2600 137 3400 143C4200 149 5200 139 6400 144C7600 149 8800 141 10400 145V174Z";
 const NEAR_HILL =
   "M-10000 174V161C-8600 156-7200 166-5800 161C-4400 156-1700 170-1200 160C-700 150-300 154 0 156C40 147 92 149 132 160C150 165 166 170 178 174Z";
@@ -113,21 +125,29 @@ export function SkyBand({ hour, idPrefix, className, style }: DrawingProps) {
         ))}
         {/* "Canst thou bind the sweet influences of Pleiades, or loose
             the bands of Orion?" (Job 38:31) */}
-        <g transform="translate(214 52)">
-          <circle cx={0} cy={0} r={1.15} /><circle cx={6} cy={-3} r={1} /><circle cx={11} cy={1} r={1.2} />
-          <circle cx={8} cy={6} r={0.9} /><circle cx={2.5} cy={5.5} r={0.85} /><circle cx={15} cy={-4} r={0.8} />
-          <circle cx={-4} cy={4} r={0.75} />
-        </g>
-        <g transform="translate(104 84)">
-          <circle cx={0} cy={0} r={1.25} /><circle cx={9} cy={-3.5} r={1.3} /><circle cx={18} cy={-7} r={1.25} />
-          <circle cx={-6} cy={-24} r={1.35} opacity={0.8} /><circle cx={25} cy={-28} r={1.2} opacity={0.8} />
-          <circle cx={-4} cy={22} r={1.1} opacity={0.7} /><circle cx={23} cy={17} r={1.4} opacity={0.8} />
-        </g>
+        {[PLEIADES, ORION].map(({ at: [x, y], stars }) => (
+          <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
+            {stars.map(([cx, cy, r, op]) => (
+              <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} opacity={op} />
+            ))}
+          </g>
+        ))}
       </g>
 
-      {/* The morning star before sunrise; the same light low in the west at evening. */}
-      <path transform="translate(320 60)" d={SPARKLE} style={fill("--sky-star")} opacity={s.morningStar} />
-      <path transform="translate(64 88) scale(.8)" d={SPARKLE} fill="#F4E7C8" opacity={s.eveningStar} />
+      {/* The morning star in the east before sunrise; the same light low in
+          the west at nightfall. */}
+      <path
+        transform={`translate(${MORNING_STAR_AT[0]} ${MORNING_STAR_AT[1]})`}
+        d={SPARKLE}
+        style={fill("--sky-star")}
+        opacity={s.morningStar}
+      />
+      <path
+        transform={`translate(${EVENING_STAR_AT[0]} ${EVENING_STAR_AT[1]}) scale(.8)`}
+        d={SPARKLE}
+        style={fill("--sky-star")}
+        opacity={s.eveningStar}
+      />
 
       <g transform={`translate(${s.moonX} ${s.moonY})`} opacity={s.moonOp}>
         <circle r={30} style={fill("--sky-star")} opacity={0.06} />
@@ -147,24 +167,27 @@ export function SkyBand({ hour, idPrefix, className, style }: DrawingProps) {
       </g>
 
       <g style={{ ...fill("--sky-cloud"), ...stroke("--sky-cloud-line") }} strokeWidth={1.25} opacity={s.clouds}>
-        <path transform={`translate(${s.cloud1} 52)`} d={CLOUD} />
-        <path transform={`translate(${s.cloud2} 98) scale(.72)`} d={CLOUD} />
-        <path transform={`translate(${s.cloud3} 34) scale(.5)`} d={CLOUD} />
+        {[s.cloud1, s.cloud2, s.cloud3].map((x, i) => (
+          <path key={i} transform={`translate(${x} ${CLOUD_ROWS[i].y}) scale(${CLOUD_ROWS[i].scale})`} d={CLOUD} />
+        ))}
       </g>
 
       {/* "Behold the fowls of the air" (Matthew 6:26) */}
       <g fill="none" style={stroke("--sky-line")} strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" opacity={s.birds}>
-        <path transform={`translate(${s.birdX} 76)`} d={BIRD} />
-        <path transform={`translate(${s.birdX2} 88) scale(.7)`} d={BIRD} />
+        {[s.birdX, s.birdX2].map((x, i) => (
+          <path key={i} transform={`translate(${x} ${BIRD_ROWS[i].y}) scale(${BIRD_ROWS[i].scale})`} d={BIRD} />
+        ))}
       </g>
 
       <path d={FAR_HILLS} style={fill("--sky-hill-far")} />
       <g style={fill("--sky-hill-near")}>
         {/* An olive tree on the far ridge */}
-        <path d="M296 133V124" style={stroke("--sky-hill-near")} strokeWidth={1.6} strokeLinecap="round" />
-        <ellipse cx={292.5} cy={121} rx={6} ry={3.8} />
-        <ellipse cx={300} cy={119.5} rx={5.5} ry={3.6} />
-        <ellipse cx={296} cy={115.5} rx={4.6} ry={3.2} />
+        <g transform={`translate(${OLIVE_TREE_AT[0]} ${OLIVE_TREE_AT[1]})`}>
+          <path d="M0 0V-9" style={stroke("--sky-hill-near")} strokeWidth={1.6} strokeLinecap="round" />
+          <ellipse cx={-3.5} cy={-12} rx={6} ry={3.8} />
+          <ellipse cx={4} cy={-13.5} rx={5.5} ry={3.6} />
+          <ellipse cx={0} cy={-17.5} rx={4.6} ry={3.2} />
+        </g>
         <path d={NEAR_HILL} />
       </g>
 

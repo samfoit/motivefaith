@@ -6,7 +6,9 @@ import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import { HeroSky } from "@/components/sky/HeroSky";
 
-export const dynamic = "force-static";
+// Rendered per request, like every page, and never `force-static`: a page
+// built ahead of time has no CSP nonce on its inline scripts, so the browser
+// refuses them all and nothing on it runs (see the root layout).
 
 /* ── Data ─────────────────────────────────────────────────── */
 
@@ -114,6 +116,7 @@ export default function LandingPage() {
 
           <div className="space-y-20 lg:space-y-28">
             <DemoRow
+              top
               title="Proof your partners can see"
               line="Check in with a tap, a photo, a voice note or a few words. Your partners see it and cheer."
             >
@@ -205,15 +208,19 @@ function DemoRow({
   title,
   line,
   flip = false,
+  top = false,
   children,
 }: {
   title: string;
   line: string;
   flip?: boolean;
+  /** For a demo that grows as it plays: its text stays put at the top
+      instead of sliding down to stay centred beside it. */
+  top?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-2 lg:gap-16 items-center">
+    <div className={cn("grid gap-8 lg:grid-cols-2 lg:gap-16", top ? "items-start" : "items-center")}>
       <div
         className={cn(
           "max-w-md mx-auto text-center lg:text-left lg:mx-0",
@@ -328,7 +335,7 @@ function HeroMockup() {
           className="text-xs lg:text-sm"
           style={{ color: "var(--color-text-secondary)" }}
         >
-          <span className="font-semibold">Alex</span> sent you an encouragement!
+          <span className="font-semibold">Barnabas</span> sent you an encouragement!
         </p>
       </div>
     </div>

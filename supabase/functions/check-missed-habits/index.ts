@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { missedPush } from "./missed-push.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,16 +61,6 @@ async function sendPush(
     console.error("Failed to invoke send-push:", err);
     return false;
   }
-}
-
-/**
- * The push's title: "🏃 Olive missed Run", and "… yesterday" when the day
- * missed is no longer the owner's today. A habit can have no emoji; it is
- * left out rather than pushed as "null".
- */
-function missedTitle(alert: MissedAlert): string {
-  const when = alert.owner_today && alert.owner_date < alert.owner_today ? " yesterday" : "";
-  return `${alert.emoji ? `${alert.emoji} ` : ""}${alert.user_name} missed ${alert.title}${when}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,8 +141,7 @@ Deno.serve(async (req) => {
     const results = await Promise.allSettled(
       batch.map((alert) =>
         sendPush(supabaseUrl, {
-          title: missedTitle(alert),
-          body: "Send some encouragement!",
+          ...missedPush(alert),
           url: `/main/feed/${alert.user_id}`,
           type: "missed_habit",
           user_id: alert.partner_id,

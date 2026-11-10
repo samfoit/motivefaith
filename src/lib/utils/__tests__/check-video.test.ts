@@ -129,15 +129,15 @@ describe("checkVideo", () => {
   });
 
   it("turns away a video longer than the camera's own limit, saying how long it is", async () => {
-    expect(await checkVideo(videoOf(42))).toBe(
-      "Videos can be up to 15 seconds. This one is 42.",
+    expect(await checkVideo(videoOf(100))).toBe(
+      "Videos can be up to 60 seconds. This one is 100.",
     );
   });
 
   it("measures the length as it would be shown, to the nearest second", async () => {
-    expect(await checkVideo(videoOf(15.4))).toBeNull();
-    expect(await checkVideo(videoOf(15.6))).toBe(
-      "Videos can be up to 15 seconds. This one is 16.",
+    expect(await checkVideo(videoOf(60.4))).toBeNull();
+    expect(await checkVideo(videoOf(60.6))).toBe(
+      "Videos can be up to 60 seconds. This one is 61.",
     );
   });
 

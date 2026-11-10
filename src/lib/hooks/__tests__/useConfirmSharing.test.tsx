@@ -8,7 +8,11 @@ import {
   type CheckinSharing,
 } from "@/lib/data/checkin-sharing";
 import { useCheckinSharingStore } from "@/lib/stores/checkin-sharing-store";
-import { useConfirmSharing } from "../useConfirmSharing";
+import {
+  useConfirmSharing,
+  usePrefetchSharing,
+  useSharingLooksClear,
+} from "../useConfirmSharing";
 
 const rpc = vi.fn();
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({}) }));
@@ -204,5 +208,82 @@ describe("useConfirmSharing", () => {
     expect(useCheckinSharingStore.getState().question).toEqual({
       audience: null,
     });
+  });
+});
+
+function renderWith<T>(hook: () => T, queryClient = new QueryClient()) {
+  const { result } = renderHook(hook, {
+    wrapper: ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+  return result.current;
+}
+
+describe("useSharingLooksClear", () => {
+  function looksClear(sharing: CheckinSharing | undefined, habitIds: string[]) {
+    const queryClient = new QueryClient();
+    if (sharing) queryClient.setQueryData(checkinSharingKey("me"), sharing);
+    return renderWith(() => useSharingLooksClear(), queryClient)(habitIds);
+  }
+
+  it("is clear once the user has said yes", () => {
+    expect(looksClear({ confirmed: true, audience: [] }, ["run"])).toBe(true);
+  });
+
+  it("is clear when the last look found nobody on these habits", () => {
+    expect(looksClear({ confirmed: false, audience: [PAT] }, ["alone"])).toBe(true);
+  });
+
+  it("is not clear when someone would see it", () => {
+    expect(looksClear({ confirmed: false, audience: [PAT] }, ["alone", "run"])).toBe(false);
+  });
+
+  it("is not clear when it has never been told", () => {
+    // Not knowing is not the same as reaching nobody.
+    expect(looksClear(undefined, ["alone"])).toBe(false);
+  });
+
+  it("never asks the server", () => {
+    looksClear({ confirmed: false, audience: [] }, ["alone"]);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("usePrefetchSharing", () => {
+  it("asks the server again once the last look is out of date", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      checkinSharingKey("me"),
+      { confirmed: false, audience: [] },
+      { updatedAt: Date.now() - 60_000 },
+    );
+    renderWith(() => usePrefetchSharing(), queryClient)();
+    await settle();
+
+    expect(rpc).toHaveBeenCalledWith("get_checkin_audience");
+    expect(queryClient.getQueryData(checkinSharingKey("me"))).toEqual(server);
+  });
+
+  it("leaves a recent look alone", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(checkinSharingKey("me"), { confirmed: false, audience: [] });
+    renderWith(() => usePrefetchSharing(), queryClient)();
+    await settle();
+
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("never asks again once the server has the yes", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      checkinSharingKey("me"),
+      { confirmed: true, audience: [] },
+      { updatedAt: Date.now() - 24 * 60 * 60_000 },
+    );
+    renderWith(() => usePrefetchSharing(), queryClient)();
+    await settle();
+
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

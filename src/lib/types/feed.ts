@@ -1,4 +1,5 @@
 import type { CompletionType } from "@/lib/constants/completion";
+import type { LateHabit } from "@/lib/types/late-habits";
 // ---------------------------------------------------------------------------
 // Feed redesign types — Snapchat-style friend-grouped feed
 // ---------------------------------------------------------------------------
@@ -97,4 +98,6 @@ export type JourneyData = {
   habits: JourneyHabit[];
   completions: JourneyCompletion[];
   encouragements: JourneyEncouragement[];
+  /** Their habits gone late today that you haven't written about since. */
+  lateHabits: LateHabit[];
 };

@@ -16,7 +16,12 @@ import { getSupportedMimeType } from "@/lib/utils/media-recorder";
 import { MIME_TO_EXT } from "@/lib/utils/media-types";
 import { checkVideo, readVideoDuration } from "@/lib/utils/check-video";
 import { canTranscodeVideo, transcodeVideo, TranscodeError } from "@/lib/utils/transcode-video";
-import { MAX_AUDIO_DURATION_S, MAX_VIDEO_DURATION_S } from "@/lib/constants/limits";
+import {
+  AUDIO_BITS_PER_SECOND,
+  MAX_AUDIO_DURATION_S,
+  MAX_VIDEO_DURATION_S,
+  VIDEO_BITS_PER_SECOND,
+} from "@/lib/constants/limits";
 import { elementAspect, viewfinderCrop } from "@/lib/utils/viewfinder-crop";
 
 // ---------------------------------------------------------------------------
@@ -746,7 +751,14 @@ export function CameraCapture({
       }
     }
 
-    const recorder = new MediaRecorder(recordStream, { mimeType: mimeInfo.mimeType });
+    // At a set bitrate rather than the browser's own, so a full-length take
+    // comes out about the same size on every phone, well under the upload
+    // limit.
+    const recorder = new MediaRecorder(recordStream, {
+      mimeType: mimeInfo.mimeType,
+      videoBitsPerSecond: VIDEO_BITS_PER_SECOND,
+      audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
+    });
     recorderRef.current = recorder;
 
     recorder.ondataavailable = (e) => {

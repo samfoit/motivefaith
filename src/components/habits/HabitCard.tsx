@@ -14,6 +14,7 @@ import {
   DrawerHandle,
   REPEAT_OPTIONS,
   originOf,
+  peekDrawer,
   useCheckInDrawer,
 } from "@/components/habits/CheckInDrawer";
 import {
@@ -27,14 +28,11 @@ import type { HabitPause } from "@/lib/utils/pauses";
 import type { ScheduleChange } from "@/lib/utils/schedule";
 
 /**
- * The one-time peek: how far the card slides on its own to show what is
- * behind it — enough to uncover "Quick check-in" and the edge of the next
- * option, so it reads as a row of choices rather than a single button.
+ * The one-time peek (peekDrawer): the card slides aside on its own to show
+ * what is behind it. This lets the list's entrance stagger finish before
+ * anything else moves.
  */
-const PEEK_PX = 72;
-/** Lets the list's entrance stagger finish before anything else moves. */
 const PEEK_DELAY_MS = 1200;
-const PEEK_DURATION_MS = 1700;
 const PEEK_SEEN_KEY = "motive-drawer-peek-seen";
 
 /** Per device: someone who has seen the drawer does not need it shown again. */
@@ -217,7 +215,7 @@ export const HabitCard = React.memo(function HabitCard({
     const timer = setTimeout(() => {
       const node = surfaceRef.current;
       const drawer = drawerRef.current;
-      if (!node || !drawer || typeof node.animate !== "function") return;
+      if (!node || !drawer) return;
       // Not while the user is busy with a card or the page is in the background.
       if (
         document.visibilityState !== "visible" ||
@@ -227,33 +225,7 @@ export const HabitCard = React.memo(function HabitCard({
         return;
       }
       markDrawerPeekSeen();
-      const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
-      const timing: KeyframeAnimationOptions = { duration: PEEK_DURATION_MS };
-      const slide = node.animate(
-        [
-          { transform: "translate3d(0, 0, 0)", easing: ease },
-          { transform: `translate3d(-${PEEK_PX}px, 0, 0)`, offset: 0.25 },
-          { transform: `translate3d(-${PEEK_PX}px, 0, 0)`, offset: 0.7, easing: ease },
-          { transform: "translate3d(0, 0, 0)" },
-        ],
-        timing,
-      );
-      // The icons are invisible while the drawer is shut; show them for the
-      // length of the peek, the way they appear when it opens for real.
-      const icons = [...drawer.querySelectorAll<HTMLElement>(".hc-option")].map(
-        (icon, i) =>
-          icon.animate(
-            [
-              { opacity: 0, transform: "scale(0.6)" },
-              { opacity: 1, transform: "scale(1)", offset: 0.25 + i * 0.03 },
-              { opacity: 1, transform: "scale(1)", offset: 0.7 },
-              { opacity: 0, transform: "scale(0.6)", offset: 0.85 },
-              { opacity: 0, transform: "scale(0.6)" },
-            ],
-            timing,
-          ),
-      );
-      peekAnimationsRef.current = [slide, ...icons];
+      peekAnimationsRef.current = peekDrawer(node, drawer);
     }, PEEK_DELAY_MS);
     return () => {
       clearTimeout(timer);

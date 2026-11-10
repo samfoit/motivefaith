@@ -10,7 +10,7 @@ import { useOutboxDrain } from "@/lib/hooks/useOutboxDrain";
 import { initializeTheme } from "@/lib/stores/theme-store";
 import { getBrowserTimezone } from "@/lib/utils/timezone";
 import { createClient } from "@/lib/supabase/client";
-import { createIDBPersister } from "@/lib/query-persister";
+import { createIDBPersister, markRestoredStale } from "@/lib/query-persister";
 import { readLocalUserId } from "@/lib/auth/local-session";
 import { purgeLocalUserData } from "@/lib/auth/purge-local-data";
 
@@ -222,7 +222,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }));
 
   return (
-    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={persistOptions}
+      onSuccess={() => markRestoredStale(queryClient)}
+    >
       <AuthHooksGate />
       {children}
       <UpdatePrompt />

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { TOP_BAR_ICON_BUTTON_CLASS } from "./topBarStyles";
-import { useMissedHabitCount } from "@/lib/hooks/useMissedHabits";
+import { useLateHabitCount, LATE_HABITS_KEY } from "@/lib/hooks/useLateHabits";
 import { usePartnerInbox, PARTNER_INBOX_KEY } from "@/lib/hooks/usePartnerInbox";
 import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 
@@ -17,19 +17,21 @@ import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
 export function InboxBell() {
   const userId = useAuthUserId();
   const queryClient = useQueryClient();
-  const { data: missedCount = 0 } = useMissedHabitCount(userId);
+  // Friends' habits waiting on a word from you, as the inbox lists them.
+  const lateCount = useLateHabitCount(userId);
   // Unanswered invitations and requests belong on the same badge: both are
-  // things the inbox is holding for you. A missed-habit nudge clears itself at
-  // midnight; a partnership question does not, so it is worth the dot.
+  // things the inbox is holding for you. A late habit clears itself once you
+  // write to them or their next day ends; a partnership question does not, so
+  // it is worth the dot.
   const { data: partnerItems = [] } = usePartnerInbox(userId);
-  const unreadCount = missedCount + partnerItems.length;
+  const unreadCount = lateCount + partnerItems.length;
 
-  // Invalidate missed-habits count on tab focus / visibility change
+  // Invalidate the late habits on tab focus / visibility change
   // instead of maintaining a separate realtime channel.
   // The feed page's realtime channel already listens for completions;
   // this covers the case where the user returns to the app.
   const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["missed-habits-count"] });
+    queryClient.invalidateQueries({ queryKey: LATE_HABITS_KEY });
     queryClient.invalidateQueries({ queryKey: PARTNER_INBOX_KEY });
   }, [queryClient]);
 

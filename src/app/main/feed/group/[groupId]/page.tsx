@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
+import { fetchLateHabits } from "@/lib/data/late-habits";
 import { GroupTimelineClient } from "./group-timeline-client";
 
 export const revalidate = 30;
@@ -98,6 +99,7 @@ export default async function GroupTimelinePage({ params }: Props) {
     challengeParticipantRows,
     { data: msgReactions },
     { data: activityRows },
+    lateHabits,
   ] = await Promise.all([
     memberUserIds.length > 0
       ? supabase.from("profiles").select("id, display_name, avatar_url, username").in("id", memberUserIds)
@@ -112,6 +114,7 @@ export default async function GroupTimelinePage({ params }: Props) {
       p_group_id: groupId,
       p_user_id: user.id,
     }),
+    fetchLateHabits(supabase, { groupId }),
   ]);
 
   const memberProfiles = memberProfileRows ?? [];
@@ -245,6 +248,7 @@ export default async function GroupTimelinePage({ params }: Props) {
     messages,
     challenges: challengesWithParticipants,
     myRole: myMembership.role as "admin" | "member",
+    lateHabits,
   };
 
   return <GroupTimelineClient data={data} userId={user.id} />;

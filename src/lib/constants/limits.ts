@@ -9,9 +9,11 @@ export const MAX_IMAGE_SIZE_MB = 5;
  * Largest video that can be sent. The `completions` bucket's file_size_limit
  * (005_storage.sql) is what enforces it; this copy, which must match it, lets
  * a picked video be refused before it is uploaded instead of after. Phones
- * record 1080p at about 1 MB a second and 4K at three to seven, so this, not
- * the length, is what a short 4K clip runs into where it can't be shrunk on
- * the phone first (see transcode-video, whose 720p comes to about 5 MB).
+ * record 1080p at about 1 MB a second and 4K at three to seven, so where a
+ * video can't be shrunk on the phone first (transcode-video), this, not the
+ * length, is what a full minute of 1080p or a short 4K clip runs into.
+ * Recorded in the app or shrunk, a full-length video is about 20 MB (see
+ * VIDEO_BITS_PER_SECOND).
  */
 export const MAX_VIDEO_SIZE_MB = 50;
 export const MAX_AUDIO_SIZE_MB = 5;
@@ -29,9 +31,24 @@ export const MAX_AVATAR_SOURCE_BYTES = 25 * 1024 * 1024;
  * Longest video that can be sent: where the camera stops a take, and how much
  * of a longer video picked from the camera roll is kept. Only the client can
  * hold anyone to it — the server cannot read a video's length.
+ *
+ * A minute, so there is time to say something to the camera, as there is in
+ * a voice note. Raising it costs in step: a full video is stored for good and
+ * downloaded on every play, at about a third of a MB a second, and a picked
+ * video's re-encode runs in real time, so a full one takes as long as it
+ * lasts to prepare.
  */
-export const MAX_VIDEO_DURATION_S = 15;
+export const MAX_VIDEO_DURATION_S = 60;
 export const MAX_AUDIO_DURATION_S = 120;
+/**
+ * The bitrates every video is recorded at: the camera's own takes, and a
+ * picked video as it is re-encoded (transcode-video). Together about 0.33 MB
+ * a second, so a full MAX_VIDEO_DURATION_S video is about 20 MB, well inside
+ * MAX_VIDEO_SIZE_MB. Left to the browser, how big a full take came out would
+ * be up to each phone.
+ */
+export const VIDEO_BITS_PER_SECOND = 2_500_000;
+export const AUDIO_BITS_PER_SECOND = 128_000;
 
 // --- Content limits ---
 export const MAX_MESSAGE_LENGTH = 500;

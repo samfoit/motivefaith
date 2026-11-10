@@ -2,9 +2,9 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getAuthUser, createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
-import { InboxClient, type MissedHabitNotification } from "./inbox-client";
+import { fetchLateHabits } from "@/lib/data/late-habits";
+import { InboxClient } from "./inbox-client";
 import InboxLoading from "./loading";
-import { todayDateKey, getDayOfWeek, dayBoundsUtc, currentTimeHHMM, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 import {
   toPartnerInboxItem,
   type PartnerInboxItem,
@@ -30,38 +30,14 @@ export default async function InboxPage() {
 async function InboxData({ userId }: { userId: string }) {
   const supabase = await createServerSupabase();
 
-  const { data: profileData } = await supabase
-    .from("profiles")
-    .select("timezone")
-    .eq("id", userId)
-    .single();
-
-  const timeZone = profileData?.timezone || DEFAULT_TIMEZONE;
-  const todayStr = todayDateKey(timeZone);
-  const todayDow = getDayOfWeek(new Date(), timeZone);
-  const [dayStart, dayEnd] = dayBoundsUtc(todayStr, timeZone);
-
-  interface InboxMissedRow {
-    habit_id: string;
-    title: string;
-    emoji: string;
-    color: string;
-    time_window: { start?: string; end?: string } | null;
-    friend_id: string;
-    friend_name: string;
-    friend_avatar: string | null;
-  }
-
-  const [{ data, error }, { data: partnerRows, error: partnerError }] =
+  // Friends' habits waiting on a word from you: the same rows each friend's
+  // chat shows on its card, so every one here has its card where it leads.
+  // A failure there lists none rather than taking the partnership section
+  // down with it — they are independent, and an unanswered invitation is the
+  // more actionable of the two.
+  const [lateHabits, { data: partnerRows, error: partnerError }] =
     await Promise.all([
-      untypedRpc<InboxMissedRow[]>(supabase, "get_inbox_missed_habits", {
-        p_user_id: userId,
-        p_today_date: todayStr,
-        p_day_of_week: todayDow,
-        p_day_start: dayStart,
-        p_day_end: dayEnd,
-        p_current_time: currentTimeHHMM(timeZone),
-      }),
+      fetchLateHabits(supabase),
       untypedRpc<PartnerInboxRpcRow[]>(supabase, "get_partner_inbox"),
     ]);
 
@@ -73,36 +49,9 @@ async function InboxData({ userId }: { userId: string }) {
     toPartnerInboxItem,
   );
 
-  // A missed-habits failure should not take the partnership section down with
-  // it — they are independent, and an unanswered invitation is the more
-  // actionable of the two.
-  if (error) {
-    console.error("get_inbox_missed_habits RPC failed:", error.message);
-    return (
-      <InboxClient
-        missedHabits={[]}
-        partnerItems={partnerItems}
-        userId={userId}
-      />
-    );
-  }
-
-  const missedHabits: MissedHabitNotification[] = (data ?? []).map(
-    (row) => ({
-      habitId: row.habit_id,
-      title: row.title,
-      emoji: row.emoji,
-      color: row.color,
-      friendId: row.friend_id,
-      friendName: row.friend_name,
-      friendAvatar: row.friend_avatar,
-      timeWindow: row.time_window,
-    }),
-  );
-
   return (
     <InboxClient
-      missedHabits={missedHabits}
+      lateHabits={lateHabits}
       partnerItems={partnerItems}
       userId={userId}
     />
