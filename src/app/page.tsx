@@ -335,7 +335,7 @@ function HeroMockup() {
           className="text-xs lg:text-sm"
           style={{ color: "var(--color-text-secondary)" }}
         >
-          <span className="font-semibold">Alex</span> sent you an encouragement!
+          <span className="font-semibold">Barnabas</span> sent you an encouragement!
         </p>
       </div>
     </div>

@@ -147,7 +147,7 @@ export function ProofDemo() {
   const stageRef = useRef<HTMLDivElement>(null);
   const onScreen = useOnScreen(stageRef, 0.6);
   const [sent, setSent] = useState<CheckInAction | null>(null);
-  /** 1: the check-in lands, 2: Alex hearts it, 3: Alex writes back. */
+  /** 1: the check-in lands, 2: Barnabas hearts it, 3: Barnabas writes back. */
   const [step, setStep] = useState(0);
 
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -408,18 +408,18 @@ export function ProofDemo() {
           </div>
         </div>
 
-        {/* Alex's side of it: a name until there is a conversation to rule off */}
+        {/* Barnabas's side of it: a name until there is a conversation to rule off */}
         <div className="mt-6">
           <div
             className={cn("flex items-center gap-2", sent && "pb-3 border-b")}
             style={{ borderColor: "var(--color-border)" }}
           >
-            <Avatar name="Alex Rivera" size="sm" />
-            <span className="text-sm font-medium">Alex</span>
+            <Avatar name="Barnabas Reed" size="sm" />
+            <span className="text-sm font-medium">Barnabas</span>
           </div>
 
           {/* Empty until you check in, so it costs no room before then.
-              It makes all its room at the tap, Alex's reply and the reset
+              It makes all its room at the tap, Barnabas's reply and the reset
               included, so nothing on the page moves again as they arrive. */}
           <div className={cn("flex flex-col gap-3", sent && "pt-4")} aria-live="polite">
             {sent && (
@@ -430,7 +430,7 @@ export function ProofDemo() {
                     className="absolute -bottom-2.5 left-3 h-6 px-1.5 rounded-full border bg-bg-elevated flex items-center text-miss landing-demo-pop"
                     style={{ borderColor: "var(--color-border)" }}
                     role="img"
-                    aria-label="Alex hearted it"
+                    aria-label="Barnabas hearted it"
                   >
                     <Heart className="w-3.5 h-3.5" fill="currentColor" aria-hidden />
                   </span>
@@ -716,8 +716,8 @@ export function GraceDemo() {
           </div>
 
           <div className="mt-5 flex items-center gap-2 mb-2">
-            <Avatar name="Alex Rivera" size="xs" />
-            <span className="text-xs text-text-secondary">What Alex sees</span>
+            <Avatar name="Barnabas Reed" size="xs" />
+            <span className="text-xs text-text-secondary">What Barnabas sees</span>
           </div>
           <div
             className={cn("chat-bubble border-dashed w-fit min-w-56 overflow-hidden", bubbleCorners(false, true))}
