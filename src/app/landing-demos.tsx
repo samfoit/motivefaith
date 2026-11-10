@@ -349,7 +349,30 @@ export function ProofDemo() {
               style: DRAWER_SURFACE_STYLE,
             })}
           >
-            <HabitCircle state={done ? "done" : rain ? "rain" : "open"} animateDone />
+            {/* The circle checks in, as on the dashboard. Once anything is
+                sent the demo takes no more until "Try another". */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (consumeDragClick() || sent !== null) return;
+                pick("quick");
+              }}
+              // aria-disabled rather than disabled: a disabled button swallows
+              // the pointer events a drag starting on it needs.
+              aria-disabled={sent !== null}
+              aria-label={
+                done ? `${RUN.title} completed` : rain ? `${RUN.title} rain-checked today` : `Complete ${RUN.title}`
+              }
+              className={cn(
+                // after: stretches the 40px circle's tap area to 48px.
+                "group relative shrink-0 rounded-full after:absolute after:-inset-1",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-ink",
+                sent === null && "active:scale-90 transition-transform",
+              )}
+            >
+              <HabitCircle state={done ? "done" : rain ? "rain" : "open"} animateDone />
+            </button>
             <div className="flex-1 min-w-0">
               <HabitTitleRow
                 emoji={RUN.emoji}
