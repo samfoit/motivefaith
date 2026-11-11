@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { AlertTriangle, X } from "lucide-react";
@@ -9,16 +9,47 @@ import { Turnstile } from "@/components/ui/Turnstile";
 import { useCaptcha } from "@/lib/hooks/useCaptcha";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils/cn";
+import type { AccountConfirmation } from "@/lib/auth/account-confirmation";
+import { GoogleSignIn, destinationAfterGoogle } from "@/app/auth/GoogleSignIn";
 
 const CONFIRM_PHRASE = "delete my account";
+
+/**
+ * How this account confirms it is them, as `/api/account` answers it — or
+ * that the answer hasn't come yet, or didn't come at all.
+ *
+ * An account made with a password types it. One that signs in with Google
+ * has none: a sign-in from the last ten minutes stands in for it, and past
+ * that it signs in again first. Asking every account for a password left
+ * the Google ones with no way to delete themselves.
+ */
+type Confirmation = AccountConfirmation | "checking" | "unknown";
+
+const CONFIRMATIONS: readonly string[] = ["password", "recent_sign_in", "sign_in_again"];
+
+async function fetchConfirmation(): Promise<Confirmation> {
+  try {
+    const res = await fetch("/api/account", { cache: "no-store" });
+    if (!res.ok) return "unknown";
+    const data = (await res.json()) as { confirmWith?: unknown };
+    return typeof data.confirmWith === "string" && CONFIRMATIONS.includes(data.confirmWith)
+      ? (data.confirmWith as AccountConfirmation)
+      : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 interface DeleteAccountSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Whose profile this is, to notice a sign-in that came back as someone else. */
+  userId: string;
 }
 
-export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetProps) {
+export function DeleteAccountSheet({ open, onOpenChange, userId }: DeleteAccountSheetProps) {
   const queryClient = useQueryClient();
+  const [confirmWith, setConfirmWith] = useState<Confirmation>("checking");
   const [password, setPassword] = useState("");
   const [phrase, setPhrase] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,13 +61,46 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
   const phraseTextId = `${fieldId}-phrase-text`;
 
   const phraseMatches = phrase.trim().toLowerCase() === CONFIRM_PHRASE;
-  const canSubmit = password.length > 0 && phraseMatches && !loading;
+  const confirmed =
+    confirmWith === "password" ? password.length > 0 : confirmWith === "recent_sign_in";
+  const canSubmit = confirmed && phraseMatches && !loading;
+
+  // Asked each time the dialog opens: the answer depends on how long ago the
+  // session signed in.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void fetchConfirmation().then((answer) => {
+      if (!cancelled) setConfirmWith(answer);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const reset = () => {
+    setConfirmWith("checking");
     setPassword("");
     setPhrase("");
     setError(null);
   };
+
+  /**
+   * Google has signed them in again, here or by sending them away and back.
+   * Its chooser offers every account on the device, so it may not be this
+   * one — and then this is no longer the profile the page was loaded for.
+   */
+  const handleSignedInAgain = useCallback(async () => {
+    setError(null);
+    const {
+      data: { user },
+    } = await createClient().auth.getUser();
+    if (user?.id !== userId) {
+      window.location.replace(await destinationAfterGoogle());
+      return;
+    }
+    setConfirmWith(await fetchConfirmation());
+  }, [userId]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -46,17 +110,26 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
       const res = await fetch("/api/account", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          password,
-          captchaToken: captcha.captchaToken ?? undefined,
-        }),
+        body: JSON.stringify(
+          confirmWith === "password"
+            ? { password, captchaToken: captcha.captchaToken ?? undefined }
+            : {},
+        ),
       });
 
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
           detail?: string;
+          code?: string;
         };
+        if (data.code === "reauth_required") {
+          // The ten minutes ran out with the dialog open.
+          setConfirmWith("sign_in_again");
+          setError("That sign-in was more than 10 minutes ago. Sign in with Google again to finish.");
+          setLoading(false);
+          return;
+        }
         const msg = data.detail
           ? `${data.error ?? "Failed"} — ${data.detail}`
           : data.error ?? "Failed to delete account";
@@ -142,22 +215,61 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
               remaining admin, or deleted if you are the last member.
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor={passwordId} className="block text-sm font-medium text-text-primary">
-                Password
-              </label>
-              <input
-                id={passwordId}
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={cn(
-                  "w-full rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary",
-                  "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
-                )}
-              />
-            </div>
+            {confirmWith === "password" && (
+              <div className="space-y-1.5">
+                <label htmlFor={passwordId} className="block text-sm font-medium text-text-primary">
+                  Password
+                </label>
+                <input
+                  id={passwordId}
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={cn(
+                    "w-full rounded-md border bg-bg-elevated px-3 py-2 text-base text-text-primary",
+                    "border-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-ink",
+                  )}
+                />
+              </div>
+            )}
+
+            {/* Holds the password field's height, so the dialog doesn't jump
+                when the answer comes. */}
+            {confirmWith === "checking" && (
+              <p role="status" className="min-h-[4.25rem] text-sm text-text-secondary">
+                Checking how you sign in…
+              </p>
+            )}
+
+            {confirmWith === "recent_sign_in" && (
+              <p className="text-sm text-text-secondary">
+                You signed in with Google a few minutes ago, so there&apos;s no
+                password to enter.
+              </p>
+            )}
+
+            {confirmWith === "sign_in_again" && (
+              <div className="space-y-3">
+                <p className="text-sm text-text-secondary">
+                  This account signs in with Google, so there&apos;s no password
+                  to enter. Sign in with Google again to confirm it&apos;s you,
+                  then finish here within 10 minutes.
+                </p>
+                <GoogleSignIn onSignedIn={handleSignedInAgain} onError={setError} />
+                <p className="text-xs text-text-secondary">
+                  If signing in takes you out of this screen, come back to
+                  Delete account.
+                </p>
+              </div>
+            )}
+
+            {confirmWith === "unknown" && (
+              <p role="alert" className="text-sm text-miss-ink">
+                Couldn&apos;t check how to confirm it&apos;s you. Close this and
+                try again.
+              </p>
+            )}
 
             <div className="space-y-1.5">
               <label htmlFor={phraseId} className="block text-sm font-medium text-text-primary">
@@ -192,11 +304,14 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
               />
             </div>
 
-            <Turnstile
-              onToken={captcha.handleToken}
-              onExpire={captcha.handleExpire}
-              resetKey={captcha.resetKey}
-            />
+            {/* Only the password check spends a token. */}
+            {confirmWith === "password" && (
+              <Turnstile
+                onToken={captcha.handleToken}
+                onExpire={captcha.handleExpire}
+                resetKey={captcha.resetKey}
+              />
+            )}
 
             {error && <p className="text-xs text-miss-ink">{error}</p>}
           </div>
@@ -205,7 +320,10 @@ export function DeleteAccountSheet({ open, onOpenChange }: DeleteAccountSheetPro
             <Button
               variant="ghost"
               size="md"
-              onClick={() => onOpenChange(false)}
+              onClick={() => {
+                reset();
+                onOpenChange(false);
+              }}
               disabled={loading}
             >
               Cancel
