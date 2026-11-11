@@ -7,6 +7,7 @@ import {
 } from "@/lib/utils/api-helpers";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
+import { removeStorageFolder } from "@/lib/utils/storage-cleanup";
 import type { Database } from "@/lib/supabase/types";
 
 /**
@@ -19,8 +20,9 @@ import type { Database } from "@/lib/supabase/types";
  *   3. Call delete_own_account() RPC — atomically clears public-schema
  *      rows, hands off groups, AND removes the auth.users row (via the
  *      _delete_auth_user_self helper owned by supabase_auth_admin).
- *   4. Strip storage prefixes (avatars/<uid>/*, completions/<uid>/*) —
- *      best-effort; failure is logged but doesn't fail the request.
+ *   4. Remove the account's files (avatars/<uid>/…, completions/<uid>/…),
+ *      every folder deep — best-effort; failure is logged but doesn't
+ *      fail the request, and the purge queue (056) picks up the rest.
  *
  * Note: we used to call auth.admin.deleteUser() over REST as the last
  * step, but the new sb_secret_* service-key format is rejected by
@@ -126,17 +128,16 @@ export async function DELETE(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Best-effort storage cleanup. Path scheme for both buckets is
-  // <user_id>/<...>, so list under the prefix and remove everything.
+  // The account's files: its avatar, and every photo, video and voice note
+  // in its folder (<user_id>/<habit>/…, <user_id>/capture/…,
+  // <user_id>/private/…), whether or not a row ever pointed at them.
+  //
+  // Best-effort from here, since the account is already gone, but not the
+  // only attempt: deleting the profile queued each of these files in
+  // media_purge_queue (056), and purge-media removes whatever this leaves.
   for (const bucket of ["avatars", "completions"] as const) {
     try {
-      const { data: files } = await admin.storage
-        .from(bucket)
-        .list(user.id, { limit: 1000 });
-      if (files && files.length > 0) {
-        const paths = files.map((f) => `${user.id}/${f.name}`);
-        await admin.storage.from(bucket).remove(paths);
-      }
+      await removeStorageFolder(admin.storage, bucket, user.id);
     } catch (err) {
       console.error(`[api/account] storage cleanup (${bucket}) failed:`, err);
     }
