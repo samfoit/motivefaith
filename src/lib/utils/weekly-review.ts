@@ -87,8 +87,22 @@ export interface DayHabit {
   reason: string | null;
 }
 
+/**
+ * Whether the review holds a list for this day at all.
+ *
+ * A day with an empty list is a day before the first habit. A day with no
+ * list is a week that was saved without its days, and the two must not read
+ * alike: for its first weeks in production the page said "No habits yet on
+ * this day" of every day, because the column the lists live in was missing
+ * there (057) and a missing list looked the same as an empty one.
+ */
+export function dayRecorded(days: Json | undefined, day: string): boolean {
+  if (!days || typeof days !== "object" || Array.isArray(days)) return false;
+  return Array.isArray(days[day]);
+}
+
 /** One day's habits out of the `days` column; none for a day it lacks. */
-export function dayHabits(days: Json, day: string): DayHabit[] {
+export function dayHabits(days: Json | undefined, day: string): DayHabit[] {
   if (!days || typeof days !== "object" || Array.isArray(days)) return [];
   const list = days[day];
   if (!Array.isArray(list)) return [];
