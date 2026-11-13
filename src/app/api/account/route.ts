@@ -7,20 +7,42 @@ import {
 } from "@/lib/utils/api-helpers";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { untypedRpc } from "@/lib/supabase/rpc";
+import { removeStorageFolder } from "@/lib/utils/storage-cleanup";
+import { accountConfirmation } from "@/lib/auth/account-confirmation";
 import type { Database } from "@/lib/supabase/types";
+
+/**
+ * GET /api/account — How this account, in this session, confirms it is
+ * them before it can be deleted: its password, a sign-in recent enough to
+ * stand for one, or signing in again first. The delete dialog asks, so it
+ * shows a password field only to an account that has a password.
+ *
+ * No CSRF check: it reads, changes nothing, and says only how the caller
+ * themselves signs in.
+ */
+export async function GET() {
+  const auth = await requireAuthUser();
+  if (!auth.ok) return auth.response;
+
+  const { data } = await auth.supabase.auth.getClaims();
+  return jsonResponse({ confirmWith: accountConfirmation(auth.user, data?.claims) });
+}
 
 /**
  * DELETE /api/account — Permanently delete the caller's account.
  *
  * Flow:
  *   1. CSRF + session auth.
- *   2. Re-verify password against an isolated anon client (so cookies
- *      aren't touched).
+ *   2. Confirm it is them (lib/auth/account-confirmation.ts). An account
+ *      with a password re-verifies it against an isolated anon client (so
+ *      cookies aren't touched). One that signs in with Google has none, and
+ *      must have signed in within the last ten minutes instead.
  *   3. Call delete_own_account() RPC — atomically clears public-schema
  *      rows, hands off groups, AND removes the auth.users row (via the
  *      _delete_auth_user_self helper owned by supabase_auth_admin).
- *   4. Strip storage prefixes (avatars/<uid>/*, completions/<uid>/*) —
- *      best-effort; failure is logged but doesn't fail the request.
+ *   4. Remove the account's files (avatars/<uid>/…, completions/<uid>/…),
+ *      every folder deep — best-effort; failure is logged but doesn't
+ *      fail the request, and the purge queue (056) picks up the rest.
  *
  * Note: we used to call auth.admin.deleteUser() over REST as the last
  * step, but the new sb_secret_* service-key format is rejected by
@@ -36,21 +58,9 @@ export async function DELETE(request: Request) {
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
-  if (!user.email) {
-    return jsonResponse(
-      { error: "Account has no email on file; cannot re-authenticate" },
-      { status: 400 },
-    );
-  }
-
   const parsed = await parseRequestBody(request, 4096);
   if (parsed.error) return parsed.error;
   const body = parsed.data as Record<string, unknown>;
-
-  const password = body.password;
-  if (typeof password !== "string" || password.length === 0) {
-    return jsonResponse({ error: "Password is required" }, { status: 400 });
-  }
 
   const captchaToken = body.captchaToken;
   if (captchaToken !== undefined && typeof captchaToken !== "string") {
@@ -75,25 +85,52 @@ export async function DELETE(request: Request) {
     );
   }
 
-  // Isolated anon client — does NOT share cookies with the caller's
-  // session, so signing in here doesn't disturb their cookies.
-  const reauth = createClient<Database>(supabaseUrl, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const { data: claimsData } = await auth.supabase.auth.getClaims();
+  const confirmWith = accountConfirmation(user, claimsData?.claims);
 
-  const { error: signInError } = await reauth.auth.signInWithPassword({
-    email: user.email,
-    password,
-    options: captchaToken ? { captchaToken } : undefined,
-  });
-  if (signInError) {
-    console.error("[api/account] re-auth failed:", signInError.message);
-    const isCaptcha = /captcha/i.test(signInError.message);
+  if (confirmWith === "password") {
+    if (!user.email) {
+      return jsonResponse(
+        { error: "Account has no email on file; cannot re-authenticate" },
+        { status: 400 },
+      );
+    }
+
+    const password = body.password;
+    if (typeof password !== "string" || password.length === 0) {
+      return jsonResponse({ error: "Password is required" }, { status: 400 });
+    }
+
+    // Isolated anon client — does NOT share cookies with the caller's
+    // session, so signing in here doesn't disturb their cookies.
+    const reauth = createClient<Database>(supabaseUrl, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { error: signInError } = await reauth.auth.signInWithPassword({
+      email: user.email,
+      password,
+      options: captchaToken ? { captchaToken } : undefined,
+    });
+    if (signInError) {
+      console.error("[api/account] re-auth failed:", signInError.message);
+      const isCaptcha = /captcha/i.test(signInError.message);
+      return jsonResponse(
+        {
+          error: isCaptcha
+            ? "Captcha verification failed — please retry"
+            : "Invalid credentials",
+        },
+        { status: 401 },
+      );
+    }
+  } else if (confirmWith === "sign_in_again") {
+    // No password to check, and the sign-in that would stand for one was
+    // too long ago. `code` tells the dialog to offer signing in again.
     return jsonResponse(
       {
-        error: isCaptcha
-          ? "Captcha verification failed — please retry"
-          : "Invalid credentials",
+        error: "Sign in again to delete your account",
+        code: "reauth_required",
       },
       { status: 401 },
     );
@@ -126,17 +163,16 @@ export async function DELETE(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Best-effort storage cleanup. Path scheme for both buckets is
-  // <user_id>/<...>, so list under the prefix and remove everything.
+  // The account's files: its avatar, and every photo, video and voice note
+  // in its folder (<user_id>/<habit>/…, <user_id>/capture/…,
+  // <user_id>/private/…), whether or not a row ever pointed at them.
+  //
+  // Best-effort from here, since the account is already gone, but not the
+  // only attempt: deleting the profile queued each of these files in
+  // media_purge_queue (056), and purge-media removes whatever this leaves.
   for (const bucket of ["avatars", "completions"] as const) {
     try {
-      const { data: files } = await admin.storage
-        .from(bucket)
-        .list(user.id, { limit: 1000 });
-      if (files && files.length > 0) {
-        const paths = files.map((f) => `${user.id}/${f.name}`);
-        await admin.storage.from(bucket).remove(paths);
-      }
+      await removeStorageFolder(admin.storage, bucket, user.id);
     } catch (err) {
       console.error(`[api/account] storage cleanup (${bucket}) failed:`, err);
     }

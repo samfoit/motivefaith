@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getSupportedAudioMimeType } from "@/lib/utils/audio-recorder";
+import { analyserLevel, newLevelMemory, type VoiceReadings } from "@/lib/utils/audio-level";
 
 export type VoiceRecordingStatus = "idle" | "recording" | "paused";
 export type VoiceRecordingError = "denied" | "unsupported";
@@ -26,6 +27,8 @@ export interface UseVoiceRecordingReturn {
   finish: () => void;
   /** Ends a take without keeping it. */
   cancel: () => void;
+  /** The take's plumbing as it stands, for the on-screen readout (VoiceDebug). */
+  inspect: () => VoiceReadings;
 }
 
 /**
@@ -50,6 +53,17 @@ export function useVoiceRecording({
   const analyserRef = useRef<AnalyserNode | null>(null);
   /** False when the take is being thrown away rather than finished. */
   const keepRef = useRef(true);
+  /**
+   * For the readout only: each state the meter's context has been in, how its
+   * last wake went, why there is no context if making one failed, and the
+   * loudest the mic has been this take.
+   */
+  const meterLogRef = useRef({
+    states: [] as string[],
+    resume: "not tried",
+    error: "",
+    level: newLevelMemory(),
+  });
 
   const onFinishRef = useRef(onFinish);
   useEffect(() => {
@@ -110,6 +124,13 @@ export function useVoiceRecording({
     setError(null);
 
     // The meter is a nicety: a browser without Web Audio still records.
+    const meterLog = {
+      states: [] as string[],
+      resume: "not tried",
+      error: "",
+      level: newLevelMemory(),
+    };
+    meterLogRef.current = meterLog;
     try {
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();
@@ -126,16 +147,26 @@ export function useVoiceRecording({
       // starts it suspended; a live mic lets it resume. A call or Siri can
       // suspend it again mid-take ("interrupted"), so it is woken then too.
       const wake = () => {
+        if (meterLog.states.at(-1) !== ctx.state) meterLog.states.push(ctx.state);
         if (ctx.state !== "running" && ctx.state !== "closed") {
-          void ctx.resume().catch(() => {});
+          meterLog.resume = "pending";
+          void ctx.resume().then(
+            () => {
+              meterLog.resume = "resolved";
+            },
+            (err: unknown) => {
+              meterLog.resume = `refused (${(err as { name?: string } | null)?.name ?? String(err)})`;
+            },
+          );
         }
       };
       ctx.onstatechange = wake;
       wake();
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
-    } catch {
+    } catch (err) {
       analyserRef.current = null;
+      meterLog.error = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     }
 
     chunksRef.current = [];
@@ -203,6 +234,24 @@ export function useVoiceRecording({
     setStatus("idle");
   }, [stopTimer, releaseMic]);
 
+  const inspect = useCallback((): VoiceReadings => {
+    const recorder = recorderRef.current;
+    const track = streamRef.current?.getAudioTracks()[0];
+    const ctx = audioCtxRef.current;
+    const log = meterLogRef.current;
+    return {
+      format: recorder?.mimeType || getSupportedAudioMimeType()?.mimeType || "none",
+      recorder: recorder?.state ?? "none",
+      mic: track
+        ? `${track.readyState}${track.muted ? ", muted" : ""}${track.enabled ? "" : ", disabled"}`
+        : "none",
+      context: ctx ? `${ctx.state}, ${ctx.sampleRate} Hz` : log.error || "none",
+      states: log.states.join(" > ") || "none",
+      resume: log.resume,
+      level: analyserLevel(analyserRef.current, log.level),
+    };
+  }, []);
+
   // --- Cleanup on unmount: never leave the mic open ---
   useEffect(() => {
     return () => {
@@ -216,5 +265,5 @@ export function useVoiceRecording({
     };
   }, []);
 
-  return { status, elapsed, error, analyserRef, start, pause, resume, finish, cancel };
+  return { status, elapsed, error, analyserRef, start, pause, resume, finish, cancel, inspect };
 }

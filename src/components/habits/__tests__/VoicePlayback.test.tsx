@@ -83,4 +83,17 @@ describe("VoicePlayback", () => {
     fireEvent.click(screen.getByRole("button", { name: "Play recording" }));
     expect(audio.play).toHaveBeenCalled();
   });
+
+  it("reads its plumbing out under the player when asked to", async () => {
+    vi.stubGlobal("AudioContext", undefined);
+    render(<VoicePlayback src="blob:take" debug={{ take: "audio/mp4, 12 kB" }} />);
+
+    const readout = await screen.findByText("audio/mp4, 12 kB", undefined, { timeout: 1000 });
+    expect(readout.closest("dl")).toHaveTextContent("not routed yet");
+  });
+
+  it("shows no readout otherwise", () => {
+    setup();
+    expect(screen.queryByTestId("voice-debug")).not.toBeInTheDocument();
+  });
 });

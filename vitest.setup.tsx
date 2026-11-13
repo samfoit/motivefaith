@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars, @next/next/no-img-element, jsx-a11y/alt-text */
 import "@testing-library/jest-dom/vitest";
 
+// jsdom gives its vendor as Apple's, which the app reads as WebKit (isWebKit)
+// and then handles media the way an iPhone needs. No vendor is the neutral
+// default; a test about WebKit spies on `navigator.vendor` to say so.
+Object.defineProperty(navigator, "vendor", { configurable: true, get: () => "" });
+
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   useRouter: () => ({

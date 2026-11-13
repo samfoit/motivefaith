@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dailyCounts, dayHabits, groupDay, isWeekStart, weekDays, weekRangeLabel, weekRate, type DayHabit } from "../weekly-review";
+import { dailyCounts, dayHabits, dayRecorded, groupDay, isWeekStart, weekDays, weekRangeLabel, weekRate, type DayHabit } from "../weekly-review";
 
 describe("isWeekStart", () => {
   it("takes a Sunday's key", () => {
@@ -79,6 +79,27 @@ describe("dayHabits", () => {
   it("has nothing for a day it lacks, or a column that is not a map", () => {
     expect(dayHabits(days, "2026-10-22")).toEqual([]);
     expect(dayHabits(null, "2026-10-21")).toEqual([]);
+  });
+});
+
+describe("dayRecorded", () => {
+  it("is true for a day the week holds a list for, an empty one included", () => {
+    expect(dayRecorded({ "2026-10-18": [], "2026-10-19": [{ habit_id: "h1" }] }, "2026-10-18")).toBe(true);
+    expect(dayRecorded({ "2026-10-18": [], "2026-10-19": [{ habit_id: "h1" }] }, "2026-10-19")).toBe(true);
+  });
+
+  it("is false for a week saved without its days", () => {
+    // What production answered with before 057: no `days` at all.
+    expect(dayRecorded(undefined, "2026-10-18")).toBe(false);
+    expect(dayRecorded({}, "2026-10-18")).toBe(false);
+    expect(dayRecorded(null, "2026-10-18")).toBe(false);
+  });
+
+  it("is false for a day outside the week, or a column that is not a map of lists", () => {
+    expect(dayRecorded({ "2026-10-18": [] }, "2026-10-25")).toBe(false);
+    expect(dayRecorded({ "2026-10-18": "none" }, "2026-10-18")).toBe(false);
+    expect(dayRecorded([], "2026-10-18")).toBe(false);
+    expect(dayRecorded("days", "2026-10-18")).toBe(false);
   });
 });
 

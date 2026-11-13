@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion } from "motion/react";
 import { X, RotateCcw, Image as ImageIcon, Check, Maximize2, Minimize2, Mic, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -10,6 +10,7 @@ import { useCameraGestures } from "@/lib/hooks/useCameraGestures";
 import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
 import { VoiceMeter, VoiceHalo } from "@/components/habits/VoiceMeter";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
+import { VoiceDebug } from "@/components/habits/VoiceDebug";
 import { VideoTrimBar } from "@/components/habits/VideoTrimBar";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
 import { getSupportedMimeType } from "@/lib/utils/media-recorder";
@@ -447,6 +448,30 @@ export function CameraCapture({
     resume: resumeVoice,
     cancel: cancelVoice,
   } = voice;
+
+  // --- Voice readout ---
+  // Five quick taps on the voice screen's mic show what the take's audio
+  // plumbing is doing (VoiceDebug), and five more put it away. A hidden
+  // gesture rather than a URL flag, because the installed app has no address
+  // bar to type one into.
+  const [voiceDebug, setVoiceDebug] = useState(false);
+  const debugTapsRef = useRef({ count: 0, last: 0 });
+  const handleMicTap = useCallback(() => {
+    const taps = debugTapsRef.current;
+    const now = Date.now();
+    taps.count = now - taps.last < 600 ? taps.count + 1 : 1;
+    taps.last = now;
+    if (taps.count < 5) return;
+    taps.count = 0;
+    setVoiceDebug((on) => !on);
+  }, []);
+  const takeReadings = useMemo(
+    () =>
+      voiceDebug && capturedBlob
+        ? { take: `${capturedBlob.type || "no type"}, ${Math.round(capturedBlob.size / 1024)} kB` }
+        : undefined,
+    [voiceDebug, capturedBlob],
+  );
 
   /**
    * How much of the zoom we are applying ourselves. When the camera zooms in
@@ -1302,7 +1327,7 @@ export function CameraCapture({
         {stage === "review" && previewUrl ? (
           isVoiceCapture ? (
             <div className="flex w-full justify-center px-6">
-              <VoicePlayback src={previewUrl} />
+              <VoicePlayback src={previewUrl} debug={takeReadings} />
             </div>
           ) : isPhotoCapture ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -1346,6 +1371,7 @@ export function CameraCapture({
                   active={voice.status === "recording"}
                 >
                   <div
+                    onClick={handleMicTap}
                     className={cn(
                       "w-24 h-24 rounded-full flex items-center justify-center transition-colors",
                       view === "recording" ? "bg-red-500/20" : "bg-white/10",
@@ -1369,6 +1395,7 @@ export function CameraCapture({
                 ) : (
                   <p className="text-white/45 text-sm">Tap the button to record</p>
                 )}
+                {voiceDebug && <VoiceDebug read={voice.inspect} />}
               </>
             )}
           </div>

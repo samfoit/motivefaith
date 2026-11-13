@@ -378,6 +378,10 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# The gateway's JWT check is off for every function: they call each other
+# with a secret key, which is not a JWT and which the gateway would refuse.
+# Each one checks its caller itself (functions/_shared/internal-caller.ts).
+# A function added here without that check answers anyone with the URL.
 [functions.send-push]
 verify_jwt = false
 
@@ -388,6 +392,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.weekly-summary]
+verify_jwt = false
+
+[functions.purge-media]
 verify_jwt = false
 
 [edge_runtime]

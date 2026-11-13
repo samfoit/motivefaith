@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Check, Clock, CloudRain, Pause, X } from "lucide-react";
 import type { Json } from "@/lib/supabase/types";
 import { formatStartTime } from "@/lib/utils/schedule";
-import { dayHabits, groupDay, type DayHabit } from "@/lib/utils/weekly-review";
+import { dayHabits, dayRecorded, groupDay, type DayHabit } from "@/lib/utils/weekly-review";
 import { WeekStrip, dayName } from "../WeekStrip";
 
 /** The right-hand note for a habit on a day: when, or what became of it. */
@@ -110,7 +110,13 @@ export function WeekDays({
         ) : (
           <div className="pb-2">
             <h3 className="px-4 pt-3 text-sm font-semibold text-text-primary">{dayName(selected)}</h3>
-            {habits.length === 0 ? (
+            {!dayRecorded(days, selected) ? (
+              // The week holds no list for this day, which is not the same
+              // as a day with no habits on it.
+              <p className="px-4 py-2 text-sm text-text-tertiary">
+                This day&rsquo;s habits weren&rsquo;t saved with the week.
+              </p>
+            ) : habits.length === 0 ? (
               <p className="px-4 py-2 text-sm text-text-tertiary">No habits yet on this day.</p>
             ) : (
               <>

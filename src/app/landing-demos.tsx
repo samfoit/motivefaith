@@ -565,7 +565,7 @@ function ProofPhoto() {
 
 /* ── Grace: a rain check holds the streak ─────────────────────────────── */
 
-const SCRIPTURE = { emoji: "\u{1F4D6}", title: "Read Scripture", color: "#6366F1", streak: 12 };
+const JOURNAL = { emoji: "\u{1F4D3}", title: "Journal", color: "#6366F1", streak: 12 };
 const WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const TODAY = 3;
 const MOVE_DAYS = [4, 5, 6] as const;
@@ -617,10 +617,10 @@ export function GraceDemo() {
       </ol>
 
       <DemoHabitCard
-        emoji={SCRIPTURE.emoji}
-        title={SCRIPTURE.title}
-        color={SCRIPTURE.color}
-        streak={SCRIPTURE.streak}
+        emoji={JOURNAL.emoji}
+        title={JOURNAL.title}
+        color={JOURNAL.color}
+        streak={JOURNAL.streak}
         state={taken ? "rain" : "open"}
         time="9:00 PM"
         pill={taken ? <RainPill movedTo={movedLong} /> : undefined}
@@ -708,10 +708,10 @@ export function GraceDemo() {
           <div className="flex items-baseline gap-3">
             <Flame className="w-8 h-8 self-center" style={{ color: "var(--color-streak)" }} aria-hidden />
             <span className="font-mono text-5xl font-bold leading-none" style={{ color: "var(--color-streak)" }}>
-              {SCRIPTURE.streak}
+              {JOURNAL.streak}
             </span>
             <span className="text-base font-medium">
-              {movedLong ? `days. Holds if you read on ${movedLong}.` : "days, and the streak holds."}
+              {movedLong ? `days. Holds if you journal on ${movedLong}.` : "days, and the streak holds."}
             </span>
           </div>
 
@@ -729,10 +729,10 @@ export function GraceDemo() {
                 style={{ backgroundColor: "color-mix(in oklab, var(--color-rain) 14%, transparent)" }}
                 aria-hidden
               >
-                {SCRIPTURE.emoji}
+                {JOURNAL.emoji}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-text-primary">{SCRIPTURE.title}</p>
+                <p className="truncate text-sm font-medium text-text-primary">{JOURNAL.title}</p>
                 <p className="flex items-center gap-1 text-xs font-medium" style={{ color: "var(--color-rain)" }}>
                   <CloudRain className="h-3.5 w-3.5 shrink-0" aria-hidden />
                   {movedLong ? `Moved to ${movedLong}` : "Rain check"}
@@ -818,7 +818,7 @@ const DAY_RIBBON = `linear-gradient(to right, ${Array.from({ length: 25 }, (_, i
 }).join(", ")})`;
 
 /** The habit on the hour demo's dashboard: done a quarter hour after 6 PM. */
-const JOURNAL = { emoji: "\u{1F4D3}", title: "Journal", at: 18, doneAt: 18.25, streak: 12 };
+const SCRIPTURE = { emoji: "\u{1F4D6}", title: "Read Scripture", at: 18, doneAt: 18.25, streak: 12 };
 
 const SWEEP_FROM = 5;
 const SWEEP_TO = 19.5;
@@ -855,7 +855,7 @@ export function HourDemo() {
   const stop = hourStop(hour);
   // The day's habit gets done soon after its hour, and starts the next day
   // open again, so scrubbing past it checks it off and back.
-  const journalDone = hour >= JOURNAL.doneAt;
+  const scriptureDone = hour >= SCRIPTURE.doneAt;
 
   function go(h: number) {
     touched.current = true;
@@ -939,12 +939,12 @@ export function HourDemo() {
               {greetingAt(hour)}
             </div>
             <DemoHabitCard
-              emoji={JOURNAL.emoji}
-              title={JOURNAL.title}
+              emoji={SCRIPTURE.emoji}
+              title={SCRIPTURE.title}
               color={null}
-              streak={journalDone ? JOURNAL.streak + 1 : JOURNAL.streak}
-              state={journalDone ? "done" : "open"}
-              time={clockOf(JOURNAL.at)}
+              streak={scriptureDone ? SCRIPTURE.streak + 1 : SCRIPTURE.streak}
+              state={scriptureDone ? "done" : "open"}
+              time={clockOf(SCRIPTURE.at)}
             />
           </div>
         </div>

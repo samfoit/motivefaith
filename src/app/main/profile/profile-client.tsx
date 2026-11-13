@@ -405,7 +405,7 @@ export function ProfileClient({
         </div>
       </div>
 
-      <DeleteAccountSheet open={deleteOpen} onOpenChange={setDeleteOpen} />
+      <DeleteAccountSheet open={deleteOpen} onOpenChange={setDeleteOpen} userId={userId} />
 
       <Sheet
         open={notifSettingsOpen && pushState === "subscribed"}

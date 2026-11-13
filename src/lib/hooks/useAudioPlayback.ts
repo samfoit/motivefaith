@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { isWebKit } from "@/lib/utils/browser";
 
 export interface UseAudioPlaybackReturn {
   audioRef: React.RefObject<HTMLAudioElement | null>;
@@ -31,6 +32,13 @@ export interface UseAudioPlaybackReturn {
  * header, so the element reports Infinity until it has read to the end.
  * Seeking far past the end makes it do that up front; the timeupdate that
  * follows carries the real length, and the playhead goes back to 0.
+ *
+ * Not on WebKit. There the same file has no length at all (NaN) until the
+ * whole of it has loaded, and with only metadata asked for, WebKit stops
+ * loading after the header, so a seek past the end waits on data that is
+ * not coming and the note is left unable to play. It needs no help anyway:
+ * the length arrives in a durationchange once the note has loaded, which
+ * playing it brings about, and until then the player counts up.
  */
 export function useAudioPlayback(): UseAudioPlaybackReturn {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -47,6 +55,7 @@ export function useAudioPlayback(): UseAudioPlaybackReturn {
       setDuration(el.duration);
       return;
     }
+    if (el.duration !== Infinity || isWebKit()) return;
     probingRef.current = true;
     el.currentTime = 1e101;
   }, []);

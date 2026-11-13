@@ -56,6 +56,7 @@ describe("AudioPlayer", () => {
   });
 
   it("works out the length of a recorder file that reports Infinity", () => {
+    vi.spyOn(navigator, "vendor", "get").mockReturnValue("Google Inc.");
     const { audio, media } = setup(Infinity);
     fireEvent.loadedMetadata(audio);
     // Not shown as Infinity; the player seeks past the end to find out.
@@ -66,6 +67,37 @@ describe("AudioPlayer", () => {
     fireEvent.timeUpdate(audio);
 
     expect(screen.getByText("0:07")).toBeInTheDocument();
+    expect(media.current).toBe(0);
+  });
+
+  // WebKit has no length for a recorder's WebM until all of it has loaded,
+  // and stops loading after the header: a seek past the end would wait on
+  // data that isn't coming, and the note could not be played.
+  it("leaves a note with no length yet alone on an iPhone, and counts up as it plays", async () => {
+    vi.spyOn(navigator, "vendor", "get").mockReturnValue("Apple Computer, Inc.");
+    const { audio, media } = setup(NaN);
+    fireEvent.loadedMetadata(audio);
+    expect(media.current).toBe(0);
+    expect(screen.getByText("–:––")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Play voice note" }));
+    await screen.findByRole("button", { name: "Pause voice note" });
+    audio.currentTime = 3;
+    fireEvent.timeUpdate(audio);
+    expect(screen.getByText("0:03")).toBeInTheDocument();
+
+    // Playing it loads it, and the length comes with the rest of the file.
+    media.setDuration(86);
+    fireEvent.durationChange(audio);
+    fireEvent.pause(audio);
+    expect(screen.getByRole("slider", { name: "Seek" })).toBeEnabled();
+    expect(screen.getByRole("slider", { name: "Seek" })).toHaveAttribute("max", "86");
+  });
+
+  it("never seeks past the end on an iPhone, whatever length it reports", () => {
+    vi.spyOn(navigator, "vendor", "get").mockReturnValue("Apple Computer, Inc.");
+    const { audio, media } = setup(Infinity);
+    fireEvent.loadedMetadata(audio);
     expect(media.current).toBe(0);
   });
 
