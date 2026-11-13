@@ -1,0 +1,6 @@
+# Findings gitleaks should pass over, one fingerprint a line
+# (commit:file:rule:line). Only for values that are not secrets.
+
+# A made-up key in the caller-check tests: "sb_secret_" and the alphabet
+# backwards. It is no project's key.
+646fe582c82da7d50e48e0b49924525b937adaaf:tests/internal-caller.test.ts:generic-api-key:16
