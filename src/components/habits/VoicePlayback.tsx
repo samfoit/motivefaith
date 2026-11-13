@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils/cn";
 import { formatClock } from "@/components/ui/AudioPlayer";
 import { useAudioPlayback } from "@/lib/hooks/useAudioPlayback";
 import { VoiceMeter } from "@/components/habits/VoiceMeter";
+import { VoiceDebug } from "@/components/habits/VoiceDebug";
+import { analyserLevel, newLevelMemory, type VoiceReadings } from "@/lib/utils/audio-level";
 
 /**
  * The review of a voice take on the dark capture screens: a large play
@@ -17,7 +19,17 @@ import { VoiceMeter } from "@/components/habits/VoiceMeter";
  * show a length for a MediaRecorder file in Chrome (its header has none) and
  * looks different in every browser.
  */
-export function VoicePlayback({ src }: { src: string }) {
+export function VoicePlayback({
+  src,
+  debug,
+}: {
+  src: string;
+  /**
+   * Shows the player's plumbing under it (see VoiceDebug), after whatever
+   * the caller knows about the take.
+   */
+  debug?: VoiceReadings;
+}) {
   const { audioRef, audioProps, playing, current, duration, toggle, seek } =
     useAudioPlayback();
 
@@ -25,6 +37,9 @@ export function VoicePlayback({ src }: { src: string }) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   /** An element can be routed through Web Audio only once. */
   const routedRef = useRef(false);
+  /** For the readout only: why the element could not be routed, and its loudest. */
+  const routeErrorRef = useRef("");
+  const levelRef = useRef(newLevelMemory());
 
   // Routes the element through an analyser on the first play, which is a
   // user gesture, so the context starts running rather than suspended. The
@@ -42,8 +57,9 @@ export function VoicePlayback({ src }: { src: string }) {
       analyser.connect(ctx.destination);
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
-    } catch {
+    } catch (err) {
       analyserRef.current = null;
+      routeErrorRef.current = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     }
   }, [audioRef]);
 
@@ -63,6 +79,23 @@ export function VoicePlayback({ src }: { src: string }) {
       analyserRef.current = null;
     };
   }, []);
+
+  const inspect = useCallback((): VoiceReadings => {
+    const el = audioRef.current;
+    const ctx = audioCtxRef.current;
+    return {
+      ...debug,
+      audio: el
+        ? `ready ${el.readyState}, net ${el.networkState}, ${el.paused ? "paused" : "playing"}`
+        : "none",
+      length: el ? String(el.duration) : "none",
+      error: el?.error ? `${el.error.code} ${el.error.message}` : "none",
+      context: ctx
+        ? `${ctx.state}, ${ctx.sampleRate} Hz`
+        : routeErrorRef.current || (routedRef.current ? "none" : "not routed yet"),
+      level: analyserLevel(analyserRef.current, levelRef.current),
+    };
+  }, [audioRef, debug]);
 
   const progress = duration > 0 ? Math.min(1, current / duration) : 0;
 
@@ -133,6 +166,8 @@ export function VoicePlayback({ src }: { src: string }) {
           <span>{duration > 0 ? formatClock(duration) : "–:––"}</span>
         </div>
       </div>
+
+      {debug && <VoiceDebug read={inspect} />}
     </div>
   );
 }

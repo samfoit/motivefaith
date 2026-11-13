@@ -878,6 +878,31 @@ describe("CameraCapture voice mode", () => {
     expect(file.name).toMatch(/^voice-\d+\.webm$/);
   });
 
+  // A phone has no console: five quick taps on the mic read the take's audio
+  // plumbing out on the screen, and five more put it away.
+  it("shows the voice readout after five quick taps on the mic, and hides it after five more", async () => {
+    await renderCamera();
+    await switchToVoice();
+    const mic = document.querySelector("svg.lucide-mic")!.parentElement!;
+    const tapMic = async (times: number) => {
+      for (let i = 0; i < times; i++) fireEvent.click(mic);
+      await act(async () => void vi.advanceTimersByTime(300));
+    };
+
+    await tapMic(4);
+    expect(screen.queryByTestId("voice-debug")).not.toBeInTheDocument();
+    // Slow taps are someone tapping the mic, not asking for the readout.
+    await act(async () => void vi.advanceTimersByTime(1000));
+    await tapMic(1);
+    expect(screen.queryByTestId("voice-debug")).not.toBeInTheDocument();
+
+    await tapMic(4);
+    expect(screen.getByTestId("voice-debug")).toHaveTextContent("recorder");
+
+    await tapMic(5);
+    expect(screen.queryByTestId("voice-debug")).not.toBeInTheDocument();
+  });
+
   it("stops itself at the voice limit, not the video one", async () => {
     await renderCamera();
     await switchToVoice();

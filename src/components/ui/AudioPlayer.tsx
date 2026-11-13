@@ -22,8 +22,10 @@ export function AudioPlayer({ src, className }: { src: string; className?: strin
   const { audioProps, playing, current, duration, toggle, seek } = useAudioPlayback();
 
   const progress = duration > 0 ? Math.min(1, current / duration) : 0;
-  // The length before it plays, the position once it has started.
-  const shown = playing || current > 0 ? current : duration;
+  // The length before it plays, the position once it has started. A note
+  // whose length isn't known yet (see useAudioPlayback) still counts up.
+  const started = playing || current > 0;
+  const shown = started ? current : duration;
 
   return (
     <div className={cn("flex w-56 max-w-full items-center gap-2.5", className)}>
@@ -74,7 +76,7 @@ export function AudioPlayer({ src, className }: { src: string; className?: strin
       </div>
 
       <span className="w-9 shrink-0 text-right text-xs tabular-nums text-[var(--color-text-secondary)]">
-        {duration > 0 ? formatClock(shown) : "–:––"}
+        {duration > 0 || started ? formatClock(shown) : "–:––"}
       </span>
     </div>
   );
