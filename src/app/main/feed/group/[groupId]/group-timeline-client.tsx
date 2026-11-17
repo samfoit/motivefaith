@@ -11,13 +11,11 @@ import {
   Copy,
   Flag,
   Heart,
-  Send,
   Camera,
   ChevronRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { cn } from "@/lib/utils/cn";
 import { FEED_WINDOW_MS } from "@/lib/constants/limits";
 import { TopBarActions, TopBarTitle } from "@/components/layout/TopBarSlots";
 import {
@@ -42,7 +40,6 @@ const CreateChallengeSheet = dynamic(
 import { createClient } from "@/lib/supabase/client";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
-import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
 import { useRegenerateInviteCode, useRemoveGroupMember } from "@/lib/hooks/useGroups";
 import { useCreateChallenge, useJoinChallenge, useLeaveChallenge } from "@/lib/hooks/useGroupChallenges";
@@ -52,6 +49,7 @@ import { ChallengeEvent } from "@/components/social/ChallengeEvent";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CompletionBubble } from "@/components/social/CompletionBubble";
 import { EncouragementPrompt } from "@/components/social/EncouragementPrompt";
+import { ChatComposer, type SentChatMedia } from "@/components/social/ChatComposer";
 import {
   ChatRow,
   MessageBubble,
@@ -85,13 +83,8 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
   const router = useRouter();
   const queryClient = useQueryClient();
   const { show: showToast, ToastElements } = useToast();
-  const [message, setMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   // Opens the thread at the newest message and jumps back there on new ones.
   const scrollToLatest = useScrollToLatest();
-  const inputBarRef = useRef<HTMLDivElement>(null);
-  useKeyboardOffset(inputBarRef, "calc(4rem + env(safe-area-inset-bottom))");
 
   const { group, members, habits, completions, challenges, myRole } = data;
 
@@ -531,11 +524,8 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     [userId, showToast, debouncedRefresh],
   );
 
-  // Send message
-  const sendMessage = useCallback(async () => {
-    const text = message.trim();
-    if (!text || isSending) return;
-
+  // Send message. Resolves false when it didn't go: the bar puts the text back.
+  const sendMessage = useCallback(async (text: string): Promise<boolean> => {
     const myProfile = members.find((m) => m.user_id === userId);
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticMsg: GroupTimelineMessage = {
@@ -549,12 +539,9 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     };
 
     setPendingMessages((prev) => [...prev, optimisticMsg]);
-    setMessage("");
-    inputRef.current?.focus();
 
     setTimeout(() => scrollToLatest("smooth"), 50);
 
-    setIsSending(true);
     const supabase = createClient();
 
     const { data: inserted, error } = await supabase
@@ -567,15 +554,12 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       .select("id")
       .single();
 
-    setIsSending(false);
-
     if (error) {
       setPendingMessages((prev) =>
         prev.filter((m) => m.id !== optimisticId),
       );
-      setMessage(text);
       showToast({ variant: "error", title: "Failed to send" });
-      return;
+      return false;
     }
 
     if (inserted) {
@@ -587,7 +571,33 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
     }
 
     debouncedRefresh();
-  }, [message, isSending, userId, group.id, members, showToast, debouncedRefresh, scrollToLatest]);
+    return true;
+  }, [userId, group.id, members, showToast, debouncedRefresh, scrollToLatest]);
+
+  // A photo or GIF from the message bar. It is already sent, under the row's
+  // real id, so this only shows it until the server's copy arrives.
+  const showSentMedia = useCallback(
+    (sent: SentChatMedia) => {
+      const myProfile = members.find((m) => m.user_id === userId);
+      setPendingMessages((prev) => [
+        ...prev,
+        {
+          id: sent.id,
+          content: sent.caption,
+          media_path: sent.mediaPath,
+          media_type: sent.mediaType,
+          created_at: new Date().toISOString(),
+          user_id: userId,
+          isMe: true,
+          user_name: myProfile?.profile.display_name ?? "You",
+          user_avatar: myProfile?.profile.avatar_url ?? null,
+        },
+      ]);
+      setTimeout(() => scrollToLatest("smooth"), 50);
+      debouncedRefresh();
+    },
+    [userId, members, debouncedRefresh, scrollToLatest],
+  );
 
   // Challenge handlers
   const handleCreateChallenge = async (formData: ChallengeFormData) => {
@@ -934,49 +944,13 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
       </div>
 
       {/* Bottom message input */}
-      <div
-        ref={inputBarRef}
-        className="fixed inset-x-0 z-30 bg-[var(--color-bg-primary)] border-t border-[var(--color-bg-secondary)]"
-        style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendMessage();
-          }}
-          className="max-w-2xl mx-auto flex items-center gap-2 px-4 py-3"
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Message the group..."
-            maxLength={300}
-            className={cn(
-              "flex-1 min-w-0 rounded-full px-4 py-2.5 text-base",
-              "bg-elevated ring-1 ring-border text-[var(--color-text-primary)]",
-              "placeholder:text-[var(--color-text-tertiary)]",
-              "focus:outline-none focus:ring-2 focus:ring-brand-ink/40",
-              "transition-shadow",
-            )}
-          />
-          <button
-            type="submit"
-            disabled={!message.trim() || isSending}
-            className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-              "transition-all",
-              message.trim()
-                ? "bg-brand text-on-brand active:scale-95"
-                : "bg-elevated ring-1 ring-border text-[var(--color-text-tertiary)]",
-            )}
-            aria-label="Send message"
-          >
-            <Send className="w-4.5 h-4.5" />
-          </button>
-        </form>
-      </div>
+      <ChatComposer
+        placeholder="Message the group..."
+        userId={userId}
+        target={{ kind: "group", id: group.id }}
+        onSendText={sendMessage}
+        onMediaSent={showSentMedia}
+      />
 
       {/* Sheets */}
       <GroupInfoSheet

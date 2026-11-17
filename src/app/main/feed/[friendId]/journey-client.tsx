@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { Camera, Send, ChevronRight } from "lucide-react";
+import { Camera, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
 import { TopBarActions, TopBarTitle } from "@/components/layout/TopBarSlots";
 import {
@@ -19,11 +18,11 @@ import { SharedHabits, type SharedHabitChip } from "@/components/social/SharedHa
 import { FriendProfileSheet } from "@/components/social/FriendProfileSheet";
 import { JourneyTimeline } from "@/components/social/JourneyTimeline";
 import { EncouragementPrompt } from "@/components/social/EncouragementPrompt";
+import { ChatComposer, type SentChatMedia } from "@/components/social/ChatComposer";
 import { createClient } from "@/lib/supabase/client";
 import { sendOrQueue } from "@/lib/offline-write";
 import { useReadFeedsStore } from "@/lib/stores/read-feeds-store";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
-import { useKeyboardOffset } from "@/lib/hooks/useKeyboardOffset";
 import { useScrollToLatest } from "@/lib/hooks/useScrollToLatest";
 import { LATE_HABITS_KEY } from "@/lib/hooks/useLateHabits";
 import type { JourneyData, JourneyEncouragement } from "@/lib/types/feed";
@@ -43,13 +42,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { show: showToast, ToastElements } = useToast();
-  const [message, setMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   // Opens the thread at the newest message and jumps back there on new ones.
   const scrollToLatest = useScrollToLatest();
-  const inputBarRef = useRef<HTMLDivElement>(null);
-  useKeyboardOffset(inputBarRef, "calc(4rem + env(safe-area-inset-bottom))");
 
   const { friend, me, friendshipSince, habits, completions } = data;
 
@@ -201,10 +195,8 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       });
   }, [friend.id, userId, queryClient, markFeedRead]);
 
-  const sendMessage = useCallback(async () => {
-    const text = message.trim();
-    if (!text || isSending) return;
-
+  /** Resolves false when it didn't go: the bar puts the text back. */
+  const sendMessage = useCallback(async (text: string): Promise<boolean> => {
     // Optimistic insert
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticEnc: JourneyEncouragement = {
@@ -217,13 +209,10 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       sender_name: "You",
     };
     setPendingEntries((prev) => [...prev, optimisticEnc]);
-    setMessage("");
-    inputRef.current?.focus();
 
     // Scroll to the new message
     setTimeout(() => scrollToLatest("smooth"), 50);
 
-    setIsSending(true);
     const supabase = createClient();
 
     const { data: inserted, error } = await supabase
@@ -237,18 +226,15 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       .select("id")
       .single();
 
-    setIsSending(false);
-
     if (error) {
       // Remove the optimistic entry on failure
       setPendingEntries((prev) => prev.filter((e) => e.id !== optimisticId));
-      setMessage(text);
       showToast({
         variant: "error",
         title: "Failed to send",
         description: "Try again",
       });
-      return;
+      return false;
     }
 
     // Replace optimistic id with real id so realtime deduplication works
@@ -265,7 +251,34 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
     // Writing to them answers what had gone late: the inbox and its badge
     // drop it too.
     queryClient.invalidateQueries({ queryKey: LATE_HABITS_KEY });
-  }, [message, isSending, userId, friend.id, showToast, debouncedRefresh, scrollToLatest, queryClient]);
+    return true;
+  }, [userId, friend.id, showToast, debouncedRefresh, scrollToLatest, queryClient]);
+
+  // A photo or GIF from the message bar. It is already sent, under the row's
+  // real id, so this only shows it until the server's copy arrives.
+  const showSentMedia = useCallback(
+    (sent: SentChatMedia) => {
+      setPendingEntries((prev) => [
+        ...prev,
+        {
+          id: sent.id,
+          encouragement_type: "message",
+          content: sent.caption,
+          media_path: sent.mediaPath,
+          media_type: sent.mediaType,
+          created_at: new Date().toISOString(),
+          user_id: userId,
+          isMe: true,
+          sender_name: "You",
+        },
+      ]);
+      setTimeout(() => scrollToLatest("smooth"), 50);
+      debouncedRefresh();
+      // As a text message does, it answers what had gone late.
+      queryClient.invalidateQueries({ queryKey: LATE_HABITS_KEY });
+    },
+    [userId, debouncedRefresh, scrollToLatest, queryClient],
+  );
 
   const handleHeartCompletion = useCallback(async (completionId: string, isHearted: boolean) => {
     const supabase = createClient();
@@ -454,49 +467,13 @@ export function JourneyClient({ data, userId }: JourneyClientProps) {
       </div>
 
       {/* Bottom message input */}
-      <div
-        ref={inputBarRef}
-        className="fixed inset-x-0 z-30 bg-bg-primary border-t border-border"
-        style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendMessage();
-          }}
-          className="max-w-2xl mx-auto flex items-center gap-2 px-4 py-3"
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={`Message ${friendFirstName}...`}
-            maxLength={300}
-            className={cn(
-              "flex-1 min-w-0 rounded-full px-4 py-2.5 text-base",
-              "bg-elevated ring-1 ring-border text-text-primary",
-              "placeholder:text-text-tertiary",
-              "focus:outline-none focus:ring-2 focus:ring-brand-ink/40",
-              "transition-shadow",
-            )}
-          />
-          <button
-            type="submit"
-            disabled={!message.trim() || isSending}
-            className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-              "transition-all",
-              message.trim()
-                ? "bg-brand text-on-brand active:scale-95"
-                : "bg-elevated ring-1 ring-border text-text-tertiary",
-            )}
-            aria-label="Send message"
-          >
-            <Send className="w-4.5 h-4.5" />
-          </button>
-        </form>
-      </div>
+      <ChatComposer
+        placeholder={`Message ${friendFirstName}...`}
+        userId={userId}
+        target={{ kind: "friend", id: friend.id }}
+        onSendText={sendMessage}
+        onMediaSent={showSentMedia}
+      />
 
       <FriendProfileSheet
         friend={friend}
