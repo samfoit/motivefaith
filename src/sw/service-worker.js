@@ -709,6 +709,8 @@ self.addEventListener("message", function (event) {
   }
 
   if (event.data && event.data.type === "SKIP_WAITING") {
-    self.skipWaiting();
+    // Held open with waitUntil: this message is often what woke the worker,
+    // and it must not be put back to sleep before the handover has happened.
+    event.waitUntil(self.skipWaiting());
   }
 });

@@ -21,6 +21,7 @@ export function UpdatePrompt() {
   const waiting = useUpdateStore((s) => s.waiting);
   const dismissed = useUpdateStore((s) => s.dismissed);
   const dismiss = useUpdateStore((s) => s.dismiss);
+  const applying = useUpdateStore((s) => s.applying);
 
   if (!waiting || dismissed || pathname.startsWith("/auth/")) return null;
 
@@ -46,23 +47,28 @@ export function UpdatePrompt() {
       )}
     >
       <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl border border-border bg-bg-elevated p-3 pl-4 shadow-lg">
-        <RefreshCw aria-hidden className="h-4 w-4 shrink-0 text-brand-ink" />
+        <RefreshCw
+          aria-hidden
+          className={cn("h-4 w-4 shrink-0 text-brand-ink", applying && "motion-safe:animate-spin")}
+        />
         <p className="min-w-0 flex-1 text-sm text-text-primary">
           A new version of MotiveFaith is ready.
         </p>
         <button
           type="button"
           onClick={dismiss}
-          className="min-h-11 shrink-0 rounded-lg px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover"
+          disabled={applying}
+          className="min-h-11 shrink-0 rounded-lg px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover disabled:opacity-50"
         >
           Later
         </button>
         <button
           type="button"
           onClick={applyUpdate}
-          className="min-h-11 shrink-0 rounded-lg bg-brand px-4 text-sm font-medium text-on-brand transition-colors hover:bg-brand-hover"
+          disabled={applying}
+          className="min-h-11 shrink-0 rounded-lg bg-brand px-4 text-sm font-medium text-on-brand transition-colors hover:bg-brand-hover disabled:opacity-70"
         >
-          Refresh
+          {applying ? "Refreshing…" : "Refresh"}
         </button>
       </div>
     </div>
