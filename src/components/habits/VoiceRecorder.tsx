@@ -3,17 +3,27 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
 import { X, Mic, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
+import { VoiceHalo } from "@/components/habits/VoiceMeter";
+import { VoiceWaveform } from "@/components/habits/VoiceWaveform";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
+import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
 import { getSupportedAudioMimeType } from "@/lib/utils/audio-recorder";
+import { MIME_TO_EXT } from "@/lib/utils/media-types";
 import { MAX_AUDIO_DURATION_S } from "@/lib/constants/limits";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type RecordingStage = "idle" | "recording" | "review";
+/** A finished recording, its link for the player and the waveform it drew. */
+interface Take {
+  blob: Blob;
+  url: string;
+  wave: number[];
+}
 
 export interface VoiceRecorderProps {
   /**
@@ -55,134 +65,58 @@ export function VoiceRecorder({
   maxDuration = MAX_AUDIO_DURATION_S,
   privacy,
 }: VoiceRecorderProps) {
-  const [stage, setStage] = useState<RecordingStage>("idle");
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [permissionState, setPermissionState] = useState<
-    "prompt" | "granted" | "denied" | "unsupported"
-  >("prompt");
+  const [take, setTake] = useState<Take | null>(null);
+  /** No MediaRecorder here at all: known once the page is in the browser. */
+  const [unsupported, setUnsupported] = useState(false);
   /** The caller is sending the recording from the review (see onCapture). */
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
   /** Why the recording couldn't be sent. */
   const [sendError, setSendError] = useState<string | null>(null);
 
-  const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mimeInfoRef = useRef<{ mimeType: string; extension: string } | null>(null);
+  // The mic, the recorder and the waveform are the capture screen's voice
+  // mode's (useVoiceRecording), so the two record and look alike.
+  const voice = useVoiceRecording({
+    maxDuration,
+    onFinish: (blob, wave) => setTake({ blob, wave, url: URL.createObjectURL(blob) }),
+  });
+  const { waveRef, cancel } = voice;
+  const readWave = useCallback(() => waveRef.current, [waveRef]);
+
+  const recording = voice.status !== "idle";
+  const stage = take ? "review" : recording ? "recording" : "idle";
 
   // --- Detect audio support on mount ---
   useEffect(() => {
-    const info = getSupportedAudioMimeType();
-    if (!info) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- MediaRecorder support is only knowable in the browser, after hydration.
-      setPermissionState("unsupported");
-      return;
-    }
-    mimeInfoRef.current = info;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- MediaRecorder support is only knowable in the browser, after hydration.
+    if (!getSupportedAudioMimeType()) setUnsupported(true);
   }, []);
 
-  // --- Cleanup on unmount ---
+  // --- Let go of the review's link on unmount (the hook lets go of the mic) ---
+  const takeRef = useRef(take);
+  useEffect(() => {
+    takeRef.current = take;
+  }, [take]);
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (recorderRef.current?.state === "recording") {
-        recorderRef.current.stop();
-      }
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (takeRef.current) URL.revokeObjectURL(takeRef.current.url);
     };
-    // Only run cleanup on unmount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // --- Request mic and start recording ---
-  const startRecording = useCallback(async () => {
-    const mimeInfo = mimeInfoRef.current;
-    if (!mimeInfo) return;
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: false,
-      });
-      streamRef.current = stream;
-      setPermissionState("granted");
-
-      chunksRef.current = [];
-      const recorder = new MediaRecorder(stream, { mimeType: mimeInfo.mimeType });
-      recorderRef.current = recorder;
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeInfo.mimeType });
-        const url = URL.createObjectURL(blob);
-        setAudioBlob(blob);
-        setPreviewUrl(url);
-        setStage("review");
-
-        // Stop the mic stream
-        streamRef.current?.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      };
-
-      recorder.start();
-      setStage("recording");
-      setRecordingTime(0);
-
-      let elapsed = 0;
-      timerRef.current = setInterval(() => {
-        elapsed += 1;
-        setRecordingTime(elapsed);
-        if (elapsed >= maxDuration) {
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          if (recorderRef.current?.state === "recording") {
-            recorderRef.current.stop();
-          }
-        }
-      }, 1000);
-    } catch {
-      setPermissionState("denied");
-    }
-  }, [maxDuration]);
-
-  // --- Stop recording ---
-  const stopRecording = useCallback(() => {
-    if (recorderRef.current?.state === "recording") {
-      recorderRef.current.stop();
-    }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
   }, []);
 
   // --- Retake ---
   const handleRetake = useCallback(() => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setAudioBlob(null);
-    setRecordingTime(0);
+    if (take) URL.revokeObjectURL(take.url);
+    setTake(null);
     setSendError(null);
-    setStage("idle");
-  }, [previewUrl]);
+  }, [take]);
 
   // --- Use recording ---
   const handleUse = useCallback(() => {
-    if (!audioBlob || !mimeInfoRef.current || sendingRef.current) return;
+    if (!take || sendingRef.current) return;
     const file = new File(
-      [audioBlob],
-      `voice-${Date.now()}.${mimeInfoRef.current.extension}`,
-      { type: mimeInfoRef.current.mimeType },
+      [take.blob],
+      `voice-${Date.now()}.${MIME_TO_EXT[take.blob.type] ?? "webm"}`,
+      { type: take.blob.type },
     );
     const sent = onCapture(file);
     if (!sent) return;
@@ -199,30 +133,25 @@ export function VoiceRecorder({
       settle();
       setSendError(err instanceof Error ? err.message : "Couldn't send. Try again.");
     });
-  }, [audioBlob, onCapture]);
+  }, [take, onCapture]);
 
   // --- Close handler ---
   const handleClose = useCallback(() => {
-    if (recorderRef.current?.state === "recording") {
-      recorderRef.current.stop();
-    }
-    if (timerRef.current) clearInterval(timerRef.current);
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    cancel();
     onClose();
-  }, [onClose]);
+  }, [cancel, onClose]);
 
   // --- Permission denied / unsupported ---
-  if (permissionState === "denied" || permissionState === "unsupported") {
+  const problem = unsupported ? "unsupported" : voice.error;
+  if (problem) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black p-6">
         <div className="text-center space-y-3">
           <p className="text-white text-lg font-display">
-            {permissionState === "denied"
-              ? "Microphone Access Denied"
-              : "Recording Unavailable"}
+            {problem === "denied" ? "Microphone Access Denied" : "Recording Unavailable"}
           </p>
           <p className="text-white/60 text-sm max-w-xs">
-            {permissionState === "denied"
+            {problem === "denied"
               ? "Please allow microphone access in your browser settings and try again."
               : "Your browser does not support audio recording."}
           </p>
@@ -252,54 +181,49 @@ export function VoiceRecorder({
         </button>
       </div>
 
-      {/* Center content */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6">
-        {/* Idle state */}
-        {stage === "idle" && (
+      {/* Center content. The mic, the waveform and the line under it sit
+          where the review's play button, waveform and seek track do, so
+          nothing moves from one step to the next. */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-8">
+        {stage !== "review" && (
           <>
-            <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center">
-              <Mic className="w-10 h-10 text-white/60" />
-            </div>
-            <p className="text-white/40 text-sm">Tap to start recording</p>
-          </>
-        )}
-
-        {/* Recording state */}
-        {stage === "recording" && (
-          <>
-            <div className="relative">
-              {/* Pulsing ring */}
-              <motion.div
-                className="absolute inset-0 rounded-full bg-red-500/20"
-                animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                style={{ width: 96, height: 96 }}
-              />
-              <div className="w-24 h-24 rounded-full bg-red-500/20 flex items-center justify-center relative z-10">
-                <motion.div
-                  className="w-3 h-3 rounded-full bg-red-500"
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                />
+            <VoiceHalo analyserRef={voice.analyserRef} active={recording}>
+              <div
+                className={cn(
+                  "w-24 h-24 rounded-full flex items-center justify-center transition-colors",
+                  recording ? "bg-red-500/20" : "bg-white/10",
+                )}
+              >
+                <Mic className={cn("w-10 h-10", recording ? "text-red-500" : "text-white/60")} />
               </div>
+            </VoiceHalo>
+            {/* The mic going in: bars arrive at the playhead as it is heard */}
+            <VoiceWaveform read={readWave} tone={recording ? "record" : "idle"} moving />
+            <div className="h-11 text-center">
+              {recording ? (
+                <>
+                  <p className="text-white text-2xl leading-7 font-mono tabular-nums">
+                    {formatTime(voice.elapsed)}
+                  </p>
+                  <p className="text-white/50 text-xs leading-4 tabular-nums">
+                    {formatTime(Math.max(0, maxDuration - voice.elapsed))} remaining
+                  </p>
+                </>
+              ) : (
+                <p className="text-white/50 text-sm">Tap to start recording</p>
+              )}
             </div>
-            <span className="text-white text-2xl font-mono tabular-nums">
-              {formatTime(recordingTime)}
-            </span>
-            <p className="text-white/40 text-xs">
-              {formatTime(maxDuration - recordingTime)} remaining
-            </p>
           </>
         )}
 
         {/* Review state */}
-        {stage === "review" && previewUrl && (
+        {take && (
           <>
-            <VoicePlayback src={previewUrl} />
+            <VoicePlayback src={take.url} wave={take.wave} take={take.blob} />
             {sendError && (
               <p
                 role="alert"
-                className="max-w-xs rounded-2xl bg-white/10 px-4 py-2.5 text-center text-white text-[13px] leading-snug"
+                className="mx-6 max-w-xs rounded-2xl bg-white/10 px-4 py-2.5 text-center text-white text-[13px] leading-snug"
               >
                 {sendError}
               </p>
@@ -315,7 +239,7 @@ export function VoiceRecorder({
           {stage === "idle" && (
             <button
               type="button"
-              onClick={startRecording}
+              onClick={voice.start}
               className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center"
               aria-label="Start recording"
             >
@@ -327,7 +251,7 @@ export function VoiceRecorder({
           {stage === "recording" && (
             <button
               type="button"
-              onClick={stopRecording}
+              onClick={voice.finish}
               className="w-20 h-20 rounded-full border-4 border-red-500 flex items-center justify-center"
               aria-label="Stop recording"
             >

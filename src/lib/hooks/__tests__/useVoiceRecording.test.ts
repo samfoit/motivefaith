@@ -182,3 +182,90 @@ describe("useVoiceRecording readout", () => {
     });
   });
 });
+
+/**
+ * The waveform: what the take's review draws again, so it is the hook's to
+ * keep, not the screen's that happens to be drawing it.
+ */
+describe("useVoiceRecording waveform", () => {
+  /** Runs the page's animation frames by hand, `ms` apart. */
+  function frames() {
+    let now = 1000;
+    const queue: FrameRequestCallback[] = [];
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => queue.push(cb));
+    vi.stubGlobal("cancelAnimationFrame", () => queue.splice(0));
+    return (count: number, ms: number) => {
+      for (let i = 0; i < count; i++) {
+        now += ms;
+        queue.splice(0).forEach((cb) => cb(now));
+      }
+    };
+  }
+
+  /** The fake recorder cannot pause until a test teaches it to. */
+  const pausable = FakeRecorder as unknown as {
+    prototype: { pause?: () => void; resume?: () => void };
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete pausable.prototype.pause;
+    delete pausable.prototype.resume;
+  });
+
+  it("draws the mic into bars while recording and hands them over with the take", async () => {
+    const run = frames();
+    const onFinish = vi.fn();
+    const { result } = renderHook(() => useVoiceRecording({ maxDuration: 60, onFinish }));
+    await act(() => result.current.start());
+
+    // A sixteenth of full scale draws a bar an eighth of the height.
+    heard = 1 / 16;
+    run(10, 20);
+    expect(result.current.waveRef.current.bars).toEqual([0.125, 0.125]);
+    expect(result.current.inspect().wave).toBe("2 bars, tallest 13%");
+
+    act(() => result.current.finish());
+    expect(onFinish).toHaveBeenCalledWith(expect.any(Blob), [0.125, 0.125, 0.125]);
+    // The recording screen's tape is blank again for the next take.
+    expect(result.current.waveRef.current.bars).toEqual([]);
+  });
+
+  it("stops the tape while the take is paused", async () => {
+    const run = frames();
+    const { result } = renderHook(() => useVoiceRecording({ maxDuration: 60, onFinish: vi.fn() }));
+    await act(() => result.current.start());
+    const recorder = pausable.prototype;
+    recorder.pause = function (this: FakeRecorder) {
+      this.state = "paused";
+    };
+    recorder.resume = function (this: FakeRecorder) {
+      this.state = "recording";
+    };
+
+    run(4, 20);
+    act(() => result.current.pause());
+    run(50, 20);
+    expect(result.current.waveRef.current.bars).toHaveLength(1);
+
+    act(() => result.current.resume());
+    run(4, 20);
+    expect(result.current.waveRef.current.bars).toHaveLength(2);
+  });
+
+  it("keeps the tape running flat when there is no analyser to hear with", async () => {
+    vi.stubGlobal(
+      "AudioContext",
+      vi.fn(function () {
+        throw new Error("nope");
+      }),
+    );
+    const run = frames();
+    const { result } = renderHook(() => useVoiceRecording({ maxDuration: 60, onFinish: vi.fn() }));
+    await act(() => result.current.start());
+
+    run(10, 20);
+    expect(result.current.waveRef.current.bars).toEqual([0, 0]);
+  });
+});

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { useCamera } from "@/lib/hooks/useCamera";
 import { useCameraGestures } from "@/lib/hooks/useCameraGestures";
 import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
-import { VoiceMeter, VoiceHalo } from "@/components/habits/VoiceMeter";
+import { VoiceHalo } from "@/components/habits/VoiceMeter";
+import { VoiceWaveform } from "@/components/habits/VoiceWaveform";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { VoiceDebug } from "@/components/habits/VoiceDebug";
 import { VideoTrimBar } from "@/components/habits/VideoTrimBar";
@@ -433,21 +434,26 @@ export function CameraCapture({
   /** Whether the running take is canvas-backed, and so can survive a flip. */
   const canFlipMidTakeRef = useRef(false);
 
+  /** The waveform the last voice take drew, for its review to draw again. */
+  const [voiceWave, setVoiceWave] = useState<number[] | null>(null);
   const voice = useVoiceRecording({
     maxDuration: maxVoiceDuration,
-    onFinish: (blob) => {
+    onFinish: (blob, wave) => {
       setCapturedBlob(blob);
+      setVoiceWave(wave);
       setPreviewUrl(URL.createObjectURL(blob));
       setStage("review");
     },
   });
   const {
     status: voiceStatus,
+    waveRef: voiceWaveRef,
     start: startVoice,
     pause: pauseVoice,
     resume: resumeVoice,
     cancel: cancelVoice,
   } = voice;
+  const readVoiceWave = useCallback(() => voiceWaveRef.current, [voiceWaveRef]);
 
   // --- Voice readout ---
   // Five quick taps on the voice screen's mic show what the take's audio
@@ -1326,9 +1332,12 @@ export function CameraCapture({
       >
         {stage === "review" && previewUrl ? (
           isVoiceCapture ? (
-            <div className="flex w-full justify-center px-6">
-              <VoicePlayback src={previewUrl} debug={takeReadings} />
-            </div>
+            <VoicePlayback
+              src={previewUrl}
+              wave={voiceWave}
+              take={capturedBlob}
+              debug={takeReadings}
+            />
           ) : isPhotoCapture ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -1350,9 +1359,9 @@ export function CameraCapture({
             />
           )
         ) : isVoice ? (
-          <div className="flex flex-col items-center gap-6 px-6 text-center">
+          <div className="flex w-full flex-col items-center gap-8 text-center">
             {voice.error ? (
-              <>
+              <div className="space-y-6 px-6">
                 <p className="text-white text-lg font-display">
                   {voice.error === "denied"
                     ? "Microphone Access Denied"
@@ -1363,7 +1372,7 @@ export function CameraCapture({
                     ? "Please allow microphone access in your browser settings and try again."
                     : "Your browser does not support audio recording."}
                 </p>
-              </>
+              </div>
             ) : (
               <>
                 <VoiceHalo
@@ -1385,16 +1394,25 @@ export function CameraCapture({
                     />
                   </div>
                 </VoiceHalo>
+                {/* The tape is there before the take, empty, so starting one
+                    moves nothing: bars just begin to arrive at the playhead. */}
+                <VoiceWaveform
+                  read={readVoiceWave}
+                  tone={view !== "recording" ? "idle" : paused ? "paused" : "record"}
+                  moving
+                />
                 {/* The shutter's ring already shows how much of the take is
-                    left, so a running take needs only the meter. */}
-                {view === "recording" ? (
-                  <VoiceMeter
-                    analyserRef={voice.analyserRef}
-                    active={voice.status === "recording"}
-                  />
-                ) : (
-                  <p className="text-white/45 text-sm">Tap the button to record</p>
-                )}
+                    left, so a running take needs only the waveform. The line
+                    keeps its room, the height of the review's seek track, so
+                    the waveform stays where it is from idle through review. */}
+                <p
+                  className={cn(
+                    "h-11 px-6 text-white/45 text-sm",
+                    view === "recording" && "invisible",
+                  )}
+                >
+                  Tap the button to record
+                </p>
                 {voiceDebug && <VoiceDebug read={voice.inspect} />}
               </>
             )}

@@ -16,25 +16,6 @@ function fakeMedia(el: HTMLAudioElement, duration: number) {
   });
 }
 
-function fakeAudioContext() {
-  const analyser = { fftSize: 0, connect: vi.fn(), getByteFrequencyData: vi.fn() };
-  const source = { connect: vi.fn() };
-  const ctx = {
-    destination: {},
-    createAnalyser: vi.fn(() => analyser),
-    createMediaElementSource: vi.fn(() => source),
-    resume: vi.fn(async () => {}),
-    close: vi.fn(async () => {}),
-  };
-  vi.stubGlobal(
-    "AudioContext",
-    vi.fn(function () {
-      return ctx;
-    }),
-  );
-  return { ctx, analyser, source };
-}
-
 function setup(duration = 9) {
   const view = render(<VoicePlayback src="blob:take" />);
   const audio = view.container.querySelector("audio")!;
@@ -58,38 +39,58 @@ describe("VoicePlayback", () => {
     expect(await screen.findByRole("button", { name: "Pause recording" })).toBeInTheDocument();
   });
 
-  it("routes the playback through an analyser for the meter, once", async () => {
-    const { ctx, analyser, source } = fakeAudioContext();
-    const { audio, unmount } = setup();
-
-    fireEvent.click(screen.getByRole("button", { name: "Play recording" }));
-    expect(ctx.createMediaElementSource).toHaveBeenCalledWith(audio);
-    expect(source.connect).toHaveBeenCalledWith(analyser);
-    expect(analyser.connect).toHaveBeenCalledWith(ctx.destination);
-    expect(ctx.resume).toHaveBeenCalled();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Pause recording" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Play recording" }));
-    expect(ctx.createMediaElementSource).toHaveBeenCalledTimes(1);
-
-    unmount();
-    expect(ctx.close).toHaveBeenCalled();
-  });
-
-  it("still plays without Web Audio", () => {
-    vi.stubGlobal("AudioContext", undefined);
+  // The waveform is the take's own, so the sound goes straight from the
+  // element to the speakers: on an iPhone a note routed through Web Audio is
+  // silent to it, and can be silent to the listener too.
+  it("plays without touching Web Audio", () => {
+    const AudioContext = vi.fn();
+    vi.stubGlobal("AudioContext", AudioContext);
     const { audio } = setup();
 
     fireEvent.click(screen.getByRole("button", { name: "Play recording" }));
     expect(audio.play).toHaveBeenCalled();
+    expect(AudioContext).not.toHaveBeenCalled();
   });
 
-  it("reads its plumbing out under the player when asked to", async () => {
-    vi.stubGlobal("AudioContext", undefined);
-    render(<VoicePlayback src="blob:take" debug={{ take: "audio/mp4, 12 kB" }} />);
+  it("says in the readout that the waveform is the one recorded", async () => {
+    render(
+      <VoicePlayback src="blob:take" wave={[0.2, 0.6, 0.3]} debug={{ take: "audio/mp4, 12 kB" }} />,
+    );
 
     const readout = await screen.findByText("audio/mp4, 12 kB", undefined, { timeout: 1000 });
-    expect(readout.closest("dl")).toHaveTextContent("not routed yet");
+    expect(readout.closest("dl")).toHaveTextContent("3 bars, as recorded");
+  });
+
+  // An iPhone whose meter heard nothing hands over a flat wave: the review
+  // works the bars out from the recording instead of drawing a flat line.
+  it("works the waveform out from the recording when the meter heard nothing", async () => {
+    const samples = new Float32Array(44100).fill(0.25);
+    vi.stubGlobal(
+      "OfflineAudioContext",
+      vi.fn(function () {
+        return {
+          decodeAudioData: vi.fn(async () => ({
+            sampleRate: 44100,
+            getChannelData: () => samples,
+          })),
+        };
+      }),
+    );
+    const take = new Blob(["m4a"], { type: "audio/mp4" });
+    take.arrayBuffer = async () => new ArrayBuffer(8);
+
+    render(<VoicePlayback src="blob:take" wave={[0, 0, 0]} take={take} debug={{}} />);
+
+    // One second of sound at 80 ms a bar.
+    expect(await screen.findByText("13 bars, from the file", undefined, { timeout: 2000 })).toBeInTheDocument();
+  });
+
+  it("has no waveform to show when the recording can't be decoded either", async () => {
+    vi.stubGlobal("OfflineAudioContext", undefined);
+    render(<VoicePlayback src="blob:take" take={new Blob(["x"])} debug={{ take: "audio/webm" }} />);
+
+    const readout = await screen.findByText("audio/webm", undefined, { timeout: 1000 });
+    expect(readout.closest("dl")).toHaveTextContent("wavenone");
   });
 
   it("shows no readout otherwise", () => {
