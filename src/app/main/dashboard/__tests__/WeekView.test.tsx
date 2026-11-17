@@ -226,6 +226,70 @@ describe("WeekView", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("has no drawer for a habit that isn't scheduled today", () => {
+      render(
+        <WeekView
+          timezone={TZ}
+          onHabitPress={vi.fn()}
+          onCheckIn={vi.fn()}
+          habits={[makeHabit({ schedule: { days: [1, 5] } })]} // Mon, Fri
+        />,
+      );
+      expect(
+        screen.queryByRole("button", { name: "Quick check-in for Morning Run" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /check-in options/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("has no drawer on a day off, even one already checked in on", () => {
+      render(
+        <WeekView
+          timezone={TZ}
+          onHabitPress={vi.fn()}
+          onCheckIn={vi.fn()}
+          habits={[
+            makeHabit({
+              schedule: { days: [1, 5] },
+              completions: [{ id: "c1", completed_at: oct(14), completion_type: "quick" }],
+            }),
+          ]}
+        />,
+      );
+      expect(
+        screen.queryByRole("button", { name: "Quick check-in for Morning Run" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("checks in a habit whose rain check was moved to today", () => {
+      const onCheckIn = vi.fn();
+      render(
+        <WeekView
+          timezone={TZ}
+          onHabitPress={vi.fn()}
+          onCheckIn={onCheckIn}
+          habits={[
+            makeHabit({
+              schedule: { days: [1, 5] },
+              completions: [
+                {
+                  id: "c1",
+                  completed_at: oct(12),
+                  completion_type: "rain_check",
+                  rain_check_moved_to: "2026-10-14",
+                },
+              ],
+            }),
+          ]}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Quick check-in for Morning Run" }),
+      );
+      expect(onCheckIn).toHaveBeenCalledWith("habit-1", "quick", expect.any(Object));
+    });
+
     it("has no drawer for a paused habit", () => {
       render(
         <WeekView

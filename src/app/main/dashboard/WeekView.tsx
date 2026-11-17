@@ -55,7 +55,7 @@ export const WeekView = memo(function WeekView({
         const done = cells.filter((c) => c === "done").length;
         const todayState = cells[days.findIndex((d) => d.key === todayKey)];
         const options = todayState
-          ? todayCheckInOptions(habit, todayState, todayKey)
+          ? todayCheckInOptions(habit, todayState, todayKey, timezone)
           : null;
         return { habit, cells, due, done, options };
       }),
