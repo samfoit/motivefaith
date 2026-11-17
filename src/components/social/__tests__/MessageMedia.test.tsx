@@ -22,6 +22,22 @@ describe("MessageMedia", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("loads a GIF as it is, so it keeps moving", async () => {
+    const { container } = render(<MessageMedia path="me/capture/c.gif" type="photo" />);
+
+    // Straight from storage: the optimizer would re-encode it as a still.
+    await waitFor(() =>
+      expect(container.querySelector("img")).toHaveAttribute("data-unoptimized"),
+    );
+  });
+
+  it("still shrinks an ordinary photo for the screen", async () => {
+    const { container } = render(<MessageMedia path="me/capture/a.webp" type="photo" />);
+
+    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+    expect(container.querySelector("img")).not.toHaveAttribute("data-unoptimized");
+  });
+
   it("closes on Escape", async () => {
     render(<MessageMedia path="me/capture/a.webp" type="photo" />);
     await userEvent.click(screen.getByRole("button", { name: "View photo" }));

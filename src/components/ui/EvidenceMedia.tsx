@@ -84,6 +84,9 @@ export function EvidenceMedia({
             alt={alt}
             fill
             sizes="(max-width: 640px) 100vw, 640px"
+            // A GIF is loaded as it is. The optimizer's job is to re-encode
+            // at a smaller size, and that would stop it moving.
+            unoptimized={/\.gif$/i.test(path)}
             className={cn("object-cover", imgClassName)}
           />
         )}

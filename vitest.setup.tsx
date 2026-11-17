@@ -19,10 +19,14 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// Mock next/image
+// Mock next/image. `unoptimized` is not an <img> attribute; it is kept as a
+// data attribute, so a test can tell an image that skips the optimizer.
 vi.mock("next/image", () => ({
-  default: ({ fill, ...rest }: Record<string, unknown>) => (
-    <img {...(rest as React.ImgHTMLAttributes<HTMLImageElement>)} />
+  default: ({ fill, unoptimized, ...rest }: Record<string, unknown>) => (
+    <img
+      {...(rest as React.ImgHTMLAttributes<HTMLImageElement>)}
+      data-unoptimized={unoptimized ? "" : undefined}
+    />
   ),
 }));
 

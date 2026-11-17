@@ -6,6 +6,14 @@
 // --- Upload limits ---
 export const MAX_IMAGE_SIZE_MB = 5;
 /**
+ * Largest GIF sent as it is. A photo is shrunk to a small WebP before it goes
+ * up, but shrinking a GIF that way keeps only its first frame, so it is
+ * uploaded whole — and downloaded whole by everyone who opens the chat. Ones
+ * from a GIF keyboard or a search are a few MB; this leaves room for a long
+ * one saved to the camera roll without letting through a video's worth.
+ */
+export const MAX_GIF_SIZE_MB = 15;
+/**
  * Largest video that can be sent. The `completions` bucket's file_size_limit
  * (005_storage.sql) is what enforces it; this copy, which must match it, lets
  * a picked video be refused before it is uploaded instead of after. Phones
