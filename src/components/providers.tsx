@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { QueryClient, type Query } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { usePathname } from "next/navigation";
@@ -47,66 +47,12 @@ function useSyncTimezone() {
   }, []);
 }
 
-/** Sign the user out after 30 minutes of inactivity. */
-const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
-const ACTIVITY_EVENTS: (keyof DocumentEventMap)[] = [
-  "pointerdown",
-  "keydown",
-  "scroll",
-  "touchstart",
-];
-
-function useInactivityTimeout() {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const resetTimer = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.auth.signOut();
-        // A full load, as the profile's sign-out does: it remounts these
-        // providers, so the next person doesn't get this user's cached data.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load, on purpose
-        window.location.href = "/auth/login";
-      }
-    }, INACTIVITY_TIMEOUT_MS);
-  }, []);
-
-  // Debounced version for high-frequency events (scroll, pointermove).
-  // Leading-edge: resets immediately on first event, then ignores for 500ms.
-  const debouncedReset = useCallback(() => {
-    if (debounceRef.current) return;
-    resetTimer();
-    debounceRef.current = setTimeout(() => {
-      debounceRef.current = null;
-    }, 500);
-  }, [resetTimer]);
-
-  useEffect(() => {
-    resetTimer();
-    for (const evt of ACTIVITY_EVENTS) {
-      document.addEventListener(evt, debouncedReset, { passive: true });
-    }
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      for (const evt of ACTIVITY_EVENTS) {
-        document.removeEventListener(evt, debouncedReset);
-      }
-    };
-  }, [resetTimer, debouncedReset]);
-}
-
 /**
  * Auth-dependent hooks that should only run on authenticated routes.
  * Avoids unnecessary getUser() calls on the landing page and public routes.
  */
 function AuthHooks() {
   useSyncTimezone();
-  useInactivityTimeout();
   // Scoped to authenticated routes: a drain needs a session, and on a public
   // page every request would 401 and leave the queue untouched anyway.
   useOutboxDrain();
@@ -138,8 +84,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   // One listener rather than a cleanup call at each sign-out site. This also
-  // covers the paths that never had one: the inactivity timeout above,
-  // account deletion, a refresh token that fails, and /auth/stale (which
+  // covers the paths that never had one: account deletion, a refresh token that fails, and /auth/stale (which
   // signs out server-side, so the client only learns about it when the
   // cookie is gone and this fires on the next boot).
   useEffect(() => {
