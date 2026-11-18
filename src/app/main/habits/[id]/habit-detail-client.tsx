@@ -65,6 +65,8 @@ import type { DashboardData } from "@/lib/data/dashboard";
 import { applyHabitUpdate, removeHabit } from "@/lib/data/dashboard-mutations";
 import { mergePrivateContent } from "@/lib/utils/private-checkin";
 import { DASHBOARD_KEY_PREFIX } from "@/lib/hooks/useDashboard";
+import { useAuthUserId } from "@/lib/hooks/useAuthUserId";
+import { confirmDayKept, recordCheckIns } from "@/lib/data/dashboard-checkin";
 import {
   isHabitPausedError,
   isRainCheck,
@@ -251,6 +253,7 @@ export function HabitDetailClient({
   const queryClient = useQueryClient();
   const completeHabit = useCompleteHabit();
   const confirmSharing = useConfirmSharing();
+  const userId = useAuthUserId();
   const { show: showToast, ToastElements } = useToast();
   const [habit, setHabit] = useState(initialHabit);
   const [completions, setCompletions] = useState(initialCompletions);
@@ -522,6 +525,21 @@ export function HabitDetailClient({
     };
     setCompletions((prev) => [tempCompletion, ...prev]);
     setActivity((prev) => [tempCompletion, ...prev]);
+    // On the dashboard too, so it shows done on the way back — and so, if
+    // this was the day's last habit, the lamp is lit here as it would be there.
+    const recorded = recordCheckIns(queryClient, userId, [
+      {
+        habitId: habit.id,
+        tempId: tempCompletion.id,
+        type,
+        rainCheckMovedTo,
+      },
+    ]);
+    // Open until now: a repeat check-in, or a second rain check, settles
+    // nothing new.
+    const settlesToday = rainCheck
+      ? !completedToday && !rainCheckedToday
+      : !completedToday;
     if (!rainCheck) {
       setHabit((h) => ({
         ...h,
@@ -537,7 +555,7 @@ export function HabitDetailClient({
     }
 
     try {
-      await completeHabit.mutateAsync({
+      const result = await completeHabit.mutateAsync({
         habitId: habit.id,
         type,
         evidenceUrl,
@@ -547,8 +565,20 @@ export function HabitDetailClient({
         isPrivate,
       });
       if (counts) checkMilestone(prevStreak + 1);
+      // Queued offline, the dashboard's entry is the only record until the
+      // outbox drains; a refetch would drop it.
+      const queued = !!result && typeof result === "object" && "queued" in result;
+      if (!queued) {
+        if (!recorded.kept && recorded.unsure && settlesToday) {
+          // The cached dashboard may not know what was done elsewhere today.
+          void confirmDayKept(queryClient, userId, [habit.id]);
+        } else {
+          void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
+        }
+      }
       router.refresh();
     } catch (err) {
+      recorded.undo();
       // Take back only this entry: resetting to the first page would also
       // throw away every page already scrolled through.
       setCompletions((prev) => prev.filter((c) => c.id !== tempCompletion.id));

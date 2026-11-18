@@ -17,7 +17,8 @@ export function dashboardKey(userId: string | null): QueryKey {
 /** Matches every user's dashboard — for invalidation, not for reading. */
 export const DASHBOARD_KEY_PREFIX = ["dashboard"] as const;
 
-async function fetchDashboardJson(): Promise<DashboardData> {
+/** The dashboard's fetch, for a caller that needs it fresh without the hook. */
+export async function fetchDashboardJson(): Promise<DashboardData> {
   const response = await fetch("/api/dashboard", {
     credentials: "same-origin",
     headers: { accept: "application/json" },

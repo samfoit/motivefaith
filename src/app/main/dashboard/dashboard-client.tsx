@@ -57,6 +57,8 @@ import {
   removeHabit,
 } from "@/lib/data/dashboard-mutations";
 import { countsTowardStreak } from "@/lib/utils/streak";
+import { keptBy } from "@/lib/day-kept";
+import { useDayKeptStore } from "@/lib/stores/day-kept-store";
 import { getBrowserTimezone, DEFAULT_TIMEZONE } from "@/lib/utils/timezone";
 
 /**
@@ -538,7 +540,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
     beginWrite();
     void queryClient.cancelQueries({ queryKey });
     const snapshot = queryClient.getQueryData<DashboardData>(queryKey);
-    queryClient.setQueryData<DashboardData>(queryKey, (old) =>
+    const updated = queryClient.setQueryData<DashboardData>(queryKey, (old) =>
       applyCompletion(old, {
         habitId,
         tempId: `temp-${Date.now()}`,
@@ -546,6 +548,10 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
         rainCheckMovedTo,
       }),
     );
+    // The day's last habit: light the lamp now, as the check shows, rather
+    // than after the round trip.
+    const kept = keptBy(snapshot, updated);
+    if (kept) useDayKeptStore.getState().offer(kept);
 
     try {
       const result = await completeHabit.mutateAsync({
@@ -563,6 +569,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       settleWrite(result);
     } catch (err) {
       restore(snapshot);
+      if (kept) useDayKeptStore.getState().dismiss();
       if (err instanceof PrivateOfflineError) {
         showToast({
           variant: "error",
@@ -625,12 +632,18 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
       beginWrite();
       void queryClient.cancelQueries({ queryKey });
       const snapshot = queryClient.getQueryData<DashboardData>(queryKey);
-      queryClient.setQueryData<DashboardData>(queryKey, (old) =>
+      const updated = queryClient.setQueryData<DashboardData>(queryKey, (old) =>
         applyCompletion(old, { habitId, tempId, type: "quick" }),
       );
+      // Lit with the check, not when the undo window closes six seconds on.
+      // The toast sits above the moment, so Undo is still in reach, and an
+      // undo puts the lamp out again.
+      const kept = keptBy(snapshot, updated);
+      if (kept) useDayKeptStore.getState().offer(kept);
 
       /** Off the screen again, with nothing sent. */
       const takeBack = () => {
+        if (kept) useDayKeptStore.getState().dismiss();
         queryClient.setQueryData<DashboardData>(queryKey, (old) =>
           removeCompletion(old, { habitId, tempId, streak: prevStreak }),
         );
@@ -666,6 +679,7 @@ export function DashboardClient({ headerAction }: DashboardClientProps) {
           settleWrite(result);
         } catch (err) {
           restore(snapshot);
+          if (kept) useDayKeptStore.getState().dismiss();
           if (isHabitPausedError(err)) {
             dropPausedHabit(habitId, habit?.title);
           } else {
