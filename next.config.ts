@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
       allowedDevOrigins: [process.env.DEV_ORIGIN],
     }),
   experimental: {
+    // Nudge coding agents toward Next.js security releases only.
+    agentUpgrade: "security",
     optimizePackageImports: ["lucide-react", "date-fns", "motion/react"],
     staleTimes: {
       dynamic: 30,
