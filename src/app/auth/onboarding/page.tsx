@@ -9,7 +9,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils/cn";
 import { AvatarCropper } from "@/components/ui/AvatarCropper";
-import { uploadAvatar } from "@/lib/utils/avatar-upload";
+import { removeOtherAvatars, uploadAvatar } from "@/lib/utils/avatar-upload";
 
 const DEFAULT_AVATARS = ["😊", "😎", "🚀", "🌟", "🎯", "🔥", "💎", "🌈"];
 
@@ -120,6 +120,9 @@ export default function OnboardingPage() {
         setLoading(false);
         return;
       }
+
+      // Saved: any photo this replaced (an emoji keeps none) can go.
+      await removeOtherAvatars(supabase, "avatars", user.id, avatarUrl);
     }
 
     router.push(destinationAfterAuth());

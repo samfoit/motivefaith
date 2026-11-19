@@ -23,7 +23,7 @@ import { InviteLinkSheet } from "@/components/social/InviteLinkSheet";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 import { AvatarCropper } from "@/components/ui/AvatarCropper";
-import { uploadAvatar } from "@/lib/utils/avatar-upload";
+import { removeOtherAvatars, uploadAvatar } from "@/lib/utils/avatar-upload";
 import { MAX_AVATAR_SOURCE_BYTES } from "@/lib/constants/limits";
 import {
   useUpdateGroup,
@@ -172,6 +172,8 @@ export function SettingsClient({
         });
         setAvatarUrl(publicUrl);
         showToast({ variant: "success", title: "Group photo updated" });
+        // Saved: the old photo's link can stop working now.
+        void removeOtherAvatars(supabase, "group-avatars", group.id, publicUrl);
         router.refresh();
       } catch {
         showToast({ variant: "error", title: "Failed to update group photo" });
