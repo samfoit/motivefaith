@@ -14,6 +14,12 @@ interface EvidenceMediaProps {
   className?: string;
   imgClassName?: string;
   videoClassName?: string;
+  /**
+   * A photo on screen the moment its page opens: load it straight away
+   * rather than lazily, so the browser doesn't wait for layout to ask for
+   * the page's largest picture. Leave it off for anything below the fold.
+   */
+  eager?: boolean;
 }
 
 /**
@@ -34,6 +40,7 @@ export function EvidenceMedia({
   className,
   imgClassName,
   videoClassName,
+  eager = false,
 }: EvidenceMediaProps) {
   const isLegacy = path.startsWith("http");
   const { status, url, markBroken } = useEvidenceUrl(path);
@@ -67,6 +74,7 @@ export function EvidenceMedia({
             src={url}
             alt={alt}
             fill
+            loading={eager ? "eager" : "lazy"}
             // Straight from Storage, never through the image optimizer: its
             // cache would keep a resized copy of a private photo (4 hours by
             // default in Next 16) behind a URL that outlives the signed

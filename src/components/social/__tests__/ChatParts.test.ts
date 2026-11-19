@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { layoutRuns } from "../ChatParts";
+import { layoutRuns, onScreenAtOpen } from "../ChatParts";
 
 const MIN = 60_000;
 
@@ -37,5 +37,15 @@ describe("layoutRuns", () => {
       { sender: "a", at: 2 * MIN },
     ]);
     expect(runs.map((r) => r.first)).toEqual([true, true, true]);
+  });
+});
+
+describe("onScreenAtOpen", () => {
+  it("is the newest few items, where a thread opens", () => {
+    expect([0, 1, 2, 3, 4, 5].map((i) => onScreenAtOpen(i, 6))).toEqual([false, false, false, true, true, true]);
+  });
+
+  it("is every item in a short thread", () => {
+    expect([0, 1].map((i) => onScreenAtOpen(i, 2))).toEqual([true, true]);
   });
 });

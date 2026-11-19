@@ -15,6 +15,16 @@ beforeEach(() => {
 });
 
 describe("EvidenceMedia", () => {
+  it("loads a photo lazily unless it's on screen as the page opens", async () => {
+    resolveEvidenceUrl.mockResolvedValue("https://storage.test/u/h/p.webp");
+    const { unmount } = render(<EvidenceMedia path="u/h/p.webp" type="photo" alt="lazy one" />);
+    expect(await screen.findByAltText("lazy one")).toHaveAttribute("loading", "lazy");
+    unmount();
+
+    render(<EvidenceMedia path="u/h/p.webp" type="photo" alt="eager one" eager />);
+    expect(await screen.findByAltText("eager one")).toHaveAttribute("loading", "eager");
+  });
+
   it("says a photo is no longer available when Storage has nothing for it", async () => {
     resolveEvidenceUrl.mockResolvedValue(null);
     render(<EvidenceMedia path="u/h/gone.webp" type="photo" />);

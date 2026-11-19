@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils/cn";
 import { Avatar } from "@/components/ui/Avatar";
 import { Sheet } from "@/components/ui/Sheet";
 import { MessageMedia } from "@/components/social/MessageMedia";
+import { LinkifiedText, LinkPreviewCard } from "@/components/social/LinkPreview";
+import { firstLink } from "@/lib/utils/linkify";
 
 /**
  * The pieces every chat thread is built from — the friend chat and the group
@@ -68,6 +70,18 @@ export function layoutRuns(
     positions[i].last = positions[i + 1].first;
   }
   return positions;
+}
+
+/**
+ * How many of a thread's newest items are on screen when it opens. A thread
+ * opens at its end, so these are the pictures to load without waiting; the
+ * rest stay lazy, or a long thread would fetch every photo in it at once.
+ */
+const ON_SCREEN_AT_OPEN = 3;
+
+/** Whether item `index` of `count` is among those on screen as the thread opens. */
+export function onScreenAtOpen(index: number, count: number): boolean {
+  return index >= count - ON_SCREEN_AT_OPEN;
 }
 
 export function TimeDivider({ label }: { label: string }) {
@@ -261,7 +275,7 @@ export function ChatRow({
 }
 
 // ---------------------------------------------------------------------------
-// A message: text, photo, video, voice
+// A message: text, photo, video, voice, links
 // ---------------------------------------------------------------------------
 
 /** One to three emoji and nothing else: sent big, without a bubble. */
@@ -273,6 +287,8 @@ interface MessageBubbleProps {
   content: string | null;
   mediaPath?: string | null;
   mediaType?: "photo" | "video" | "voice" | null;
+  /** On screen as the thread opens (see onScreenAtOpen). */
+  eager?: boolean;
 }
 
 /**
@@ -287,6 +303,7 @@ export function MessageBubble({
   content,
   mediaPath,
   mediaType,
+  eager = false,
 }: MessageBubbleProps) {
   const text = content?.trim() || null;
   const corners = bubbleCorners(isMe, first);
@@ -295,10 +312,10 @@ export function MessageBubble({
   if (mediaPath && (mediaType === "photo" || mediaType === "video")) {
     return (
       <div className={cn("flex flex-col gap-0.5", isMe ? "items-end" : "items-start")}>
-        <MessageMedia path={mediaPath} type={mediaType} className={cn(corners, "overflow-hidden")} />
+        <MessageMedia path={mediaPath} type={mediaType} className={cn(corners, "overflow-hidden")} eager={eager} />
         {text && (
           <p className={cn(surface, bubbleCorners(isMe, false), "px-3.5 py-2 text-[15px] leading-snug text-text-primary break-words")}>
-            {text}
+            <LinkifiedText text={text} />
           </p>
         )}
       </div>
@@ -310,7 +327,9 @@ export function MessageBubble({
       <div className={cn(surface, corners, "px-2.5 py-2")}>
         <MessageMedia path={mediaPath} type="voice" />
         {text && (
-          <p className="mt-1.5 px-1 text-[15px] leading-snug text-text-primary break-words">{text}</p>
+          <p className="mt-1.5 px-1 text-[15px] leading-snug text-text-primary break-words">
+            <LinkifiedText text={text} />
+          </p>
         )}
       </div>
     );
@@ -320,7 +339,7 @@ export function MessageBubble({
     return <p className="px-1 text-4xl leading-tight">{text}</p>;
   }
 
-  return (
+  const bubble = (
     <p
       className={cn(
         surface,
@@ -328,7 +347,20 @@ export function MessageBubble({
         "px-3.5 py-2 text-[15px] leading-snug text-text-primary break-words whitespace-pre-line",
       )}
     >
-      {text}
+      {text && <LinkifiedText text={text} />}
     </p>
+  );
+
+  // The first link gets a preview under the message, as it would anywhere
+  // else a link is shared. Only for words alone: a photo or voice note with a
+  // link in its caption already has its own picture to show.
+  const link = text ? firstLink(text) : null;
+  if (!link) return bubble;
+
+  return (
+    <div className={cn("flex max-w-full flex-col gap-1", isMe ? "items-end" : "items-start")}>
+      {bubble}
+      <LinkPreviewCard url={link} />
+    </div>
   );
 }

@@ -29,6 +29,8 @@ export interface CompletionBubbleProps {
   isHearted?: boolean;
   /** Someone else's check-in: cheer it with a heart. Omit on your own. */
   onHeart?: () => void;
+  /** On screen as the thread opens: load its photo without waiting. */
+  eager?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ export const CompletionBubble = React.memo(function CompletionBubble({
   notes,
   isHearted = false,
   onHeart,
+  eager = false,
 }: CompletionBubbleProps) {
   const rainCheck = isRainCheck(completionType);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -98,6 +101,7 @@ export const CompletionBubble = React.memo(function CompletionBubble({
               type="photo"
               alt={`${habitTitle} check-in`}
               className="w-full bg-bg-secondary"
+              eager={eager}
             />
           </button>
         )}
