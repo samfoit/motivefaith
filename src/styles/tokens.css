@@ -26,6 +26,7 @@
   --color-brand-light: #FBF1DC; /* Gold wash for selected backgrounds */
   --color-success: var(--color-brand-ink); /* Done: the lamp is lit */
   --color-streak: #A87410; /* The flame */
+  --color-streak-edge: #C6A564; /* A streak card's edge: the flame, softened */
   --color-miss: #ef4444; /* Missed habit red (used sparingly) */
   /* Red as text. --color-miss is a fill, icon and border color; as small text
      it fails 4.5:1 on light grounds, so error and danger text use this,
@@ -116,6 +117,7 @@
   --color-brand-light: #2A2416;
   --color-miss-ink: #FF8A80;
   --color-streak: #E9B44C;
+  --color-streak-edge: #6D5B39;
   --color-rain: #60a5fa;
   --sky-sun: #EDE6D6;
   --sky-glow: #1E2333;

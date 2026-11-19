@@ -28,7 +28,7 @@ import { usePushSubscription } from "@/lib/hooks/usePushSubscription";
 import { createClient } from "@/lib/supabase/client";
 import type { Json, Tables } from "@/lib/supabase/types";
 import { ALLOWED_IMAGE_TYPES } from "@/lib/utils/media-types";
-import { uploadAvatar } from "@/lib/utils/avatar-upload";
+import { removeOtherAvatars, uploadAvatar } from "@/lib/utils/avatar-upload";
 import { MAX_AVATAR_SOURCE_BYTES } from "@/lib/constants/limits";
 import { AvatarCropper } from "@/components/ui/AvatarCropper";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
@@ -182,6 +182,8 @@ export function ProfileClient({
     } else {
       setAvatarUrl(publicUrl);
       showToast({ variant: "success", title: "Avatar updated" });
+      // Saved: the old photo's link can stop working now.
+      void removeOtherAvatars(supabase, "avatars", userId, publicUrl);
       router.refresh();
     }
     setIsUploadingAvatar(false);

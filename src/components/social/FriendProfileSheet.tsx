@@ -15,7 +15,10 @@ import {
   useRespondToPartner,
 } from "@/lib/hooks/usePartnerActions";
 import type { ProfileHabit } from "@/lib/types/partners";
-import { SharedHabitRows, type SharedHabitChip } from "@/components/social/SharedHabits";
+import {
+  SharedHabitRows,
+  type SharedHabitChip,
+} from "@/components/social/SharedHabits";
 
 export interface SheetFriend {
   id: string;
@@ -228,10 +231,7 @@ export function FriendProfileSheet({
             )}
 
             {open_.length > 0 && (
-              <Group
-                label={`${firstName}'s other habits`}
-                hint="Streak shows once accepted"
-              >
+              <Group label={`${firstName}'s other habits`}>
                 {open_.map((h) => (
                   <Row key={h.habitId} habit={h}>
                     <Button
@@ -318,9 +318,15 @@ function Row({
         </span>
       </span>
       {habit.visibility === "private" ? (
-        <Lock className="w-3 h-3 shrink-0 text-text-tertiary" aria-label="Private habit" />
+        <Lock
+          className="w-3 h-3 shrink-0 text-text-tertiary"
+          aria-label="Private habit"
+        />
       ) : (
-        <Globe className="w-3 h-3 shrink-0 text-text-tertiary" aria-label="Public habit" />
+        <Globe
+          className="w-3 h-3 shrink-0 text-text-tertiary"
+          aria-label="Public habit"
+        />
       )}
       {children}
     </div>

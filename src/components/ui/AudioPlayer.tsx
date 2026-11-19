@@ -75,11 +75,14 @@ export function AudioPlayer({
   src,
   waveKey,
   className,
+  onError,
 }: {
   src: string;
   /** What the note is, beyond this link to it (a storage path), for the bars' cache. */
   waveKey?: string;
   className?: string;
+  /** The file would not load: an expired link, or one that went away. */
+  onError?: () => void;
 }) {
   const { audioProps, playing, current, duration, toggle, seek } = useAudioPlayback();
   const key = waveKey ?? src;
@@ -141,7 +144,7 @@ export function AudioPlayer({
       className={cn("flex max-w-full items-center gap-2.5", className)}
       style={{ width }}
     >
-      <audio src={src} {...audioProps} />
+      <audio src={src} onError={onError} {...audioProps} />
 
       <button
         type="button"

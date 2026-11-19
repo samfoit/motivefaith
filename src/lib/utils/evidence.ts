@@ -81,7 +81,10 @@ function getCached(path: string): string | null {
 const BATCH_DELAY_MS = 50;
 let pendingBatch: {
   paths: string[];
-  resolvers: Map<string, Array<(url: string | null) => void>>;
+  resolvers: Map<
+    string,
+    Array<{ resolve: (url: string | null) => void; reject: (err: unknown) => void }>
+  >;
   timer: ReturnType<typeof setTimeout> | null;
 } | null = null;
 
@@ -90,39 +93,49 @@ function flushBatch(): void {
   pendingBatch = null;
   if (!batch || batch.paths.length === 0) return;
 
+  const fail = (err: unknown) => {
+    for (const callbacks of batch.resolvers.values()) {
+      for (const { reject } of callbacks) reject(err);
+    }
+  };
+
   const supabase = createClient();
   supabase.storage
     .from(BUCKET)
     .createSignedUrls(batch.paths, SIGNED_URL_TTL)
     .then(({ data, error }) => {
-      if (!error && data) {
-        for (const item of data) {
-          if (item.signedUrl && item.path) {
-            cacheSet(item.path, item.signedUrl, Date.now() + SIGNED_URL_TTL * 1000);
-            const callbacks = batch.resolvers.get(item.path);
-            if (callbacks) {
-              for (const cb of callbacks) cb(item.signedUrl);
-            }
-            batch.resolvers.delete(item.path);
+      // The request itself failed: nothing is known about any file in it.
+      if (error || !data) {
+        fail(error ?? new Error("No signed URLs returned"));
+        return;
+      }
+      for (const item of data) {
+        if (item.signedUrl && item.path) {
+          cacheSet(item.path, item.signedUrl, Date.now() + SIGNED_URL_TTL * 1000);
+          for (const { resolve } of batch.resolvers.get(item.path) ?? []) {
+            resolve(item.signedUrl);
           }
+          batch.resolvers.delete(item.path);
         }
       }
-      // Resolve any remaining paths (failed/missing) with null
+      // Storage answered, and had nothing for these: missing or not ours to read.
       for (const callbacks of batch.resolvers.values()) {
-        for (const cb of callbacks) cb(null);
+        for (const { resolve } of callbacks) resolve(null);
       }
     })
     .catch((err) => {
       console.error("Failed to resolve evidence URLs:", err);
-      for (const callbacks of batch.resolvers.values()) {
-        for (const cb of callbacks) cb(null);
-      }
+      fail(err);
     });
 }
 
 /**
  * Resolve a single evidence path to a signed URL.
- * Returns the signed URL or `null` on failure.
+ *
+ * Resolves to `null` when Storage answers that there is no file this person
+ * may read: it was removed, or whatever shared it is gone (059). Rejects when
+ * Storage could not be asked at all (offline, a failed request), which says
+ * nothing about the file and is worth trying again.
  *
  * Concurrent calls within 50ms are automatically batched into a
  * single `createSignedUrls` request to avoid N+1 API calls.
@@ -136,7 +149,7 @@ export async function resolveEvidenceUrl(
   const cached = getCached(path);
   if (cached) return cached;
 
-  return new Promise<string | null>((resolve) => {
+  return new Promise<string | null>((resolve, reject) => {
     if (!pendingBatch) {
       pendingBatch = { paths: [], resolvers: new Map(), timer: null };
     }
@@ -144,10 +157,10 @@ export async function resolveEvidenceUrl(
     // Add the path to the batch (deduplicate)
     const existing = pendingBatch.resolvers.get(path);
     if (existing) {
-      existing.push(resolve);
+      existing.push({ resolve, reject });
     } else {
       pendingBatch.paths.push(path);
-      pendingBatch.resolvers.set(path, [resolve]);
+      pendingBatch.resolvers.set(path, [{ resolve, reject }]);
     }
 
     // Reset the timer to flush after BATCH_DELAY_MS of inactivity

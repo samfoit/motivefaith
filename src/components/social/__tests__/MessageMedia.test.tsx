@@ -31,11 +31,14 @@ describe("MessageMedia", () => {
     );
   });
 
-  it("still shrinks an ordinary photo for the screen", async () => {
+  // The optimizer's cache would keep a copy of a private photo past its
+  // signed link's hour (059). Photos are shrunk to WebP before upload anyway.
+  it("loads an ordinary photo straight from storage too", async () => {
     const { container } = render(<MessageMedia path="me/capture/a.webp" type="photo" />);
 
-    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
-    expect(container.querySelector("img")).not.toHaveAttribute("data-unoptimized");
+    await waitFor(() =>
+      expect(container.querySelector("img")).toHaveAttribute("data-unoptimized"),
+    );
   });
 
   it("closes on Escape", async () => {

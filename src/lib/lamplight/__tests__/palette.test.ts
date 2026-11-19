@@ -2,15 +2,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import { palette, isLight, PINNED_HOUR, ALL_VARS, rgb, mixRgb, CSS_VAR } from "../palette";
-import { lowest, ratio, TEXT_PAIRS, UI_PAIRS } from "../contrast";
+import { lowest, ratio, EDGE_PAIRS, TEXT_PAIRS, UI_PAIRS } from "../contrast";
 
 const EVERY_15_MIN = Array.from({ length: 96 }, (_, i) => i / 4);
 
 describe("palette", () => {
-  it.each(EVERY_15_MIN)("keeps text at 4.5:1 and controls at 3:1 at hour %s", (hour) => {
+  it.each(EVERY_15_MIN)("keeps text at 4.5:1, controls at 3:1 and edges at 2:1 at hour %s", (hour) => {
     const { raw } = palette(hour);
     expect(lowest(raw, TEXT_PAIRS)).toBeGreaterThanOrEqual(4.5);
     expect(lowest(raw, UI_PAIRS)).toBeGreaterThanOrEqual(3);
+    expect(lowest(raw, EDGE_PAIRS)).toBeGreaterThanOrEqual(2);
   });
 
   // ErrorBanner and the login banner set red text on a 10% wash of the
