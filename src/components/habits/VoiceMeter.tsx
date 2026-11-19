@@ -73,7 +73,7 @@ export function VoiceHalo({
       <span
         ref={haloRef}
         aria-hidden
-        className="absolute inset-0 rounded-full bg-red-500/25"
+        className="absolute inset-0 rounded-full bg-white/20"
         style={{ transform: "scale(1)", opacity: 0 }}
       />
       <div className="relative">{children}</div>

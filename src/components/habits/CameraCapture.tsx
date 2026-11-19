@@ -9,7 +9,7 @@ import { useCamera } from "@/lib/hooks/useCamera";
 import { useCameraGestures } from "@/lib/hooks/useCameraGestures";
 import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
 import { VoiceHalo } from "@/components/habits/VoiceMeter";
-import { VoiceWaveform } from "@/components/habits/VoiceWaveform";
+import { VoiceWaveform, RECORD_RED } from "@/components/habits/VoiceWaveform";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { VoiceDebug } from "@/components/habits/VoiceDebug";
 import { VideoTrimBar } from "@/components/habits/VideoTrimBar";
@@ -92,13 +92,6 @@ const SHUTTER_DRAG_SLOP_PX = 10;
 
 const RING_RADIUS = 36;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-/**
- * The shutter's red, in sRGB. Tailwind's red-500 is a Display P3 color, and
- * it was with that red over the live camera that an iPhone painted the dot's
- * square box black (see Shutter).
- */
-const RECORD_RED = "#ef4444";
 
 /**
  * How the live camera sits in the viewfinder. "fill" covers the screen and
@@ -1381,15 +1374,14 @@ export function CameraCapture({
                 >
                   <div
                     onClick={handleMicTap}
-                    className={cn(
-                      "w-24 h-24 rounded-full flex items-center justify-center transition-colors",
-                      view === "recording" ? "bg-red-500/20" : "bg-white/10",
-                    )}
+                    className="w-24 h-24 rounded-full flex items-center justify-center bg-white/10"
                   >
+                    {/* White like the tape and the review's play button; the
+                        red of a live mic is the shutter's and the playhead's */}
                     <Mic
                       className={cn(
-                        "w-10 h-10",
-                        view === "recording" && !paused ? "text-red-500" : "text-white/60",
+                        "w-10 h-10 transition-colors",
+                        view === "recording" && !paused ? "text-white" : "text-white/60",
                       )}
                     />
                   </div>

@@ -16,17 +16,25 @@ export interface WaveFrame {
  * - `idle`: an empty tape, before a take.
  * - `record`: bars are born at a red playhead and slide away to the left.
  * - `paused`: the tape stops and the playhead goes quiet.
- * - `play`: the same tape runs under the playhead again, lit up to where it
- *   has been heard.
+ * - `play`: the same tape runs under a white playhead again, bright up to
+ *   where it has been heard. The take keeps its recording colors; only the
+ *   red, which means the mic is live, leaves.
  */
 export type WaveTone = "idle" | "record" | "paused" | "play";
+
+/**
+ * The red of a live mic or camera: the shutter, the REC dot and the playhead
+ * while a take records, and nothing else on the capture screens. In sRGB,
+ * because Tailwind's red-500 is a Display P3 color that won't match what the
+ * canvas draws, and it was with that red over the live camera that an iPhone
+ * painted the shutter dot's square box black (see CameraCapture's Shutter).
+ */
+export const RECORD_RED = "#ef4444";
 
 const PITCH = 4;
 const BAR_WIDTH = 2.5;
 /** Bars stop short of the canvas edge, and the playhead runs the full height. */
 const INSET = 6;
-const RECORD_RED = "#ef4444";
-const LAMP_FALLBACK = "#E9B44C";
 /** Seconds for the tape to close most of the distance to where it was sent. */
 const GLIDE_SECONDS = 0.11;
 
@@ -68,10 +76,8 @@ export function VoiceWaveform({
     if (!canvas || !ctx) return;
 
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const lamp =
-      getComputedStyle(canvas).getPropertyValue("--color-brand").trim() || LAMP_FALLBACK;
     const colors = {
-      past: tone === "play" ? lamp : "rgba(255,255,255,0.92)",
+      past: "rgba(255,255,255,0.92)",
       ahead: "rgba(255,255,255,0.32)",
       tape: "rgba(255,255,255,0.16)",
       head:

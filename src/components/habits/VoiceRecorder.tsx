@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/Button";
 import { VoicePlayback } from "@/components/habits/VoicePlayback";
 import { VoiceHalo } from "@/components/habits/VoiceMeter";
-import { VoiceWaveform } from "@/components/habits/VoiceWaveform";
+import { VoiceWaveform, RECORD_RED } from "@/components/habits/VoiceWaveform";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
 import { useVoiceRecording } from "@/lib/hooks/useVoiceRecording";
 import { getSupportedAudioMimeType } from "@/lib/utils/audio-recorder";
@@ -188,13 +188,15 @@ export function VoiceRecorder({
         {stage !== "review" && (
           <>
             <VoiceHalo analyserRef={voice.analyserRef} active={recording}>
-              <div
-                className={cn(
-                  "w-24 h-24 rounded-full flex items-center justify-center transition-colors",
-                  recording ? "bg-red-500/20" : "bg-white/10",
-                )}
-              >
-                <Mic className={cn("w-10 h-10", recording ? "text-red-500" : "text-white/60")} />
+              {/* White like the tape and the review's play button; the red of
+                  a live mic is the stop button's and the playhead's */}
+              <div className="w-24 h-24 rounded-full flex items-center justify-center bg-white/10">
+                <Mic
+                  className={cn(
+                    "w-10 h-10 transition-colors",
+                    recording ? "text-white" : "text-white/60",
+                  )}
+                />
               </div>
             </VoiceHalo>
             {/* The mic going in: bars arrive at the playhead as it is heard */}
@@ -243,7 +245,7 @@ export function VoiceRecorder({
               className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center"
               aria-label="Start recording"
             >
-              <div className="w-14 h-14 rounded-full bg-red-500" />
+              <div className="w-14 h-14 rounded-full" style={{ backgroundColor: RECORD_RED }} />
             </button>
           )}
 
@@ -252,11 +254,13 @@ export function VoiceRecorder({
             <button
               type="button"
               onClick={voice.finish}
-              className="w-20 h-20 rounded-full border-4 border-red-500 flex items-center justify-center"
+              className="w-20 h-20 rounded-full border-4 flex items-center justify-center"
+              style={{ borderColor: RECORD_RED }}
               aria-label="Stop recording"
             >
               <motion.div
-                className="w-7 h-7 rounded-sm bg-red-500"
+                className="w-7 h-7 rounded-sm"
+                style={{ backgroundColor: RECORD_RED }}
                 initial={{ scale: 0, borderRadius: "50%" }}
                 animate={{ scale: 1, borderRadius: "4px" }}
                 transition={{ duration: 0.15 }}

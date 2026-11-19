@@ -117,7 +117,7 @@ export function VoicePlayback({
         {playing && (
           <motion.div
             aria-hidden
-            className="absolute inset-0 rounded-full bg-[var(--color-brand)]/30"
+            className="absolute inset-0 rounded-full bg-white/20"
             initial={{ scale: 1, opacity: 0.6 }}
             animate={{ scale: [1, 1.35, 1], opacity: [0.6, 0, 0.6] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
@@ -128,8 +128,9 @@ export function VoicePlayback({
           onClick={toggle}
           aria-label={playing ? "Pause recording" : "Play recording"}
           className={cn(
-            "relative flex h-24 w-24 items-center justify-center rounded-full text-on-brand",
-            "bg-[var(--color-brand)] shadow-lg shadow-[var(--color-brand)]/30",
+            // White like the take's own tape: the review's one gold is the
+            // primary action under it, not the player.
+            "relative flex h-24 w-24 items-center justify-center rounded-full bg-white text-black",
             "transition-transform active:scale-95",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
           )}
@@ -153,7 +154,7 @@ export function VoicePlayback({
           <div className="relative h-6">
             <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/15">
               <div
-                className="h-full rounded-full bg-[var(--color-brand)]"
+                className="h-full rounded-full bg-white/90"
                 style={{ width: `${progress * 100}%` }}
               />
             </div>
