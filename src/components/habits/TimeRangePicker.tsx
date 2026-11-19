@@ -24,8 +24,8 @@ const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 /**
  * Quarter hours up front, the times most habits keep. Any other minute is a
  * tap further, under "Exact minute": 10:02 PM, for Luke 10:2. Reminders still
- * go out on the quarter hour (habit-reminders), so a habit at 10:02 is
- * reminded at 10:00.
+ * go out on the quarter hour (habit-reminders), and never before the start, so
+ * a habit at 10:02 is reminded at 10:15.
  */
 const MINUTES = [0, 15, 30, 45];
 

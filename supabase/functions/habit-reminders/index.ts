@@ -17,6 +17,8 @@ interface HabitDue {
     habit_reminders?: boolean;
   } | null;
   timezone: string;
+  /** The day the reminder is for: the day before, for 23:50 reminded at midnight (058). */
+  reminder_date?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +131,7 @@ Deno.serve(async (req) => {
   // Collect push tasks, respecting quiet hours
   const pushTasks: Array<{
     habitId: string;
-    timezone: string;
+    reminderDate: string;
     fn: () => Promise<boolean>;
   }> = [];
 
@@ -138,7 +140,8 @@ Deno.serve(async (req) => {
 
     pushTasks.push({
       habitId: habit.id,
-      timezone: habit.timezone,
+      // Before 058 the RPC returned no date; today's local date was its day.
+      reminderDate: habit.reminder_date ?? localDateKey(habit.timezone),
       fn: () =>
         sendPush(supabaseUrl, {
           title: `${habit.emoji} Time for ${habit.title}`,
@@ -154,7 +157,7 @@ Deno.serve(async (req) => {
   // A failed push is neither counted nor recorded in last_reminder_date.
   const BATCH_SIZE = 50;
   let sent = 0;
-  // Delivered habit IDs, grouped by their owner's local date
+  // Delivered habit IDs, grouped by the local date each reminder was for
   const sentByDate = new Map<string, string[]>();
 
   for (let i = 0; i < pushTasks.length; i += BATCH_SIZE) {
@@ -164,15 +167,15 @@ Deno.serve(async (req) => {
       const result = results[j];
       if (result.status === "fulfilled" && result.value) {
         sent++;
-        const date = localDateKey(batch[j].timezone);
+        const date = batch[j].reminderDate;
         sentByDate.set(date, [...(sentByDate.get(date) ?? []), batch[j].habitId]);
       }
     }
   }
 
-  // Record the reminder under the user's local date, not UTC — the RPC
-  // dedups against the local date, so a UTC date that has already rolled
-  // over (evenings in the Americas) would suppress the next day's reminder.
+  // Record the reminder under the local date it was for, not UTC — the RPC
+  // dedups against that date, so a UTC date that has already rolled over
+  // (evenings in the Americas) would suppress the next day's reminder.
   for (const [date, habitIds] of sentByDate) {
     await supabase
       .from("habits")

@@ -537,11 +537,12 @@ BEGIN
     'TEST 9b FAILED: a time moved to one already past was reminded';
   RAISE NOTICE 'TEST 9b PASSED: a time moved to one already past is not reminded that day';
 
-  -- Reminders go out on the quarter hour: 9:07 is reminded at 9.
-  ASSERT public._reminded('ad000000-0000-4000-8000-000000000014', '2026-10-08 00:00+00', '2026-10-08 23:45+00') = ARRAY['Thu 09:00'],
+  -- Reminders go out on the quarter hour, never before the start (058): 9:07
+  -- is reminded at 9:15.
+  ASSERT public._reminded('ad000000-0000-4000-8000-000000000014', '2026-10-08 00:00+00', '2026-10-08 23:45+00') = ARRAY['Thu 09:15'],
     format('TEST 9c FAILED: 9:07 was reminded %s',
            public._reminded('ad000000-0000-4000-8000-000000000014', '2026-10-08 00:00+00', '2026-10-08 23:45+00'));
-  RAISE NOTICE 'TEST 9c PASSED: a time off the quarter hour is reminded at the quarter before it';
+  RAISE NOTICE 'TEST 9c PASSED: a time off the quarter hour is reminded at the quarter after it';
 END $$;
 
 -- Weekly. Read has no time; Call is 8 to 9 and done on Tuesday.

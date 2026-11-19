@@ -4,6 +4,7 @@ import React, { useId } from "react";
 import { cn } from "@/lib/utils/cn";
 import { CHECK_IN_OPTIONS, type CheckInAction } from "@/lib/constants/check-in";
 import { isPausedOn } from "@/lib/utils/pauses";
+import { isHabitDueOn } from "@/lib/utils/schedule";
 import {
   CheckInDrawerOptions,
   DRAWER_SURFACE_CLASS,
@@ -29,16 +30,21 @@ export type OnCheckIn = (
 
 /**
  * What the drawer offers for today, from today's state in the grid. A
- * check-in always logs today, so a row whose habit is paused today offers
- * nothing; one already done, rain-checked or not due today can still be done
+ * check-in always logs today, so a row offers nothing when today isn't the
+ * habit's day: paused, or neither on its schedule nor holding a rain check
+ * moved onto it. That is the Day view's rule for listing a habit at all; the
+ * Week grid lists every habit, and used to let any of them be checked in. A
+ * habit that is due today and already done or rain-checked can still be done
  * (again), but not skipped.
  */
 export function todayCheckInOptions(
   habit: HabitWithCompletions,
   todayState: DayState,
   todayKey: string,
+  timezone: string,
 ) {
   if (habit.is_paused || isPausedOn(habit.pauses ?? [], todayKey)) return null;
+  if (!isHabitDueOn(habit, new Date(), todayKey, timezone)) return null;
   return todayState === "today" ? CHECK_IN_OPTIONS : REPEAT_OPTIONS;
 }
 

@@ -3,6 +3,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getSupportedAudioMimeType } from "@/lib/utils/audio-recorder";
 import { analyserLevel, newLevelMemory, type VoiceReadings } from "@/lib/utils/audio-level";
+import {
+  extendWave,
+  finishedBars,
+  newVoiceWave,
+  wavePeak,
+  type VoiceWave,
+} from "@/lib/utils/voice-wave";
 
 export type VoiceRecordingStatus = "idle" | "recording" | "paused";
 export type VoiceRecordingError = "denied" | "unsupported";
@@ -10,8 +17,11 @@ export type VoiceRecordingError = "denied" | "unsupported";
 export interface UseVoiceRecordingOptions {
   /** Seconds; the take finishes itself when it gets there. */
   maxDuration: number;
-  /** The finished take, with a type the upload can map to an extension. */
-  onFinish: (blob: Blob) => void;
+  /**
+   * The finished take, with a type the upload can map to an extension, and
+   * the waveform it drew while recording, for its review to draw again.
+   */
+  onFinish: (blob: Blob, wave: number[]) => void;
 }
 
 export interface UseVoiceRecordingReturn {
@@ -21,6 +31,11 @@ export interface UseVoiceRecordingReturn {
   error: VoiceRecordingError | null;
   /** The live mic's analyser while a take is open, for a level meter. */
   analyserRef: React.RefObject<AnalyserNode | null>;
+  /**
+   * The take's waveform as it grows: read it each frame to draw it. It
+   * advances only while recording, so paused time takes up none of it.
+   */
+  waveRef: React.RefObject<VoiceWave>;
   start: () => Promise<void>;
   pause: () => void;
   resume: () => void;
@@ -51,6 +66,7 @@ export function useVoiceRecording({
   const elapsedRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const waveRef = useRef<VoiceWave>(newVoiceWave());
   /** False when the take is being thrown away rather than finished. */
   const keepRef = useRef(true);
   /**
@@ -134,7 +150,9 @@ export function useVoiceRecording({
     try {
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
+      // 1024 samples is 21 ms: longer than a frame, so a read each frame
+      // misses none of the take and the waveform's peaks are the real ones.
+      analyser.fftSize = 1024;
       analyser.smoothingTimeConstant = 0.6;
       ctx.createMediaStreamSource(stream).connect(analyser);
       // WebKit only runs the nodes something downstream pulls on, so an
@@ -182,14 +200,21 @@ export function useVoiceRecording({
       stopTimer();
       releaseMic();
       setStatus("idle");
-      if (!keepRef.current) return;
+      if (!keepRef.current) {
+        waveRef.current = newVoiceWave();
+        return;
+      }
       // The bare type, without ";codecs=…": it is what the upload maps to a
       // file extension and what the bucket's allowed types list.
       const type = mimeInfo.mimeType.split(";")[0];
-      onFinishRef.current(new Blob(chunksRef.current, { type }));
+      const wave = finishedBars(waveRef.current);
+      // The tape is the review's now; the recording screen's is blank again.
+      waveRef.current = newVoiceWave();
+      onFinishRef.current(new Blob(chunksRef.current, { type }), wave);
     };
 
     recorder.start();
+    waveRef.current = newVoiceWave();
     elapsedRef.current = 0;
     setElapsed(0);
     setStatus("recording");
@@ -232,7 +257,37 @@ export function useVoiceRecording({
     elapsedRef.current = 0;
     setElapsed(0);
     setStatus("idle");
+    waveRef.current = newVoiceWave();
   }, [stopTimer, releaseMic]);
+
+  // --- The waveform: the mic's loudest each frame, for as long as it records ---
+  // Kept here rather than in whatever draws it, because the take's review
+  // needs the same bars after the recording screen has gone. With no
+  // analyser the tape still runs, flat, and the review works the bars out
+  // from the recording instead.
+  useEffect(() => {
+    if (status !== "recording" || typeof requestAnimationFrame !== "function") return;
+    let frame = 0;
+    let last = performance.now();
+    let samples: Float32Array<ArrayBuffer> | null = null;
+    const tick = () => {
+      const now = performance.now();
+      const analyser = analyserRef.current;
+      let peak = 0;
+      if (analyser) {
+        if (!samples || samples.length !== analyser.fftSize) {
+          samples = new Float32Array(analyser.fftSize);
+        }
+        analyser.getFloatTimeDomainData(samples);
+        peak = wavePeak(samples);
+      }
+      extendWave(waveRef.current, peak, (now - last) / 1000);
+      last = now;
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [status]);
 
   const inspect = useCallback((): VoiceReadings => {
     const recorder = recorderRef.current;
@@ -249,6 +304,9 @@ export function useVoiceRecording({
       states: log.states.join(" > ") || "none",
       resume: log.resume,
       level: analyserLevel(analyserRef.current, log.level),
+      wave: `${waveRef.current.bars.length} bars, tallest ${Math.round(
+        Math.max(0, ...waveRef.current.bars) * 100,
+      )}%`,
     };
   }, []);
 
@@ -265,5 +323,17 @@ export function useVoiceRecording({
     };
   }, []);
 
-  return { status, elapsed, error, analyserRef, start, pause, resume, finish, cancel, inspect };
+  return {
+    status,
+    elapsed,
+    error,
+    analyserRef,
+    waveRef,
+    start,
+    pause,
+    resume,
+    finish,
+    cancel,
+    inspect,
+  };
 }

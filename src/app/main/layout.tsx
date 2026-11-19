@@ -5,6 +5,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { QuickCaptureFlow } from "@/components/habits/QuickCaptureFlow";
 import { CheckinSharingDialog } from "@/components/habits/CheckinSharingDialog";
+import { DayKeptMoment } from "@/components/habits/DayKeptMoment";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { OfflineIndicator } from "@/components/pwa/OfflineIndicator";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
@@ -97,6 +98,8 @@ export default function MainLayout({
       <BottomNav />
       <QuickCaptureFlow />
       <CheckinSharingDialog />
+      {/* Today is kept: played here, whichever screen settled the last habit. */}
+      <DayKeptMoment />
       <InstallPrompt />
     </div>
   );

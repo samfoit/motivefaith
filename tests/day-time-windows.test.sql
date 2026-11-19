@@ -277,25 +277,25 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- Test 4: reminders come at the day's own time
 -- ---------------------------------------------------------------------------
--- A reminder goes out in the 15 minutes before the start.
+-- A reminder goes out as the start comes (058), not before it.
 
 DO $$
 BEGIN
   -- Wednesday morning: Run and Plain at 8. Pray, weekly, is not done this
   -- week; Read was done on Monday, and is not reminded again.
-  ASSERT public._reminded('2026-10-07 07:50+00') = ARRAY['Plain', 'Pray', 'Run'],
-    format('TEST 4a FAILED: Wednesday 7:50 reminded %s', public._reminded('2026-10-07 07:50+00'));
+  ASSERT public._reminded('2026-10-07 08:00+00') = ARRAY['Plain', 'Pray', 'Run'],
+    format('TEST 4a FAILED: Wednesday 8:00 reminded %s', public._reminded('2026-10-07 08:00+00'));
 
   -- Saturday: Run waits for 4.
-  ASSERT public._reminded('2026-10-10 07:50+00') = ARRAY['Plain', 'Pray'],
-    format('TEST 4b FAILED: Saturday 7:50 reminded %s', public._reminded('2026-10-10 07:50+00'));
-  ASSERT public._reminded('2026-10-10 15:50+00') = ARRAY['Run'],
-    format('TEST 4c FAILED: Saturday 15:50 reminded %s', public._reminded('2026-10-10 15:50+00'));
+  ASSERT public._reminded('2026-10-10 08:00+00') = ARRAY['Plain', 'Pray'],
+    format('TEST 4b FAILED: Saturday 8:00 reminded %s', public._reminded('2026-10-10 08:00+00'));
+  ASSERT public._reminded('2026-10-10 16:00+00') = ARRAY['Run'],
+    format('TEST 4c FAILED: Saturday 16:00 reminded %s', public._reminded('2026-10-10 16:00+00'));
 
   -- Tuesday: Run has no set time, so no reminder at all.
-  ASSERT NOT 'Run' = ANY (public._reminded('2026-10-06 07:50+00')),
+  ASSERT NOT 'Run' = ANY (public._reminded('2026-10-06 08:00+00')),
     'TEST 4d FAILED: a day with no set time was reminded';
-  ASSERT NOT 'Run' = ANY (public._reminded('2026-10-06 15:50+00')),
+  ASSERT NOT 'Run' = ANY (public._reminded('2026-10-06 16:00+00')),
     'TEST 4d FAILED: a day with no set time was reminded';
 
   RAISE NOTICE 'TEST 4 PASSED: reminders follow the day''s window, and a weekly habit done this week is left alone';

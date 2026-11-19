@@ -165,7 +165,7 @@ export const MonthView = memo(function MonthView({
             {selectedHabits.map(({ habit, state }) => {
               const options =
                 selected.key === todayKey
-                  ? todayCheckInOptions(habit, state, todayKey)
+                  ? todayCheckInOptions(habit, state, todayKey, timezone)
                   : null;
               const circleState = options ? CIRCLE_STATE[state] : undefined;
               return (

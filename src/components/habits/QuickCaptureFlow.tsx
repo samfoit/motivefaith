@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { DASHBOARD_KEY_PREFIX, dashboardKey } from "@/lib/hooks/useDashboard";
+import { confirmDayKept, recordCheckIns } from "@/lib/data/dashboard-checkin";
 import { ChevronLeft, Loader2, Mic, Send } from "lucide-react";
 import { useQuickCaptureStore } from "@/lib/stores/quick-capture-store";
 import { Button } from "@/components/ui/Button";
@@ -17,10 +18,9 @@ import { useOnline } from "@/lib/hooks/useOnline";
 import { useFriendsList } from "@/lib/hooks/useFriends";
 import { useGroupsList } from "@/lib/hooks/useGroups";
 import type { DashboardData } from "@/lib/data/dashboard";
-import { applyCompletion } from "@/lib/data/dashboard-mutations";
 import { habitsDueToday } from "@/lib/data/capture-habits";
-import { isOfflineError, queueCaptureShare } from "@/lib/offline-write";
-import { notifyPendingChanged } from "@/lib/outbox-drain";
+import { isOfflineError } from "@/lib/offline-write";
+import { deliverCapture, prepareCapture } from "@/lib/capture-send";
 import {
   ShareTargetPicker,
   SelectedTargets,
@@ -31,14 +31,9 @@ import type { ShareTarget } from "@/lib/stores/quick-capture-store";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
 import { untypedRpc } from "@/lib/supabase/rpc";
-import { compressImage } from "@/lib/utils/compress-image";
 import { cn } from "@/lib/utils/cn";
 import { getBrowserTimezone } from "@/lib/utils/timezone";
-import {
-  ALLOWED_IMAGE_TYPES,
-  ALLOWED_VIDEO_TYPES,
-  MIME_TO_EXT,
-} from "@/lib/utils/media-types";
+import { ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES } from "@/lib/utils/media-types";
 import { checkVideo, isUploadTooLarge } from "@/lib/utils/check-video";
 import { isHabitPausedError } from "@/lib/constants/completion";
 import { PrivateToggle } from "@/components/habits/PrivateToggle";
@@ -244,76 +239,38 @@ export function QuickCaptureFlow() {
         // session, so a wrong one is refused there.
         if (!userId) throw new Error("Not authenticated");
 
-        // The bare type: a recorder's "video/webm;codecs=vp9" is neither in
-        // MIME_TO_EXT nor in the bucket's allowed types.
-        let uploadBlob: Blob = file;
-        let contentType = file.type.split(";")[0];
-        let ext = MIME_TO_EXT[contentType] ?? "bin";
-
-        if (mode === "photo") {
-          uploadBlob = await compressImage(file);
-          ext = "webp";
-          contentType = "image/webp";
-        }
-
-        // Uploaded once; every destination row points at this path, and those
-        // rows are what let a friend or group member read it (migration 034).
-        // A private take goes where no shared row can point (039). Minted
-        // before anything is sent, so a take that has to be queued keeps the
-        // path it may already have reached storage under.
-        const id = crypto.randomUUID();
+        const prepared = await prepareCapture(file, mode, userId, isPrivate);
         const share: ShareCaptureParams = {
-          mediaPath: `${userId}/${isPrivate ? "private" : "capture"}/${id}.${ext}`,
+          mediaPath: prepared.mediaPath,
           mediaType: mode,
           caption: caption.trim() || undefined,
           ...targets,
           isPrivate,
         };
+        const { id } = prepared;
 
-        // Offline it is kept without trying, as a check-in is, and so is a
-        // send the connection drops partway. A refusal from the server is
-        // still an error to show, not a promise to send later.
-        let queued = !navigator.onLine;
-        if (!queued) {
-          try {
-            const { error: uploadError } = await createClient()
-              .storage.from("completions")
-              .upload(share.mediaPath, uploadBlob, { contentType });
-
-            if (uploadError) throw uploadError;
-
-            await shareCapture.mutateAsync(share);
-          } catch (err) {
-            if (!isOfflineError(err)) throw err;
-            queued = true;
-          }
-        }
+        // Sent now, or — offline, or cut off partway — kept in the outbox.
+        const { queued } = await deliverCapture({
+          prepared,
+          userId,
+          share,
+          shareNow: shareCapture.mutateAsync,
+        });
 
         const { habitIds } = targets;
+        // Checked in on the dashboard now — sent or waiting in the outbox —
+        // so the habit doesn't look undone, and so a take that finishes the
+        // day lights the lamp as the camera closes.
+        const recorded = recordCheckIns(
+          queryClient,
+          userId,
+          habitIds.map((habitId) => ({
+            habitId,
+            tempId: `${id}:${habitId}`,
+            type: mode,
+          })),
+        );
         if (queued) {
-          await queueCaptureShare({
-            id,
-            userId,
-            payload: { ...share, media: await uploadBlob.arrayBuffer(), contentType },
-          });
-          notifyPendingChanged();
-          // Checked in on the dashboard now, as an offline quick check-in
-          // is, so the habit doesn't look undone while the take waits.
-          if (habitIds.length > 0) {
-            const key = dashboardKey(userId);
-            void queryClient.cancelQueries({ queryKey: key });
-            queryClient.setQueryData<DashboardData>(key, (old) =>
-              habitIds.reduce(
-                (data, habitId) =>
-                  applyCompletion(data, {
-                    habitId,
-                    tempId: `${id}:${habitId}`,
-                    type: mode,
-                  }),
-                old,
-              ),
-            );
-          }
           // Said from a chat's camera too: the chat can't show the take
           // until it has been sent. And no onSent — that refreshes the chat
           // from a server that doesn't have it yet, and fails offline.
@@ -341,7 +298,16 @@ export function QuickCaptureFlow() {
           // so router.refresh() would be a wasted round trip — and one that
           // fails outright offline.
           if (habitIds.length > 0) {
-            void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
+            // The habits this take settled: those not yet done today.
+            const settled = habitIds.filter(
+              (habitId) => !habits.find((h) => h.id === habitId)?.checked_in_today,
+            );
+            if (!recorded.kept && recorded.unsure && settled.length > 0) {
+              // The cache may not know what was done elsewhere today.
+              void confirmDayKept(queryClient, userId, settled);
+            } else {
+              void queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY_PREFIX });
+            }
           }
           direct?.onSent?.();
         }
@@ -360,7 +326,7 @@ export function QuickCaptureFlow() {
         setStep(direct ? "camera" : "share");
       }
     },
-    [shareCapture, reset, queryClient, setStep, show, userId],
+    [shareCapture, reset, queryClient, setStep, show, userId, habits],
   );
 
   /**
