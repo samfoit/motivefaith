@@ -46,11 +46,11 @@ export function EvidenceAudio({ path, className }: EvidenceAudioProps) {
 
   if (!url) {
     return (
-      <div className={cn("h-9 w-56 max-w-full rounded-full overflow-hidden", className)}>
+      <div className={cn("h-9 w-40 max-w-full rounded-full overflow-hidden", className)}>
         <Skeleton variant="rect" className="w-full h-full" />
       </div>
     );
   }
 
-  return <AudioPlayer src={url} className={className} />;
+  return <AudioPlayer src={url} waveKey={path} className={className} />;
 }

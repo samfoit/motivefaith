@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { AudioPlayer } from "../AudioPlayer";
+import { AudioPlayer, noteWidth } from "../AudioPlayer";
 
 /** jsdom's media element has no duration, playback or seeking of its own. */
 function fakeMedia(el: HTMLAudioElement, duration: number) {
@@ -109,5 +109,15 @@ describe("AudioPlayer", () => {
 
     expect(media.current).toBe(5);
     expect(screen.getByText("0:05")).toBeInTheDocument();
+  });
+
+  it("grows with the note's length, from a short note's width to a minute's", () => {
+    expect(noteWidth(0)).toBe(160);
+    expect(noteWidth(NaN)).toBe(160);
+    expect(noteWidth(2)).toBe(160);
+    expect(noteWidth(60)).toBe(256);
+    expect(noteWidth(120)).toBe(256);
+    // A few seconds more tells on a short note, less on a long one.
+    expect(noteWidth(10) - noteWidth(5)).toBeGreaterThan(noteWidth(50) - noteWidth(45));
   });
 });

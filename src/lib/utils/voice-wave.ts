@@ -63,6 +63,44 @@ export function isFlatWave(bars: readonly number[] | null | undefined): boolean 
   return !bars || bars.every((b) => b === 0);
 }
 
+/**
+ * A whole take squeezed into `count` columns, for a sent note's player,
+ * where the take is shown at once rather than scrolled past. Each column is
+ * the mean of the bars it covers, so speech keeps its shape instead of every
+ * column rising to its loudest syllable; a take shorter than `count` bars is
+ * stretched.
+ *
+ * The columns are then spread from the note's quietest to its loudest, so a
+ * quiet note reads as well as a loud one, and a long note, whose columns
+ * each average seconds of talk and so come out nearly level, still shows
+ * where it was busy and where it paused instead of a solid block. Silence
+ * stays a dot, as on the recorder's tape. Empty for an empty take.
+ */
+export function summarizeWave(bars: readonly number[], count: number): number[] {
+  if (!bars.length || count <= 0) return [];
+  const columns: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const from = Math.floor((i * bars.length) / count);
+    const to = Math.max(from + 1, Math.floor(((i + 1) * bars.length) / count));
+    let sum = 0;
+    for (let j = from; j < to; j++) sum += bars[j];
+    columns.push(sum / (to - from));
+  }
+  const heard = columns.filter((c) => c >= SILENT_COLUMN);
+  if (!heard.length) return columns.map(() => 0);
+  const quietest = Math.min(...heard);
+  const loudest = Math.max(...heard);
+  const range = loudest - quietest;
+  return columns.map((c) =>
+    c < SILENT_COLUMN ? 0 : range > 0 ? QUIETEST_COLUMN + (1 - QUIETEST_COLUMN) * ((c - quietest) / range) : 1,
+  );
+}
+
+/** A column this quiet is silence, drawn as a dot. */
+const SILENT_COLUMN = 0.03;
+/** Where the quietest column that heard something sits, so it isn't taken for silence. */
+const QUIETEST_COLUMN = 0.15;
+
 /** The bars of audio that has already been decoded. */
 export function waveFromSamples(samples: Float32Array, sampleRate: number): number[] {
   const perBar = Math.max(1, Math.round(sampleRate * WAVE_BAR_SECONDS));

@@ -252,7 +252,7 @@ Users tint a habit with one of ten presets (Red, Orange, Amber, Green, Teal, Blu
 
 **The Hour Owns the Color Rule.** Surface, text, border and sky colors come from the tokens `palette(hour)` writes (`--color-bg-*`, `--color-text-*`, `--color-header`, `--sky-*`), never from a hardcoded value. A new hour-dependent color is added to `src/lib/lamplight/palette.ts` and walked by its contrast test: text at 4.5:1, controls at 3:1, at every 15-minute step.
 
-**The Red Means Missed Rule.** Red is reserved for missed, danger and hearts. No action, category or decoration may borrow it. That is why the check-in hues leave the red-to-magenta arc empty. Red text is always Missed Red Ink; Missed Red is for fills, icons and borders.
+**The Red Means Missed Rule.** Red is reserved for missed, danger and hearts. No action, category or decoration may borrow it. That is why the check-in hues leave the red-to-magenta arc empty. Red text is always Missed Red Ink; Missed Red is for fills, icons and borders. The one exception is the black capture screens, where red (`RECORD_RED`, sRGB #ef4444) means a live mic or camera: the shutter, the REC dot and the waveform's playhead while a take records. The voice take itself (mic disc, halo, tape, play button, seek track) is white from recording through review, so the review's only gold is its primary action.
 
 ## Typography
 
@@ -353,6 +353,9 @@ The heart of the app. A 14px-radius surface tinted by the habit's color (1px bor
 - **Check states:** open is a 2px Slate Quiet ring that warms to Lamp Ink on hover. Done is a solid amber circle with a Wick Black check that pops in on a bounce, carrying the done glow. Rain-checked is a 2px Rain Blue ring around a cloud.
 - **Check-in drawer:** swiping the card right (or tapping the handle) slides it off a row of round check-in icons in their fixed hues, white glyphs, revealed one after another 40ms apart. The drawer's floor is a step deeper than the card, tinted with the habit's hue and outlined in it, so the icons never float on the page.
 - **Done:** the name steps back to Slate Sub.
+
+### Voice Note Player
+A sent voice note (check-in cards, chat bubbles, habit history) is drawn like the capture screen's review, in the hour's ink instead of white: a 36px Day Ink disc (Candle Ink at night) with a card-colored play glyph, then the note's own waveform as the seek track, round 2.5px bars at the recorder's 4px pitch in 30% ink, redrawn at 90% up to the playhead, then the time. The player's width follows the note's length on a log scale, 160px for a few seconds up to 256px at a minute and over (never wider than its bubble), so a long note looks long before its time is read. Each note's bars run from its quietest to its loudest, so a long note keeps its shape instead of averaging into a solid block. Only the audio file is stored, so the bars are decoded from it once the note nears the screen and cached for the session. Until then, or if the file can't be read, the track is the recorder's empty tape, a row of dots. No gold: the player is the content, not the action.
 
 ### Bottom Sheet
 A Page White sheet rising from the bottom edge, 14px top corners, 16px padding, a 48px × 6px drag handle, serif title with an optional sans description, and a close button. It enters on a slightly springy 420ms ease and can be dragged down to dismiss.

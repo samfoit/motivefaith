@@ -5,6 +5,7 @@ import {
   finishedBars,
   isFlatWave,
   newVoiceWave,
+  summarizeWave,
   waveFromSamples,
   waveLevel,
   wavePeak,
@@ -74,5 +75,25 @@ describe("voice wave", () => {
     samples.fill(LOUD, 0, 80);
     samples.fill(QUIET, 80, 160);
     expect(waveFromSamples(samples, rate).map(round)).toEqual([0.125, 0.016, 0]);
+  });
+
+  it("squeezes a whole take into a sent note's columns, quietest to loudest", () => {
+    // Four bars to a column, averaged: a loud word, a quiet one, a pause.
+    const take = [0.4, 0.4, 0.4, 0.4, 0.1, 0.1, 0.1, 0.1, 0, 0, 0, 0];
+    expect(summarizeWave(take, 3)).toEqual([1, 0.15, 0]);
+    // A take shorter than the player is stretched to fill it.
+    expect(summarizeWave([0.2, 0.4], 4)).toEqual([0.15, 0.15, 1, 1]);
+    // Silence stays flat; nothing is a column of nothing.
+    expect(summarizeWave([0, 0, 0], 3)).toEqual([0, 0, 0]);
+    expect(summarizeWave([], 3)).toEqual([]);
+  });
+
+  // A long note's columns each average seconds of talk, so they come out
+  // nearly level; spread out, they still show its shape.
+  it("keeps a long note from flattening into a solid block", () => {
+    const talk = Array.from({ length: 1500 }, (_, i) => 0.6 + 0.1 * Math.sin(i / 40));
+    const columns = summarizeWave(talk, 32);
+    expect(Math.min(...columns)).toBe(0.15);
+    expect(Math.max(...columns)).toBe(1);
   });
 });
