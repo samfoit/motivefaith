@@ -72,6 +72,18 @@ export function layoutRuns(
   return positions;
 }
 
+/**
+ * How many of a thread's newest items are on screen when it opens. A thread
+ * opens at its end, so these are the pictures to load without waiting; the
+ * rest stay lazy, or a long thread would fetch every photo in it at once.
+ */
+const ON_SCREEN_AT_OPEN = 3;
+
+/** Whether item `index` of `count` is among those on screen as the thread opens. */
+export function onScreenAtOpen(index: number, count: number): boolean {
+  return index >= count - ON_SCREEN_AT_OPEN;
+}
+
 export function TimeDivider({ label }: { label: string }) {
   return (
     <p className="pt-5 pb-1 text-center text-[11px] font-medium text-text-tertiary">
@@ -275,6 +287,8 @@ interface MessageBubbleProps {
   content: string | null;
   mediaPath?: string | null;
   mediaType?: "photo" | "video" | "voice" | null;
+  /** On screen as the thread opens (see onScreenAtOpen). */
+  eager?: boolean;
 }
 
 /**
@@ -289,6 +303,7 @@ export function MessageBubble({
   content,
   mediaPath,
   mediaType,
+  eager = false,
 }: MessageBubbleProps) {
   const text = content?.trim() || null;
   const corners = bubbleCorners(isMe, first);
@@ -297,7 +312,7 @@ export function MessageBubble({
   if (mediaPath && (mediaType === "photo" || mediaType === "video")) {
     return (
       <div className={cn("flex flex-col gap-0.5", isMe ? "items-end" : "items-start")}>
-        <MessageMedia path={mediaPath} type={mediaType} className={cn(corners, "overflow-hidden")} />
+        <MessageMedia path={mediaPath} type={mediaType} className={cn(corners, "overflow-hidden")} eager={eager} />
         {text && (
           <p className={cn(surface, bubbleCorners(isMe, false), "px-3.5 py-2 text-[15px] leading-snug text-text-primary break-words")}>
             <LinkifiedText text={text} />

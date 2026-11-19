@@ -55,6 +55,7 @@ import {
   MessageBubble,
   TimeDivider,
   layoutRuns,
+  onScreenAtOpen,
   type ChatAction,
 } from "@/components/social/ChatParts";
 import type {
@@ -859,6 +860,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
                         rainCheckMovedTo={c.rain_check_moved_to}
                         evidenceUrl={c.evidence_url}
                         notes={c.notes}
+                        eager={onScreenAtOpen(i, timeline.length)}
                         isHearted={cIHearted}
                         onHeart={
                           !c.isMe
@@ -926,6 +928,7 @@ export function GroupTimelineClient({ data, userId }: GroupTimelineClientProps) 
                       content={m.content}
                       mediaPath={m.media_path}
                       mediaType={m.media_type}
+                      eager={onScreenAtOpen(i, timeline.length)}
                     />
                   </ChatRow>
                 );

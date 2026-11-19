@@ -5,7 +5,7 @@ import { Copy, Flag } from "lucide-react";
 import { FEED_WINDOW_MS } from "@/lib/constants/limits";
 import { CompletionBubble } from "@/components/social/CompletionBubble";
 import { ReportSheet } from "@/components/social/ReportSheet";
-import { ChatRow, MessageBubble, layoutRuns } from "@/components/social/ChatParts";
+import { ChatRow, MessageBubble, layoutRuns, onScreenAtOpen } from "@/components/social/ChatParts";
 import { useToast } from "@/components/ui/Toast";
 import type { JourneyCompletion, JourneyEncouragement } from "@/lib/types/feed";
 
@@ -166,6 +166,7 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
                   content={e.content}
                   mediaPath={e.media_path}
                   mediaType={e.media_type}
+                  eager={onScreenAtOpen(i, entries.length)}
                 />
               </ChatRow>
             );
@@ -210,6 +211,7 @@ export const JourneyTimeline = React.memo(function JourneyTimeline({
                 rainCheckMovedTo={c.rain_check_moved_to}
                 evidenceUrl={c.evidence_url}
                 notes={c.notes}
+                eager={onScreenAtOpen(i, entries.length)}
                 isHearted={isHearted}
                 onHeart={
                   !c.isMe && onHeartCompletion

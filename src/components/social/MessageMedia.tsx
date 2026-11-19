@@ -22,11 +22,14 @@ export function MessageMedia({
   path,
   type,
   className,
+  eager = false,
 }: {
   path: string;
   type: "photo" | "video" | "voice";
   /** The frame's shape, for a photo or video. */
   className?: string;
+  /** On screen as the thread opens: load the photo without waiting. */
+  eager?: boolean;
 }) {
   const frame = cn(FRAME_CLASS, className);
   const [open, setOpen] = useState(false);
@@ -54,7 +57,7 @@ export function MessageMedia({
         aria-label="View photo"
         className="block max-w-full cursor-zoom-in"
       >
-        <EvidenceMedia path={path} type="photo" alt="Shared photo" className={frame} />
+        <EvidenceMedia path={path} type="photo" alt="Shared photo" className={frame} eager={eager} />
       </button>
       <MediaLightbox path={path} open={open} onOpenChange={setOpen} alt="Shared photo" />
     </>
