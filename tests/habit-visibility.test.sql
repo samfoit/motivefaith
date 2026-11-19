@@ -54,9 +54,13 @@ INSERT INTO public.habits (id, user_id, title, emoji, visibility, streak_current
   ('b0000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001', 'Private Run',  '🏃', 'private', 7, 9),
   ('b0000000-0000-4000-8000-000000000002', 'a1000000-0000-4000-8000-000000000001', 'Public Reading', '📚', 'public', 5, 11);
 
-INSERT INTO public.completions (id, user_id, habit_id, completion_type) VALUES
-  ('c0000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'quick'),
-  ('c0000000-0000-4000-8000-000000000002', 'a1000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000002', 'quick');
+-- Each check-in carries its photo: since 059 a partner reads a file only
+-- while a check-in shows it.
+INSERT INTO public.completions (id, user_id, habit_id, completion_type, evidence_url) VALUES
+  ('c0000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'photo',
+   'a1000000-0000-4000-8000-000000000001/b0000000-0000-4000-8000-000000000001/private.jpg'),
+  ('c0000000-0000-4000-8000-000000000002', 'a1000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000002', 'photo',
+   'a1000000-0000-4000-8000-000000000001/b0000000-0000-4000-8000-000000000002/public.jpg');
 
 -- Evidence media, one object per habit, laid out as the app does:
 -- <owner id>/<habit id>/<file>

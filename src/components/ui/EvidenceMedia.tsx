@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Image from "next/image";
-import { resolveEvidenceUrl } from "@/lib/utils/evidence";
+import { useEvidenceUrl } from "@/lib/hooks/useEvidenceUrl";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { MediaUnavailable } from "@/components/ui/MediaUnavailable";
 import { cn } from "@/lib/utils/cn";
 
 interface EvidenceMediaProps {
@@ -24,7 +24,8 @@ interface EvidenceMediaProps {
  * render time.
  *
  * Uses next/image with fill mode inside a fixed-ratio container
- * to prevent CLS while images load.
+ * to prevent CLS while images load. Media that cannot be shown says so in
+ * the same frame (see MediaUnavailable).
  */
 export function EvidenceMedia({
   path,
@@ -35,29 +36,11 @@ export function EvidenceMedia({
   videoClassName,
 }: EvidenceMediaProps) {
   const isLegacy = path.startsWith("http");
-  const [resolved, setResolved] = useState<{ path: string; url: string | null }>({
-    path: "",
-    url: null,
-  });
+  const { status, url, markBroken } = useEvidenceUrl(path);
 
-  useEffect(() => {
-    if (isLegacy) return;
-
-    let canceled = false;
-    resolveEvidenceUrl(path)
-      .then((signedUrl) => {
-        if (!canceled) setResolved({ path, url: signedUrl });
-      })
-      .catch((err) => {
-        console.error("Failed to resolve evidence URL:", err);
-        if (!canceled) setResolved({ path, url: null });
-      });
-    return () => {
-      canceled = true;
-    };
-  }, [path, isLegacy]);
-
-  const url = isLegacy ? path : (resolved.path === path ? resolved.url : null);
+  if (status === "gone" || status === "failed") {
+    return <MediaUnavailable type={type} reason={status} className={className} />;
+  }
 
   if (!url) {
     return (
@@ -76,6 +59,7 @@ export function EvidenceMedia({
           <img
             src={url}
             alt={alt}
+            onError={markBroken}
             className={cn("absolute inset-0 w-full h-full object-cover", imgClassName)}
           />
         ) : (
@@ -83,10 +67,14 @@ export function EvidenceMedia({
             src={url}
             alt={alt}
             fill
+            // Straight from Storage, never through the image optimizer: its
+            // cache would keep a resized copy of a private photo (4 hours by
+            // default in Next 16) behind a URL that outlives the signed
+            // link's hour and the check-in itself. A GIF needs this anyway:
+            // the optimizer's re-encoding would stop it moving.
+            unoptimized
+            onError={markBroken}
             sizes="(max-width: 640px) 100vw, 640px"
-            // A GIF is loaded as it is. The optimizer's job is to re-encode
-            // at a smaller size, and that would stop it moving.
-            unoptimized={/\.gif$/i.test(path)}
             className={cn("object-cover", imgClassName)}
           />
         )}
@@ -97,6 +85,7 @@ export function EvidenceMedia({
   return (
     <video
       src={url}
+      onError={markBroken}
       controls
       playsInline
       // Only enough to show its length and first frame: a list of these must

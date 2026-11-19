@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { resolveEvidenceUrl } from "@/lib/utils/evidence";
+import { useEvidenceUrl } from "@/lib/hooks/useEvidenceUrl";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { MediaUnavailable } from "@/components/ui/MediaUnavailable";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { cn } from "@/lib/utils/cn";
 
@@ -19,30 +19,11 @@ interface EvidenceAudioProps {
  * resolves storage paths to short-lived signed URLs at render time.
  */
 export function EvidenceAudio({ path, className }: EvidenceAudioProps) {
-  const isLegacy = path.startsWith("http");
-  const [resolved, setResolved] = useState<{ path: string; url: string | null }>({
-    path: "",
-    url: null,
-  });
+  const { status, url, markBroken } = useEvidenceUrl(path);
 
-  useEffect(() => {
-    if (isLegacy) return;
-
-    let canceled = false;
-    resolveEvidenceUrl(path)
-      .then((signedUrl) => {
-        if (!canceled) setResolved({ path, url: signedUrl });
-      })
-      .catch((err) => {
-        console.error("Failed to resolve evidence URL:", err);
-        if (!canceled) setResolved({ path, url: null });
-      });
-    return () => {
-      canceled = true;
-    };
-  }, [path, isLegacy]);
-
-  const url = isLegacy ? path : (resolved.path === path ? resolved.url : null);
+  if (status === "gone" || status === "failed") {
+    return <MediaUnavailable type="voice" reason={status} className={className} />;
+  }
 
   if (!url) {
     return (
@@ -52,5 +33,5 @@ export function EvidenceAudio({ path, className }: EvidenceAudioProps) {
     );
   }
 
-  return <AudioPlayer src={url} waveKey={path} className={className} />;
+  return <AudioPlayer src={url} waveKey={path} onError={markBroken} className={className} />;
 }

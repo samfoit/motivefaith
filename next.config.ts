@@ -35,22 +35,18 @@ const nextConfig: NextConfig = {
     // SSRF guard). Development only — production never talks to one.
     dangerouslyAllowLocalIP: process.env.NODE_ENV === "development",
     remotePatterns: [
+      // Public buckets only (avatars). Private media (completions) is never
+      // optimized: the optimizer's cache would serve a copy past the signed
+      // URL's expiry, so EvidenceMedia loads it `unoptimized` and a signed
+      // URL here is refused outright.
       ...(supabaseHostname
-        ? [{ protocol: "https" as const, hostname: supabaseHostname }]
+        ? [{ protocol: "https" as const, hostname: supabaseHostname, pathname: "/storage/v1/object/public/**" }]
         : []),
       {
         protocol: "http",
         hostname: "127.0.0.1",
         port: "54321",
         pathname: "/storage/v1/object/public/**",
-      },
-      // Private buckets (completions: check-in and capture photos) are read
-      // through short-lived signed URLs.
-      {
-        protocol: "http",
-        hostname: "127.0.0.1",
-        port: "54321",
-        pathname: "/storage/v1/object/sign/**",
       },
     ],
   },
