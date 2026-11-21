@@ -199,8 +199,8 @@ const COMPLETION_LABELS: Record<string, string> = {
   quick: "Quick check-in",
   photo: "Photo proof",
   video: "Video proof",
-  message: "Reflection",
-  voice: "Voice message",
+  message: "Written note",
+  voice: "Voice note",
   rain_check: "Rain check",
 };
 

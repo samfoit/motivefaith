@@ -3,6 +3,7 @@
 import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Bell,
   LogOut,
   User,
   Palette,
@@ -316,7 +317,7 @@ export function ProfileClient({
           {/* Notifications */}
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <User className="w-4 h-4 text-text-tertiary" />
+              <Bell className="w-4 h-4 text-text-tertiary" />
               <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider">
                 Notifications
               </h2>
@@ -379,30 +380,47 @@ export function ProfileClient({
             </section>
           )}
 
-          {/* Account */}
+          {/* Account: rows on a solid card like the sections above, so the
+              labels never sit on the sky drawing. Plain list rows, not the
+              springy Button: a full-width row that lifts and grows slides out
+              from under the cursor and flickers its hover on and off. */}
           <section>
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={handleSignOut}
-              className="w-full justify-start text-miss-ink"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
-            </Button>
-          </section>
-
-          {/* Danger Zone */}
-          <section className="pt-4 border-t border-surface-hover">
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={() => setDeleteOpen(true)}
-              className="w-full justify-start text-miss-ink"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete Account</span>
-            </Button>
+            <div className="flex items-center gap-2 mb-3">
+              <User className="w-4 h-4 text-text-tertiary" />
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider">
+                Account
+              </h2>
+            </div>
+            <div className="rounded-lg bg-elevated shadow-sm overflow-hidden divide-y divide-surface-hover">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className={cn(
+                  "flex w-full items-center gap-3 px-4 py-3.5 text-left",
+                  "text-sm font-medium text-text-primary",
+                  "hover:bg-surface-hover transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-ink",
+                )}
+              >
+                <LogOut className="w-4 h-4 text-text-tertiary" aria-hidden />
+                Sign Out
+              </button>
+              {/* Red text on the 10% red wash is held to 4.5:1 by the
+                  palette test, so the hover keeps the label legible. */}
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                className={cn(
+                  "flex w-full items-center gap-3 px-4 py-3.5 text-left",
+                  "text-sm font-medium text-miss-ink",
+                  "hover:bg-miss/10 transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-miss-ink",
+                )}
+              >
+                <Trash2 className="w-4 h-4" aria-hidden />
+                Delete Account
+              </button>
+            </div>
           </section>
         </div>
       </div>

@@ -125,7 +125,7 @@ describe("CompletionForm content check-in", () => {
   it("checks in from the preview, with its caption and the private switch", async () => {
     // No camera here, so Content goes straight to the picker.
     const { container, onComplete, onOpenChange } = renderSheet();
-    fireEvent.click(screen.getByRole("button", { name: /Content/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Media/ }));
     await pick(container, photo());
 
     expect(await screen.findByAltText("Captured photo")).toBeInTheDocument();
@@ -151,7 +151,7 @@ describe("CompletionForm content check-in", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     upload.mockResolvedValueOnce({ error: { message: "network" } });
     const { container, onComplete } = renderSheet();
-    fireEvent.click(screen.getByRole("button", { name: /Content/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Media/ }));
     await pick(container, photo());
     await screen.findByAltText("Captured photo");
     fireEvent.change(screen.getByPlaceholderText("Add a caption..."), {
@@ -182,7 +182,7 @@ describe("CompletionForm content check-in", () => {
     });
     const { container } = renderSheet();
 
-    fireEvent.click(screen.getByRole("button", { name: /Content/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Media/ }));
     expect(await screen.findByText("Camera Access Denied")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Use File Picker Instead" }));
     const first = photo("first.jpg");
@@ -205,7 +205,7 @@ describe("CompletionForm content check-in", () => {
       fireEvent.click(screen.getByRole("button", { name: "Discard and retake" }));
     });
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Content/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Media/ }));
     expect(await screen.findByText("Camera Access Denied")).toBeInTheDocument();
     expect(screen.queryByAltText("Captured photo")).not.toBeInTheDocument();
   });
@@ -219,7 +219,7 @@ describe("CompletionForm recorded uploads", () => {
   it("names a recorded video for its type, not its codecs", async () => {
     installRecorder();
     const { onComplete } = renderSheet();
-    fireEvent.click(screen.getByRole("button", { name: /Content/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Media/ }));
     fireEvent.click(await screen.findByRole("radio", { name: "Video" }));
     await act(async () => {}); // the camera's stream
 
