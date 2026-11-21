@@ -170,7 +170,7 @@ export function CompletionForm({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Proxy input: on iOS, the keyboard only opens when focus occurs
   // synchronously inside a user-gesture handler. Since the TextArea doesn't
-  // exist yet when "Message" is tapped, we focus this invisible proxy first,
+  // exist yet when "Note" is tapped, we focus this invisible proxy first,
   // then transfer focus once the TextArea mounts.
   const proxyInputRef = useRef<HTMLInputElement>(null);
 
@@ -445,7 +445,7 @@ export function CompletionForm({
         <span>Log completion</span>
       </span>
     ) : mode === "message" ? (
-      "Reflection"
+      "Written note"
     ) : (
       "Rain check"
     );
@@ -489,20 +489,20 @@ export function CompletionForm({
 
               <CheckInTile
                 action="content"
-                title="Content"
+                title="Media"
                 hint="Photo or video"
                 onClick={handleContentSelect}
               />
               <CheckInTile
                 action="voice"
                 title="Voice"
-                hint="Record a note"
+                hint="Say it aloud"
                 onClick={handleVoiceSelect}
               />
               <CheckInTile
                 action="message"
-                title="Message"
-                hint="Write a note"
+                title="Note"
+                hint="Write it down"
                 onClick={handleMessageSelect}
               />
               <CheckInTile

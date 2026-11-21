@@ -5,7 +5,12 @@ import { cn } from "@/lib/utils/cn";
 export const buttonVariants = cva(
   [
     "inline-flex items-center justify-center font-medium",
-    "transition-transform duration-200 ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-0.5 hover:scale-105",
+    // One transition list for both: tailwind-merge treats transition-transform
+    // and transition-colors as the same property and keeps only the last, which
+    // left the lift snapping in un-animated while the fill faded. Colors ease
+    // out plainly; only the lift gets the spring, so a fill never overshoots.
+    "[transition:color_150ms_ease-out,background-color_150ms_ease-out,border-color_150ms_ease-out,translate_200ms_cubic-bezier(.34,1.56,.64,1),scale_200ms_cubic-bezier(.34,1.56,.64,1)]",
+    "hover:-translate-y-0.5 hover:scale-105",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
   ],
   {
@@ -71,7 +76,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading || undefined}
         className={cn(
           buttonVariants({ variant, size }),
-          "gap-2 select-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
+          "gap-2 select-none disabled:opacity-60 disabled:cursor-not-allowed",
           className,
         )}
         {...props}
